@@ -257,7 +257,7 @@ export function PersonaExperience({
       <section>
         <div className="flex items-baseline justify-between mb-3 px-2">
           <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
-            Choose a personality
+            Choose your AI's personality
           </span>
           <span className="text-[12px] text-foreground/45">Pick one, or fine-tune below</span>
         </div>
