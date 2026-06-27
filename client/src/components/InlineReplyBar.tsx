@@ -38,6 +38,7 @@ import {
   WandSparkles,
   File as FileIcon,
   Image as ImageIcon,
+  Video as VideoIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { APPLE_SPRING } from '@/lib/motion';
@@ -321,6 +322,11 @@ export function InlineReplyBar({
   // Attachments
   const [attachments, setAttachments] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // v-replaiy-2 — dedicated pickers for Photo and Video. LinkedIn messages
+  // support image + video (MP4) + generic file attachments, so we surface
+  // three distinct entry points that pre-filter the OS picker via `accept`.
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
   // Recipients als chip-arrays.
@@ -1475,14 +1481,14 @@ export function InlineReplyBar({
            verdeling en er ontstaat lege grijze ruimte onderaan de
            sheet. `shrink-0` fixt de chrome elementen en geeft de
            overflow-y:auto editor één duidelijke baan om in te scrollen. */}
+        {/* v-replaiy-2 — Header "balk" removed for chat replies. The empty
+           top bar previously held only the Maximize/fullscreen toggle, which
+           has no meaning in a chat reply (there is nothing to fullscreen).
+           We now render this header ONLY in composeMode, where it still
+           hosts the Close (X) button + discard popover. In reply mode the
+           editor starts directly with the draft text — no empty bar. */}
+        {composeMode && !chromeless && (
         <div className="shrink-0 px-4 pt-4 pb-3 border-b border-foreground/[0.06]">
-          {/* v-replaiy — Replaiy = LinkedIn outbound: replies always go to the
-             conversation's lead. No recipient picker, Cc/Bcc, subject, or
-             forward. We keep the header row purely as the home for the
-             fullscreen / close action buttons (Stilt's design unchanged). */}
-          {/* v-replaiy — duplicate lead-name header removed (name already
-             shows in the conversation pill + bubble). `mr-auto` moved to the
-             action group so the fullscreen/close buttons stay right-aligned. */}
           <div className="flex items-center gap-3 min-h-[36px]">
             {/* v32.1 — Right-side action group, split:
                 • Chevron (Cc/Bcc toggle): ALWAYS visible in sheetMode
@@ -1579,6 +1585,7 @@ export function InlineReplyBar({
 
           {/* v-replaiy — Cc/Bcc rows removed (LinkedIn has no Cc/Bcc). */}
         </div>
+        )}
 
         {/* v-replaiy — Subject row removed: LinkedIn conversations have no
            subject line. */}
@@ -1604,6 +1611,24 @@ export function InlineReplyBar({
           onChange={onFilesPicked}
           className="hidden"
           data-testid="file-input"
+        />
+        {/* v-replaiy-2 — Photo + Video pickers (LinkedIn supports both). */}
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={onFilesPicked}
+          className="hidden"
+          data-testid="photo-input"
+        />
+        <input
+          ref={videoInputRef}
+          type="file"
+          accept="video/*"
+          onChange={onFilesPicked}
+          className="hidden"
+          data-testid="video-input"
         />
 
         {/* v30.30 — Attachment chips boven editor area. LinkedIn supports
@@ -1663,7 +1688,7 @@ export function InlineReplyBar({
             }
           }}
           style={sheetMode ? { height: 0 } : undefined}
-          className={`reply-editor-content overflow-y-auto no-scrollbar px-4 pt-3 text-[14.5px] leading-relaxed tracking-[-0.005em] text-foreground outline-none ${
+          className={`reply-editor-content overflow-y-auto no-scrollbar px-4 pt-3 text-[16px] md:text-[14.5px] leading-relaxed tracking-[-0.005em] text-foreground outline-none ${
             sheetMode
               ? 'flex-1 basis-0 min-h-0 pb-4'
               : 'flex-1 min-h-[140px] pb-16'
@@ -1688,18 +1713,39 @@ export function InlineReplyBar({
             className="absolute z-10 flex items-center gap-2"
             style={{ right: 12, bottom: 12 }}
           >
-            {/* v-replaiy — Dismiss + Approve & send as one adjacent pair.
-               Dismiss is the quieter ghost button (Stilt's existing neutral
-               text-icon/hover-elevate style, no new style); Send stays the
-               solid Vadik glass pill. */}
+            {/* v-replaiy-2 — Dismiss + Approve & send as a clear good/bad
+               pair, both icon + text.
+               • Dismiss = red ghost (X + "Dismiss"). Quiet by default
+                 (subtle red tint), fills with a soft red wash on hover —
+                 reads as the "reject" action without shouting.
+               • Approve & send = solid Replaiy-blue pill (Send + "Send").
+                 One accent, buyer-safe, unmistakably the primary action.
+               Colours come from tokens (--destructive, --ai-accent) —
+               nothing hardcoded. */}
             {onDismiss && (
               <button
                 type="button"
                 data-testid="button-dismiss-draft"
                 aria-label="Dismiss draft"
                 onClick={onDismiss}
-                className="h-10 px-3.5 rounded-full flex items-center justify-center text-[13px] font-medium text-icon hover:text-foreground hover-elevate active-elevate-2"
+                className="group/dismiss h-10 pl-3 pr-3.5 rounded-full flex items-center gap-1.5 text-[13px] font-medium active-elevate-2 transition-colors"
+                style={{
+                  color: 'hsl(var(--destructive))',
+                  background:
+                    'color-mix(in srgb, hsl(var(--destructive)) 9%, transparent)',
+                  boxShadow:
+                    'inset 0 0 0 1px color-mix(in srgb, hsl(var(--destructive)) 22%, transparent)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background =
+                    'color-mix(in srgb, hsl(var(--destructive)) 16%, transparent)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background =
+                    'color-mix(in srgb, hsl(var(--destructive)) 9%, transparent)';
+                }}
               >
+                <X size={15} strokeWidth={2.2} />
                 Dismiss
               </button>
             )}
@@ -1708,10 +1754,22 @@ export function InlineReplyBar({
               data-testid="button-approve-send"
               aria-label="Approve & send"
               onClick={handleSend}
-              className="h-10 w-10 rounded-full flex items-center justify-center text-icon hover:text-foreground active-elevate-2"
-              style={replyPillStyle()}
+              className="h-10 pl-3.5 pr-4 rounded-full flex items-center gap-1.5 text-[13px] font-semibold active-elevate-2 transition-colors"
+              style={{
+                color: '#fff',
+                background: 'var(--ai-accent, #2F6BFF)',
+                boxShadow:
+                  '0 6px 18px 0 color-mix(in srgb, var(--ai-accent, #2F6BFF) 32%, transparent), inset 0 1px 0 0 rgba(255,255,255,0.22)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.filter = 'brightness(1.06)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.filter = 'none';
+              }}
             >
-              <Send size={17} strokeWidth={1.9} />
+              <Send size={16} strokeWidth={2} />
+              Send
             </button>
           </div>
         )}
@@ -1829,10 +1887,24 @@ export function InlineReplyBar({
                     className="flex items-center overflow-hidden"
                   >
                     <div className="flex items-center pr-1">
-                      {/* v-replaiy — Rich-text buttons (Bold/Italic/Underline)
-                         and the Insert-link button removed: LinkedIn messages
-                         have no rich text and auto-detect raw URLs. The media
-                         attach button below stays (LinkedIn supports it). */}
+                      {/* v-replaiy-2 — Rich-text removed (LinkedIn has none).
+                         Media row mirrors LinkedIn's composer: Photo, Video
+                         and generic File. Each opens its own pre-filtered
+                         OS picker. */}
+                      <ReplyFormatBtn
+                        label="Add photo"
+                        testId="reply-fmt-photo"
+                        onClick={() => photoInputRef.current?.click()}
+                      >
+                        <ImageIcon size={16} strokeWidth={2} />
+                      </ReplyFormatBtn>
+                      <ReplyFormatBtn
+                        label="Add video"
+                        testId="reply-fmt-video"
+                        onClick={() => videoInputRef.current?.click()}
+                      >
+                        <VideoIcon size={16} strokeWidth={2} />
+                      </ReplyFormatBtn>
                       <ReplyFormatBtn
                         label="Attach file"
                         testId="reply-fmt-attach"

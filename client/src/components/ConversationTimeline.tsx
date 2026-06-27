@@ -572,10 +572,13 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
   // still visible after the focus-mode sheet closes.
   const [aiDismissBump, setAiDismissBump] = useState(0);
 
-  // When forwardContext is set on mobile, also open the sheet. When the
-  // sheet closes via Send / Discard, reset both. (`forwardContext` lives
-  // for the sheet's lifetime; the sheet visibility itself is `mobileSheetActive`.)
-  const mobileSheetActive = isCompact && (replySheetOpen || !!forwardContext);
+  // v-replaiy-2 — The mobile 92vh reply "sheet" is retired. Replaiy chat
+  // replies now expand in-place at the bottom of the conversation
+  // (WhatsApp/iMessage style). Replaiy has no Forward, so there is no
+  // remaining reason to mount ComposeSheetMobile here. We hard-disable it
+  // (was: isCompact && (replySheetOpen || !!forwardContext)). The state
+  // setters stay defined so the rest of the file compiles unchanged.
+  const mobileSheetActive = false;
 
   // v30.30 — Inline reply / forward send.
   const onSendInline = (payload: {
@@ -1253,7 +1256,15 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
           onSend={onSendInline}
           onExpand={onExpandCompose}
           onExpandedChange={setReplyBarExpanded}
-          onOpenRequest={() => setReplySheetOpen(true)}
+          /* v-replaiy-2 — WhatsApp/iMessage-style mobile chat: the reply
+             bar now expands IN PLACE at the bottom of the conversation
+             (keyboard pushes it up via the dynamic scroll padding +
+             ResizeObserver above). We deliberately do NOT pass
+             onOpenRequest anymore — that used to lift the open intent to
+             the parent and mount a separate 92vh ComposeSheetMobile
+             "big screen", which felt like a different page instead of a
+             chat. Omitting it lets openEditor() fall through to
+             setExpanded(true) for a docked, in-thread editor. */
           /* v38 — Mobile collapsed preview also gets a Skip-X. Marker
              lives in localStorage; this callback is a no-op (the
              bar's own state hides the preview immediately). */

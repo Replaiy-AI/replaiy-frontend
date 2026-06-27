@@ -399,7 +399,9 @@ export function UniversalSearch() {
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={onKeyDown}
                 placeholder="Search drafts, leads, conversations…"
-                className="flex-1 min-w-0 bg-transparent text-[15.5px] outline-none placeholder:text-foreground/40 tracking-[-0.005em]"
+                /* v-replaiy-2 — 16px on mobile prevents iOS focus-zoom; the
+                   desktop size stays the refined 15.5px. */
+                className="flex-1 min-w-0 bg-transparent text-[16px] md:text-[15.5px] outline-none placeholder:text-foreground/40 tracking-[-0.005em]"
               />
               <kbd className="hidden md:inline-flex items-center gap-0.5 glass-pill pill px-2 py-0.5 text-[11px] font-semibold text-foreground/70 select-none">
                 ⌘K
@@ -414,10 +416,12 @@ export function UniversalSearch() {
               </button>
             </div>
 
-            {/* v30.30 — Context-aware chips: mail/cal/docs afhankelijk van
-                route. Klik op een chip = filter binnen modal, modal blijft
-                open. Tweede klik op zelfde chip = filter uit. Default state
-                = geen chip actief = search across all sources. */}
+            {/* v-replaiy-2 — Search shortcut chips removed for the mail/inbox
+                surface per Simon: search should be a clean lead/draft lookup,
+                not a filter board (the inbox already groups by section). The
+                Calendar surface keeps its chips because there they switch
+                calendar VIEWS (Today / Week / etc.), a different purpose. */}
+            {surface === 'calendar' && (
             <div className="flex items-center gap-2 px-5 py-3 overflow-x-auto no-scrollbar">
               {chips.map((c) => {
                 const Icon = c.icon;
@@ -457,6 +461,7 @@ export function UniversalSearch() {
                 );
               })}
             </div>
+            )}
 
             {/* Results */}
             <div className="flex-1 overflow-y-auto no-scrollbar px-2 py-2">
