@@ -236,8 +236,10 @@ function SmartConversationContent({
             </span>
           )}
         </div>
+        {/* Subtitle = the campaign this conversation belongs to (more useful
+            at-a-glance than role/company, which lives in the detail view). */}
         <div className="text-[13.5px] text-foreground/80 truncate leading-snug">
-          {mail.subject}
+          {mail.campaignName ?? mail.subject}
         </div>
         {/* Phase 3 — campaign-row-style progress line (goal pill + neutral
             bar + AI stage). Replaces the old italic SmartReasoningChip. */}

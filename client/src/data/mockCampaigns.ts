@@ -72,6 +72,9 @@ export interface Campaign {
   name: string;
   goalType: CampaignGoalType;
   goalLabel?: string; // required when goalType === 'custom'
+  // Short, human goal description shown as the row subtitle (one line, under
+  // the campaign name). In production this is AI/user-authored per campaign.
+  goalDescription?: string;
   status: CampaignStatus;
   // Seats running this campaign (WorkspaceMember ids). At least one when live.
   memberIds: string[];
@@ -143,6 +146,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     id: 'c1',
     name: 'Q3 — Series-B founders',
     goalType: 'meeting',
+    goalDescription: 'Book a 20-min intro call about reply quality',
     status: 'active',
     memberIds: ['m1', 'm2'],
     stats: {
@@ -159,6 +163,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     id: 'c2',
     name: 'RevOps leaders — NL/BE',
     goalType: 'demo',
+    goalDescription: 'Get them into a live product demo',
     status: 'active',
     memberIds: ['m3'],
     stats: {
@@ -175,6 +180,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     id: 'c3',
     name: 'Newsletter signups — warm',
     goalType: 'reply',
+    goalDescription: 'Earn a genuine reply from warm signups',
     status: 'active',
     memberIds: ['m2', 'm4'],
     stats: {
@@ -192,6 +198,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     name: 'Agency partnerships',
     goalType: 'custom',
     goalLabel: 'Intro call with their head of partnerships',
+    goalDescription: 'Intro call with their head of partnerships',
     status: 'paused',
     memberIds: ['m1'],
     stats: {
@@ -208,6 +215,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     id: 'c5',
     name: 'Inbound waitlist — qualify',
     goalType: 'qualified',
+    goalDescription: 'Qualify fit and intent before sales',
     status: 'draft',
     memberIds: [],
     stats: {

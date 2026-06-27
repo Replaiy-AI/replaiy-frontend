@@ -87,12 +87,14 @@ export function GoalPill({
   goalLabel?: string;
 }) {
   const meta = GOAL_META[goalType];
-  const label =
-    goalType === 'custom' && goalLabel ? goalLabel : meta.label;
+  // The pill ALWAYS shows the short goal type (Meeting / Demo / Reply /
+  // Qualified lead / Custom) — never a long free-form label. Any longer
+  // goal description lives in the row subtitle, so the pill never truncates.
+  void goalLabel;
   return (
-    <span className="glass-pill pill inline-flex items-center gap-1.5 h-[24px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/80 max-w-full">
+    <span className="glass-pill pill inline-flex items-center gap-1.5 h-[24px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/80 shrink-0">
       <Target size={12.5} strokeWidth={2.1} className="text-foreground/55 shrink-0" />
-      <span className="truncate">{label}</span>
+      <span className="whitespace-nowrap">{meta.label}</span>
     </span>
   );
 }
@@ -181,13 +183,20 @@ export function CampaignRow({
           </div>
         </div>
 
+        {/* Subtitle: a short, human goal description — what this campaign is
+            steering toward. Mirrors the conversation row's campaign subtitle
+            so the two surfaces share one structure (name → subtitle → pill). */}
+        {(campaign.goalDescription ?? campaign.goalLabel) && (
+          <div className="text-[13.5px] text-foreground/80 truncate leading-snug">
+            {campaign.goalDescription ?? campaign.goalLabel}
+          </div>
+        )}
+
         {/* Tier 2: a single aligned line — goal pill, the quiet neutral
             conversion bar filling the middle, then the % read-out. All
             vertically centered on one clean baseline. */}
         <div className="mt-2 flex items-center gap-2.5 min-w-0">
-          {/* shrink-0 so the pill keeps its size for normal labels; capped so a
-              long custom label truncates instead of crowding out the bar. */}
-          <span className="shrink-0 max-w-[48%] min-w-0">
+          <span className="shrink-0">
             <GoalPill goalType={campaign.goalType} goalLabel={campaign.goalLabel} />
           </span>
           <span className="flex-1 min-w-0 flex items-center">
