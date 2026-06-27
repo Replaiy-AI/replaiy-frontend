@@ -78,16 +78,20 @@ function PresetCard({
         variants={{ hover: { y: -6, rotate: -3, scale: 1.06 } }}
         transition={APPLE_SPRING}
       >
-        {/* Coloured glow behind the mascot — blooms on hover/active. */}
+        {/* Coloured glow behind the mascot — every preset keeps a soft always-on
+            podium in its colour (so each personality reads even when unselected
+            and the mascot stays grounded on dark cards); blooms stronger on
+            hover and when selected. */}
         <motion.div
           aria-hidden
           className="absolute inset-0 rounded-full"
           initial={false}
-          animate={{ opacity: active ? 0.5 : 0.0 }}
-          variants={{ hover: { opacity: 0.55 } }}
+          animate={{ opacity: active ? 0.55 : 0.22 }}
+          variants={{ hover: { opacity: 0.6 } }}
+          transition={APPLE_SPRING}
           style={{
-            background: `radial-gradient(circle at 50% 45%, ${preset.color}, transparent 68%)`,
-            filter: 'blur(10px)',
+            background: `radial-gradient(circle at 50% 48%, ${preset.color}, transparent 68%)`,
+            filter: 'blur(11px)',
           }}
         />
         <motion.img
