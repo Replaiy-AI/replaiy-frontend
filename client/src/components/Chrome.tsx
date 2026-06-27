@@ -119,7 +119,7 @@ export function MobileBottomNav() {
               segments={[
                 { key: 'inbox',     icon: PRIMARY_NAV[0].icon, label: 'Inbox' },
                 { key: 'campaigns', icon: PRIMARY_NAV[1].icon, label: 'Campaigns' },
-                { key: 'ai',        icon: PRIMARY_NAV[2].icon, label: 'Mijn AI' },
+                { key: 'ai',        icon: PRIMARY_NAV[2].icon, label: 'My AI' },
                 { key: 'calendar',  icon: PRIMARY_NAV[3].icon, label: 'Calendar' },
               ]}
             />

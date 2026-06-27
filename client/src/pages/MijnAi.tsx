@@ -1,27 +1,34 @@
 // ─────────────────────────────────────────────────────────────────
-// MijnAi — de "Mijn AI" surface (4e nav-tab).
+// MijnAi — the DETAIL pane of the "My AI" list-detail surface.
 //
-// Eén plek voor alles wat bepaalt hoe je AI zich gedraagt:
-//   1. Persona            → tone_profile + strategy_profile (seat-niveau)
-//   2. Knowledge          → Persoonlijk | Workspace (rol-gated)
+// My AI is a true sibling of the Inbox and Campaigns: a left list column
+// (AiList) drives which detail shows here in the right pane, via the /ai
+// sub-route. This component renders ONLY the right pane:
 //
-// Niks verstopt: de avatar blijft vrij voor later account-gebruik.
+//   /ai                    → calm empty-state ("Select a part"), like the inbox
+//   /ai/persona            → Persona: tone of voice + strategy
+//   /ai/knowledge-personal → Personal knowledge: questions + files
+//   /ai/knowledge-workspace→ Workspace knowledge: questions + files (role-gated)
 //
-// Karakter: configuratie (instellen), niet interactie. De toekomstige
-// "Training center" wordt een aparte surface waar je je AION traint/test
-// en feedback teruggeeft naar deze persona.
+// Parts (everything serves the same goal — a better AI):
+//   1. Persona             → HOW your AI sounds/reacts/thinks
+//   2. Personal knowledge  → what YOU teach your AI (questions + files)
+//   3. Workspace knowledge → what the COMPANY teaches the AI (questions + files)
 //
-// Bouwt volledig op design-system primitives (glass-pill, stilt-card,
-// hover-elevate, active-elevate-2, ProfileInitials). Geen hand-rolled glass.
-// Layout-shell matcht de Briefing-pagina (gold-standard sibling surface):
-//   flex flex-col h-full min-h-0 overflow-y-auto + max-w container.
+// State (persona + workspace) lives in StiltContext so this pane and the
+// AiList column read/write the same data — exactly like campaigns are shared
+// between CampaignsList and CampaignDetail.
 //
-// Mock-fase: leest/schrijft lokale kopieën van mockPersona / mockWorkspace
-// via React-state. Backend-koppeling (upsert_persona, rag_documents) volgt
-// in de API-laag.
+// Built on design-system primitives (glass-pill, stilt-card, hover-elevate,
+// active-elevate-2). Glass is reserved for real containers; small elements
+// (status, badges) are flat, matching the inbox's restraint.
 // ─────────────────────────────────────────────────────────────────
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useRef, useLayoutEffect, useMemo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useLocation } from 'wouter';
+import { APPLE_SPRING } from '@/lib/motion';
+import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
+import { ActionPill } from '@/components/ConversationDetailToolbar';
 import {
   Sparkles,
   Plus,
@@ -31,27 +38,29 @@ import {
   Trash2,
   Check,
   Lock,
-  User as UserIcon,
-  Building2,
+  ArrowLeft,
+  MessageCircleQuestion,
+  Files,
 } from 'lucide-react';
-import { ProfileInitials } from '@/components/GlassCircleButton';
+import { useStilt } from '@/state/StiltContext';
+import { StiltLogo } from '@/components/Logo';
 import {
-  mockPersona,
   type Persona,
   type ToneFormality,
   type ToneLength,
   type StrategyStance,
-  type PersonaKnowledgeDoc,
+  type KnowledgeBundle,
+  type KnowledgeDoc,
 } from '@/data/mockPersona';
 import {
-  mockWorkspace,
   canEditWorkspaceKnowledge,
   type Workspace,
 } from '@/data/mockWorkspace';
 
-// ── Kleine inline segmented selector op glass-pill basis ──────────
-// Lichtgewicht alternatief voor GlassSegmentedToggle (die is icon/nav-
-// georiënteerd). Zelfde glass-taal: pill-track + hover/active-elevate.
+// ════════════════════════════════════════════════════════════════
+// Shared small primitives
+// ════════════════════════════════════════════════════════════════
+
 function SegmentedPills<K extends string>({
   value,
   options,
@@ -64,10 +73,7 @@ function SegmentedPills<K extends string>({
   testId?: string;
 }) {
   return (
-    <div
-      data-testid={testId}
-      className="glass-pill pill inline-flex items-center p-1 gap-1 w-full"
-    >
+    <div data-testid={testId} className="glass-pill pill inline-flex items-center p-1 gap-1 w-full">
       {options.map((o) => {
         const active = o.key === value;
         return (
@@ -78,15 +84,12 @@ function SegmentedPills<K extends string>({
             aria-pressed={active}
             onClick={() => onChange(o.key)}
             className={`flex-1 h-8 rounded-full text-[13px] font-medium transition-colors ${
-              active
-                ? 'text-foreground active-elevate-2'
-                : 'text-foreground/55 hover-elevate'
+              active ? 'text-foreground active-elevate-2' : 'text-foreground/55 hover-elevate'
             }`}
             style={
               active
                 ? {
-                    background:
-                      'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.60))',
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.60))',
                     boxShadow:
                       'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 0 0 1px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.06)',
                   }
@@ -101,23 +104,9 @@ function SegmentedPills<K extends string>({
   );
 }
 
-// ── Section header (consistent met AiSummarySheet / Briefing) ─────
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="inline-flex items-center gap-1.5 mb-2.5">
-      <Sparkles size={12} strokeWidth={2.2} className="text-icon-muted" />
-      <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold text-foreground/70">
-        {children}
-      </span>
-    </div>
-  );
-}
-
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="block text-[12px] font-semibold text-foreground/65 mb-1.5">
-      {children}
-    </span>
+    <span className="block text-[12px] font-semibold text-foreground/65 mb-1.5">{children}</span>
   );
 }
 
@@ -134,20 +123,58 @@ function GlassTextarea({
   rows?: number;
   testId?: string;
 }) {
+  // Auto-grow to fit content so answers never clip (rows is the min height).
+  // On a narrow phone an answer can wrap to more lines than `rows` — without
+  // this the last line would be hidden by the fixed-height textarea.
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const resize = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  // Recalculate on value change.
+  useLayoutEffect(() => {
+    resize();
+  }, [value]);
+  // Recalculate after first layout settles (fonts/responsive width) and on any
+  // width change. Without this the initial scrollHeight is measured against a
+  // not-yet-final width, so wrapped answers can clip on narrow phones. We also
+  // wait for web fonts to finish loading because metrics shift line-wrapping,
+  // and resize once more on the next frame after that.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const raf = requestAnimationFrame(() => requestAnimationFrame(resize));
+    const ro = new ResizeObserver(() => resize());
+    ro.observe(el);
+    let fontRaf = 0;
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (fonts?.ready) {
+      fonts.ready.then(() => {
+        fontRaf = requestAnimationFrame(resize);
+      });
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      cancelAnimationFrame(fontRaf);
+      ro.disconnect();
+    };
+  }, []);
   return (
     <textarea
+      ref={ref}
       data-testid={testId}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full resize-none rounded-2xl bg-foreground/[0.035] dark:bg-white/[0.04] px-3.5 py-2.5 text-[14px] leading-[1.5] text-foreground/90 placeholder:text-foreground/35 outline-none focus:bg-foreground/[0.06] dark:focus:bg-white/[0.06] transition-colors"
+      className="w-full resize-none rounded-2xl bg-foreground/[0.035] dark:bg-white/[0.04] px-3.5 py-2.5 text-[14px] leading-[1.5] text-foreground/90 placeholder:text-foreground/35 outline-none focus:bg-foreground/[0.06] dark:focus:bg-white/[0.06] transition-colors overflow-hidden"
       style={{ boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.05)' }}
     />
   );
 }
 
-// ── Bewerkbare lijst (do's / don'ts) ──────────────────────────────
 function EditableList({
   items,
   onChange,
@@ -158,7 +185,6 @@ function EditableList({
   items: string[];
   onChange: (items: string[]) => void;
   placeholder: string;
-  /** dot kleur — blauw voor do's, neutraal voor don'ts */
   accent: boolean;
   testId?: string;
 }) {
@@ -183,7 +209,7 @@ function EditableList({
           <span className="flex-1 text-[13.5px] leading-[1.45] text-foreground/85">{it}</span>
           <button
             type="button"
-            aria-label="Verwijder"
+            aria-label="Remove"
             data-testid={testId ? `${testId}-remove-${i}` : undefined}
             onClick={() => onChange(items.filter((_, j) => j !== i))}
             className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 -mr-1 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
@@ -209,7 +235,7 @@ function EditableList({
         />
         <button
           type="button"
-          aria-label="Toevoegen"
+          aria-label="Add"
           data-testid={testId ? `${testId}-add` : undefined}
           onClick={add}
           className="h-8 w-8 shrink-0 rounded-full glass-pill flex items-center justify-center text-icon hover-elevate active-elevate-2"
@@ -221,391 +247,530 @@ function EditableList({
   );
 }
 
-const KNOWLEDGE_ICON: Record<PersonaKnowledgeDoc['kind'], typeof FileText> = {
+const KNOWLEDGE_ICON: Record<KnowledgeDoc['kind'], typeof FileText> = {
   pdf: FileText,
   doc: FileText,
   note: StickyNote,
   link: Link2,
 };
 
-// ── Knowledge-document rij ────────────────────────────────────────
-function KnowledgeRow({
-  doc,
-  onRemove,
-  testIdPrefix,
+// ════════════════════════════════════════════════════════════════
+// Detail-pane shell: scroll container + back affordances on BOTH breakpoints.
+// Mobile reuses the top-chrome slot (••• -> back arrow). Desktop renders a
+// floating top row mirroring the inbox's desktop-pill-row.
+// ════════════════════════════════════════════════════════════════
+function ViewShell({
+  children,
+  title,
+  onBack,
 }: {
-  doc: PersonaKnowledgeDoc;
-  /** undefined = read-only (geen verwijder-knop, bv. workspace zonder rechten). */
-  onRemove?: () => void;
-  testIdPrefix: string;
+  children: React.ReactNode;
+  title: string;
+  onBack: () => void;
 }) {
-  const Icon = KNOWLEDGE_ICON[doc.kind];
+  // MOBILE back: the top-chrome slot (MijnAiDetailChromeSlot) replaces the •••
+  // with a back arrow. DESKTOP back: a floating top row mirroring the inbox's
+  // `desktop-pill-row` (ConversationDetail.tsx) — back ActionPill top-left and a
+  // centered plain title. The hub has no persistent list column on desktop, so
+  // this is the single way back to /ai (matching how opening an inbox
+  // conversation shows a back affordance + centered identity).
   return (
-    <div
-      data-testid={`${testIdPrefix}-${doc.id}`}
-      className="group stilt-card rounded-2xl px-3.5 py-3 flex items-center gap-3 hover-elevate"
-    >
-      <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
-        <Icon size={16} strokeWidth={1.8} />
+    <div className="relative flex flex-col h-full min-h-0 overflow-y-auto no-scrollbar">
+      {/* DESKTOP floating top row — same treatment as the inbox desktop pill
+          row: absolutely positioned, top-3, pointer-events gated so only the
+          pills are interactive. Back arrow left, plain title centered. */}
+      <div
+        data-testid="ai-desktop-pill-row"
+        className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none"
+      >
+        <div className="absolute top-0 left-6 pointer-events-auto">
+          <ActionPill testId="button-back" label="Back" onClick={onBack}>
+            <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+          </ActionPill>
+        </div>
+        <div className="flex justify-center items-center px-[120px]">
+          <div className="pointer-events-auto flex items-center h-[52px] min-w-0 max-w-[640px]">
+            <span className="text-[14px] font-semibold tracking-[-0.005em] truncate text-foreground">
+              {title}
+            </span>
+          </div>
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[14px] font-medium text-foreground truncate">{doc.title}</div>
-        <div className="text-[12px] text-foreground/50 truncate">{doc.hint}</div>
+
+      {/* pt-20 on mobile clears the fixed mobile top-chrome; lg:pt-[76px]
+          clears the floating desktop top row (12 top + 52 pill + 12 gap). */}
+      <div className="px-4 lg:px-8 pt-20 lg:pt-[76px] pb-28 lg:pb-12 max-w-2xl w-full">
+        {children}
       </div>
-      <span className="text-[11.5px] text-foreground/40 shrink-0">{doc.meta}</span>
-      {onRemove && (
-        <button
-          type="button"
-          aria-label="Verwijder document"
-          data-testid={`${testIdPrefix}-remove-${doc.id}`}
-          onClick={onRemove}
-          className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
-        >
-          <Trash2 size={13} strokeWidth={1.8} />
-        </button>
-      )}
     </div>
   );
 }
 
-export function MijnAi() {
-  // Lokale, bewerkbare kopieën (mock-fase).
-  const [persona, setPersona] = useState<Persona>(mockPersona);
-  const [workspace, setWorkspace] = useState<Workspace>(mockWorkspace);
-  // Welk knowledge-niveau is actief.
-  const [knowledgeScope, setKnowledgeScope] = useState<'personal' | 'workspace'>('personal');
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="inline-flex items-center gap-1.5 mb-2.5">
+      <Sparkles size={12} strokeWidth={2.2} className="text-icon-muted" />
+      <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold text-foreground/70">
+        {children}
+      </span>
+    </div>
+  );
+}
 
+// ════════════════════════════════════════════════════════════════
+// PERSONA detail — tone of voice + strategy
+// ════════════════════════════════════════════════════════════════
+function PersonaDetail({
+  persona,
+  setPersona,
+  onBack,
+}: {
+  persona: Persona;
+  setPersona: React.Dispatch<React.SetStateAction<Persona>>;
+  onBack: () => void;
+}) {
   const tone = persona.tone;
   const strategy = persona.strategy;
-  const canEditWs = canEditWorkspaceKnowledge(workspace.currentRole);
-
   const patchTone = (p: Partial<typeof tone>) =>
     setPersona((prev) => ({ ...prev, tone: { ...prev.tone, ...p } }));
   const patchStrategy = (p: Partial<typeof strategy>) =>
     setPersona((prev) => ({ ...prev, strategy: { ...prev.strategy, ...p } }));
 
-  const addPersonalDoc = () =>
-    setPersona((prev) => ({
-      ...prev,
-      knowledge: [
-        ...prev.knowledge,
-        { id: `kn_${Date.now()}`, title: 'Nieuw document', kind: 'doc', hint: 'Nog te uploaden', meta: 'Concept' },
-      ],
-    }));
-  const removePersonalDoc = (id: string) =>
-    setPersona((prev) => ({ ...prev, knowledge: prev.knowledge.filter((d) => d.id !== id) }));
+  return (
+    <ViewShell title="Persona" onBack={onBack}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+        <SectionLabel>Persona</SectionLabel>
+        <h1 className="text-[22px] lg:text-[26px] font-semibold tracking-[-0.025em] leading-tight">
+          How your AI sounds &amp; thinks
+        </h1>
+        <p className="text-[13.5px] leading-[1.5] text-foreground/55 mt-1.5 mb-6">
+          The voice and strategy your AI uses in every conversation.
+        </p>
 
-  const addWsDoc = () =>
-    setWorkspace((prev) => ({
+        {/* Tone of voice */}
+        <div className="stilt-card rounded-3xl p-4 lg:p-5 mb-3" data-testid="persona-tone">
+          <div className="text-[13px] font-semibold text-foreground/80 mb-3">Tone of voice</div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <FieldLabel>Language</FieldLabel>
+              <SegmentedPills
+                testId="tone-language"
+                value={tone.language}
+                onChange={(language) => patchTone({ language })}
+                options={[
+                  { key: 'nl', label: 'Dutch' },
+                  { key: 'en', label: 'English' },
+                ]}
+              />
+            </div>
+            <div>
+              <FieldLabel>Length</FieldLabel>
+              <SegmentedPills
+                testId="tone-length"
+                value={tone.length}
+                onChange={(length) => patchTone({ length: length as ToneLength })}
+                options={[
+                  { key: 'short', label: 'Short' },
+                  { key: 'medium', label: 'Med.' },
+                  { key: 'long', label: 'Long' },
+                ]}
+              />
+            </div>
+          </div>
+          <div className="mb-3">
+            <FieldLabel>Formality</FieldLabel>
+            <SegmentedPills
+              testId="tone-formality"
+              value={tone.formality}
+              onChange={(formality) => patchTone({ formality: formality as ToneFormality })}
+              options={[
+                { key: 'informal', label: 'Informal' },
+                { key: 'neutral', label: 'Neutral' },
+                { key: 'formal', label: 'Formal' },
+              ]}
+            />
+          </div>
+          <div className="mb-4">
+            <FieldLabel>Voice</FieldLabel>
+            <GlassTextarea
+              testId="tone-voice"
+              value={tone.voice}
+              onChange={(voice) => patchTone({ voice })}
+              placeholder="Describe how you want to sound…"
+              rows={4}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <FieldLabel>Do's</FieldLabel>
+              <EditableList
+                testId="tone-dos"
+                accent
+                items={tone.dos}
+                onChange={(dos) => patchTone({ dos })}
+                placeholder="Add a do…"
+              />
+            </div>
+            <div>
+              <FieldLabel>Don'ts</FieldLabel>
+              <EditableList
+                testId="tone-donts"
+                accent={false}
+                items={tone.donts}
+                onChange={(donts) => patchTone({ donts })}
+                placeholder="Add a don't…"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Strategy */}
+        <div className="stilt-card rounded-3xl p-4 lg:p-5" data-testid="persona-strategy">
+          <div className="text-[13px] font-semibold text-foreground/80 mb-3">Strategy</div>
+          <div className="mb-3">
+            <FieldLabel>Approach</FieldLabel>
+            <SegmentedPills
+              testId="strategy-stance"
+              value={strategy.stance}
+              onChange={(stance) => patchStrategy({ stance: stance as StrategyStance })}
+              options={[
+                { key: 'patient', label: 'Patient' },
+                { key: 'balanced', label: 'Balanced' },
+                { key: 'push', label: 'Push' },
+              ]}
+            />
+          </div>
+          <div className="mb-3">
+            <FieldLabel>Qualifying</FieldLabel>
+            <GlassTextarea
+              testId="strategy-qualification"
+              value={strategy.qualification}
+              onChange={(qualification) => patchStrategy({ qualification })}
+              placeholder="How do you surface fit and intent?"
+              rows={2}
+            />
+          </div>
+          <div className="mb-3">
+            <FieldLabel>Closing</FieldLabel>
+            <GlassTextarea
+              testId="strategy-closing"
+              value={strategy.closing}
+              onChange={(closing) => patchStrategy({ closing })}
+              placeholder="How and when do you suggest the next step?"
+              rows={2}
+            />
+          </div>
+          <div>
+            <FieldLabel>Push vs. wait</FieldLabel>
+            <GlassTextarea
+              testId="strategy-pushwait"
+              value={strategy.pushVsWait}
+              onChange={(pushVsWait) => patchStrategy({ pushVsWait })}
+              placeholder="When would you rather wait than push?"
+              rows={2}
+            />
+          </div>
+        </div>
+
+        <SaveButton testId="persona-save" onClick={onBack} />
+      </motion.div>
+    </ViewShell>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// KNOWLEDGE detail — questions (Q&A) + files. Shared by personal and
+// workspace; workspace can be read-only (role gating).
+// ════════════════════════════════════════════════════════════════
+function KnowledgeDetail({
+  scope,
+  bundle,
+  setBundle,
+  editable,
+  onBack,
+}: {
+  scope: 'personal' | 'workspace';
+  bundle: KnowledgeBundle;
+  setBundle: (updater: (prev: KnowledgeBundle) => KnowledgeBundle) => void;
+  editable: boolean;
+  onBack: () => void;
+}) {
+  const isPersonal = scope === 'personal';
+  const title = isPersonal ? 'Personal knowledge' : 'Workspace knowledge';
+  const intro = isPersonal
+    ? 'Only your AI uses this — answer a few questions or add your own material.'
+    : 'Company-wide knowledge, shared with your whole team.' +
+      (editable ? '' : ' Read-only for your role.');
+
+  const setAnswer = (id: string, answer: string) =>
+    setBundle((prev) => ({
       ...prev,
-      knowledge: [
-        ...prev.knowledge,
-        { id: `ws_${Date.now()}`, title: 'Nieuw document', kind: 'doc', hint: 'Nog te uploaden', meta: 'Concept' },
+      questions: prev.questions.map((q) => (q.id === id ? { ...q, answer } : q)),
+    }));
+
+  const addFile = () =>
+    setBundle((prev) => ({
+      ...prev,
+      files: [
+        ...prev.files,
+        { id: `f_${Date.now()}`, title: 'New document', kind: 'doc', hint: 'Not uploaded yet', meta: 'Draft' },
       ],
     }));
-  const removeWsDoc = (id: string) =>
-    setWorkspace((prev) => ({ ...prev, knowledge: prev.knowledge.filter((d) => d.id !== id) }));
+  const removeFile = (id: string) =>
+    setBundle((prev) => ({ ...prev, files: prev.files.filter((f) => f.id !== id) }));
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-y-auto no-scrollbar">
-      {/* pt-20 op mobiel: de header moet vrij blijven van de persistente
-          mobile top-chrome (avatar + search), die fixed op ~12+52px zweeft
-          met content eronder. lg gebruikt de normale pt-10 (geen chrome). */}
-      <div className="px-4 lg:px-8 pt-20 lg:pt-10 pb-28 lg:pb-12 max-w-2xl mx-auto w-full">
-        {/* Page header */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <div className="flex items-center gap-2 text-foreground/70 mb-2">
-            <Sparkles size={14} />
-            <span className="text-[11px] uppercase tracking-wider font-semibold">Mijn AI</span>
-          </div>
-          <div className="flex items-center gap-3.5">
-            <div
-              className="h-12 w-12 shrink-0 rounded-full glass-pill flex items-center justify-center"
-              data-testid="mijn-ai-avatar"
-            >
-              <ProfileInitials initials={persona.memberInitials} />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-[24px] lg:text-[28px] font-semibold tracking-[-0.025em] leading-tight truncate">
-                {persona.memberName}
-              </h1>
-              <p className="text-[14px] text-muted-foreground mt-0.5 truncate">{persona.role}</p>
-            </div>
-          </div>
-        </motion.div>
+    <ViewShell title={title} onBack={onBack}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+        <SectionLabel>{isPersonal ? 'Personal' : 'Workspace'}</SectionLabel>
+        <div className="flex items-center gap-2">
+          <h1 className="text-[22px] lg:text-[26px] font-semibold tracking-[-0.025em] leading-tight">{title}</h1>
+          {!editable && <Lock size={16} strokeWidth={2} className="text-icon-muted" />}
+        </div>
+        <p className="text-[13.5px] leading-[1.5] text-foreground/55 mt-1.5 mb-6">{intro}</p>
 
-        {/* ── SECTIE 1: Persona ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.05 }}
-          className="mt-8"
-        >
-          <SectionLabel>Persona</SectionLabel>
-          <p className="text-[13px] leading-[1.5] text-foreground/55 -mt-1 mb-4">
-            Hoe je AI klinkt en welke strategie hij volgt in jouw LinkedIn-gesprekken.
-          </p>
-
-          {/* Tone of voice card */}
-          <div className="stilt-card rounded-3xl p-4 lg:p-5 mb-3" data-testid="mijn-ai-tone">
-            <div className="text-[13px] font-semibold text-foreground/80 mb-3">Tone of voice</div>
-
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <FieldLabel>Taal</FieldLabel>
-                <SegmentedPills
-                  testId="ai-tone-language"
-                  value={tone.language}
-                  onChange={(language) => patchTone({ language })}
-                  options={[
-                    { key: 'nl', label: 'Nederlands' },
-                    { key: 'en', label: 'English' },
-                  ]}
+        {/* ── Questions ── */}
+        <div className="flex items-center gap-1.5 mb-3">
+          <MessageCircleQuestion size={14} strokeWidth={2} className="text-icon-muted" />
+          <span className="text-[13px] font-semibold text-foreground/80">Questions</span>
+        </div>
+        <div className="flex flex-col gap-3 mb-7" data-testid={`knowledge-${scope}-questions`}>
+          {bundle.questions.map((q) => (
+            <div key={q.id} className="stilt-card rounded-2xl p-4" data-testid={`question-${q.id}`}>
+              <div className="text-[14px] font-medium text-foreground leading-snug">{q.question}</div>
+              {q.hint && <div className="text-[12px] text-foreground/45 mt-0.5 mb-2.5">{q.hint}</div>}
+              {editable ? (
+                <GlassTextarea
+                  testId={`answer-${q.id}`}
+                  value={q.answer}
+                  onChange={(v) => setAnswer(q.id, v)}
+                  placeholder="Your answer…"
+                  rows={3}
                 />
-              </div>
-              <div>
-                <FieldLabel>Lengte</FieldLabel>
-                <SegmentedPills
-                  testId="ai-tone-length"
-                  value={tone.length}
-                  onChange={(length) => patchTone({ length: length as ToneLength })}
-                  options={[
-                    { key: 'kort', label: 'Kort' },
-                    { key: 'gemiddeld', label: 'Gem.' },
-                    { key: 'uitgebreid', label: 'Lang' },
-                  ]}
-                />
-              </div>
-            </div>
-
-            <div className="mb-3">
-              <FieldLabel>Formaliteit</FieldLabel>
-              <SegmentedPills
-                testId="ai-tone-formality"
-                value={tone.formality}
-                onChange={(formality) => patchTone({ formality: formality as ToneFormality })}
-                options={[
-                  { key: 'informeel', label: 'Informeel' },
-                  { key: 'neutraal', label: 'Neutraal' },
-                  { key: 'formeel', label: 'Formeel' },
-                ]}
-              />
-            </div>
-
-            <div className="mb-4">
-              <FieldLabel>Stem</FieldLabel>
-              <GlassTextarea
-                testId="ai-tone-voice"
-                value={tone.voice}
-                onChange={(voice) => patchTone({ voice })}
-                placeholder="Beschrijf hoe je wilt klinken…"
-                rows={4}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <FieldLabel>Do's</FieldLabel>
-                <EditableList
-                  testId="ai-tone-dos"
-                  accent
-                  items={tone.dos}
-                  onChange={(dos) => patchTone({ dos })}
-                  placeholder="Voeg een do toe…"
-                />
-              </div>
-              <div>
-                <FieldLabel>Don'ts</FieldLabel>
-                <EditableList
-                  testId="ai-tone-donts"
-                  accent={false}
-                  items={tone.donts}
-                  onChange={(donts) => patchTone({ donts })}
-                  placeholder="Voeg een don't toe…"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Strategie card */}
-          <div className="stilt-card rounded-3xl p-4 lg:p-5" data-testid="mijn-ai-strategy">
-            <div className="text-[13px] font-semibold text-foreground/80 mb-3">Strategie</div>
-
-            <div className="mb-3">
-              <FieldLabel>Aanpak</FieldLabel>
-              <SegmentedPills
-                testId="ai-strategy-stance"
-                value={strategy.stance}
-                onChange={(stance) => patchStrategy({ stance: stance as StrategyStance })}
-                options={[
-                  { key: 'geduldig', label: 'Geduldig' },
-                  { key: 'gebalanceerd', label: 'Gebalanceerd' },
-                  { key: 'push', label: 'Push' },
-                ]}
-              />
-            </div>
-
-            <div className="mb-3">
-              <FieldLabel>Kwalificeren</FieldLabel>
-              <GlassTextarea
-                testId="ai-strategy-qualification"
-                value={strategy.qualification}
-                onChange={(qualification) => patchStrategy({ qualification })}
-                placeholder="Hoe achterhaal je fit en intentie?"
-                rows={2}
-              />
-            </div>
-
-            <div className="mb-3">
-              <FieldLabel>Closen</FieldLabel>
-              <GlassTextarea
-                testId="ai-strategy-closing"
-                value={strategy.closing}
-                onChange={(closing) => patchStrategy({ closing })}
-                placeholder="Hoe en wanneer stel je de volgende stap voor?"
-                rows={2}
-              />
-            </div>
-
-            <div>
-              <FieldLabel>Push vs. wachten</FieldLabel>
-              <GlassTextarea
-                testId="ai-strategy-pushwait"
-                value={strategy.pushVsWait}
-                onChange={(pushVsWait) => patchStrategy({ pushVsWait })}
-                placeholder="Wanneer wacht je liever dan te duwen?"
-                rows={2}
-              />
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ── SECTIE 2: Knowledge ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="mt-8"
-        >
-          <SectionLabel>Knowledge</SectionLabel>
-          <p className="text-[13px] leading-[1.5] text-foreground/55 -mt-1 mb-4">
-            Wat je AI weet — persoonlijk materiaal en bedrijfsbrede kennis.
-          </p>
-
-          {/* Niveau-toggle: Persoonlijk | Workspace */}
-          <div className="glass-pill pill inline-flex items-center p-1 gap-1 w-full mb-4" data-testid="ai-knowledge-scope">
-            {([
-              { key: 'personal' as const, label: 'Persoonlijk', icon: UserIcon },
-              { key: 'workspace' as const, label: 'Workspace', icon: Building2 },
-            ]).map((o) => {
-              const active = o.key === knowledgeScope;
-              const Icon = o.icon;
-              return (
-                <button
-                  key={o.key}
-                  type="button"
-                  data-testid={`ai-knowledge-scope-${o.key}`}
-                  aria-pressed={active}
-                  onClick={() => setKnowledgeScope(o.key)}
-                  className={`flex-1 h-9 rounded-full text-[13px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors ${
-                    active ? 'text-foreground active-elevate-2' : 'text-foreground/55 hover-elevate'
-                  }`}
-                  style={
-                    active
-                      ? {
-                          background: 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.60))',
-                          boxShadow:
-                            'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 0 0 1px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.06)',
-                        }
-                      : undefined
-                  }
-                >
-                  <Icon size={14} strokeWidth={1.9} />
-                  {o.label}
-                  {o.key === 'workspace' && !canEditWs && (
-                    <Lock size={11} strokeWidth={2} className="text-icon-muted" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* PERSOONLIJK */}
-          {knowledgeScope === 'personal' && (
-            <div className="flex flex-col gap-2" data-testid="ai-knowledge-personal">
-              <p className="text-[12.5px] leading-[1.5] text-foreground/50 mb-1">
-                Alleen jouw AI gebruikt dit — schrijfvoorbeelden, je pitch, eigen materiaal.
-              </p>
-              {persona.knowledge.map((doc) => (
-                <KnowledgeRow
-                  key={doc.id}
-                  doc={doc}
-                  testIdPrefix="ai-knowledge-personal-doc"
-                  onRemove={() => removePersonalDoc(doc.id)}
-                />
-              ))}
-              <button
-                type="button"
-                data-testid="ai-knowledge-personal-add"
-                onClick={addPersonalDoc}
-                className="glass-pill pill h-11 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold text-foreground/70 hover-elevate active-elevate-2"
-              >
-                <Plus size={15} strokeWidth={2} />
-                Document toevoegen
-              </button>
-            </div>
-          )}
-
-          {/* WORKSPACE */}
-          {knowledgeScope === 'workspace' && (
-            <div className="flex flex-col gap-2" data-testid="ai-knowledge-workspace">
-              <p className="text-[12.5px] leading-[1.5] text-foreground/50 mb-1">
-                Bedrijfsbrede kennis — prijzen, producten, propositie. Gedeeld met het hele team.
-                {!canEditWs && ' Alleen-lezen voor jouw rol.'}
-              </p>
-              {workspace.knowledge.map((doc) => (
-                <KnowledgeRow
-                  key={doc.id}
-                  doc={doc}
-                  testIdPrefix="ai-knowledge-workspace-doc"
-                  onRemove={canEditWs ? () => removeWsDoc(doc.id) : undefined}
-                />
-              ))}
-              {canEditWs ? (
-                <button
-                  type="button"
-                  data-testid="ai-knowledge-workspace-add"
-                  onClick={addWsDoc}
-                  className="glass-pill pill h-11 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold text-foreground/70 hover-elevate active-elevate-2"
-                >
-                  <Plus size={15} strokeWidth={2} />
-                  Document toevoegen
-                </button>
               ) : (
-                <div
-                  data-testid="ai-knowledge-workspace-locked"
-                  className="rounded-2xl px-4 py-3 flex items-center gap-2.5 bg-foreground/[0.03] dark:bg-white/[0.03] text-[12.5px] text-foreground/45"
-                >
-                  <Lock size={13} strokeWidth={2} className="text-icon-muted shrink-0" />
-                  Alleen workspace-beheerders kunnen bedrijfskennis aanpassen.
-                </div>
+                <p className="text-[13.5px] leading-[1.5] text-foreground/80 mt-1 whitespace-pre-wrap">
+                  {q.answer || <span className="text-foreground/35">Not answered yet</span>}
+                </p>
               )}
             </div>
+          ))}
+        </div>
+
+        {/* ── Files ── */}
+        <div className="flex items-center gap-1.5 mb-3">
+          <Files size={14} strokeWidth={2} className="text-icon-muted" />
+          <span className="text-[13px] font-semibold text-foreground/80">Files</span>
+        </div>
+        <div className="flex flex-col gap-2" data-testid={`knowledge-${scope}-files`}>
+          {bundle.files.map((doc) => {
+            const Icon = KNOWLEDGE_ICON[doc.kind];
+            return (
+              <div
+                key={doc.id}
+                data-testid={`file-${doc.id}`}
+                className="group stilt-card rounded-2xl px-3.5 py-3 flex items-center gap-3 hover-elevate"
+              >
+                <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
+                  <Icon size={16} strokeWidth={1.8} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-medium text-foreground truncate">{doc.title}</div>
+                  <div className="text-[12px] text-foreground/50 truncate">{doc.hint}</div>
+                </div>
+                <span className="text-[11.5px] text-foreground/40 shrink-0">{doc.meta}</span>
+                {editable && (
+                  <button
+                    type="button"
+                    aria-label="Remove document"
+                    data-testid={`file-remove-${doc.id}`}
+                    onClick={() => removeFile(doc.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+                  >
+                    <Trash2 size={13} strokeWidth={1.8} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          {editable ? (
+            <button
+              type="button"
+              data-testid={`knowledge-${scope}-add`}
+              onClick={addFile}
+              className="glass-pill pill h-11 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold text-foreground/70 hover-elevate active-elevate-2"
+            >
+              <Plus size={15} strokeWidth={2} />
+              Add document
+            </button>
+          ) : (
+            <div
+              data-testid={`knowledge-${scope}-locked`}
+              className="rounded-2xl px-4 py-3 flex items-center gap-2.5 bg-foreground/[0.03] dark:bg-white/[0.03] text-[12.5px] text-foreground/45"
+            >
+              <Lock size={13} strokeWidth={2} className="text-icon-muted shrink-0" />
+              Only workspace admins can edit company knowledge.
+            </div>
+          )}
+        </div>
+
+        {editable && <SaveButton testId={`knowledge-${scope}-save`} onClick={onBack} />}
+      </motion.div>
+    </ViewShell>
+  );
+}
+
+function SaveButton({ testId, onClick }: { testId: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      className="mt-8 w-full pill h-12 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-white hover-elevate active-elevate-2"
+      style={{ background: 'linear-gradient(90deg, #1B3FA8 0%, #2F6BFF 100%)' }}
+    >
+      <Check size={15} strokeWidth={2.2} />
+      Save changes
+    </button>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// Empty-state — bare /ai, before a part is selected. Mirrors the inbox's
+// "Select a conversation" empty detail (same StiltLogo + copy shape). On
+// desktop the list column sits beside this; on mobile bare /ai shows the
+// full-screen list instead, so this reads mainly as a desktop affordance.
+// ════════════════════════════════════════════════════════════════
+function EmptyAiDetail() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+      <div className="mb-4">
+        <StiltLogo size={56} />
+      </div>
+      <h2 className="text-[20px] font-semibold tracking-[-0.02em]">Select a part</h2>
+      <p className="text-[14px] text-muted-foreground mt-1.5 max-w-xs">
+        Choose your persona or a knowledge area to shape how your AI sounds and
+        what it knows.
+      </p>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// Mobile top-chrome for an open detail. This is the SAME mechanism the inbox
+// uses (see ConversationDetail's ConversationDetailChromeSlot): registering a
+// `leftSlot` REPLACES the default ••• button with a back arrow in the same
+// position — so there is exactly ONE button, not two stacked elements. The
+// center togglePill shows a plain title so the user knows where they are.
+function MijnAiDetailChromeSlot({
+  title,
+  onBack,
+}: {
+  title: string;
+  onBack: () => void;
+}) {
+  const slot = useMemo(
+    () => ({
+      priority: 100,
+      leftSlot: (
+        <ActionPill testId="button-back" label="Back" onClick={onBack}>
+          <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+        </ActionPill>
+      ),
+      togglePill: (
+        <div
+          data-testid="mijn-ai-title"
+          className="inline-flex items-center px-1 h-[52px]"
+        >
+          <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[200px] text-foreground">
+            {title}
+          </span>
+        </div>
+      ),
+    }),
+    [title, onBack],
+  );
+  useMobileTopChromeSlot(slot);
+  return null;
+}
+
+// ════════════════════════════════════════════════════════════════
+// Router-aware DETAIL pane. Reads the /ai sub-route and renders the matching
+// detail (or the empty-state for bare /ai). State comes from StiltContext so
+// edits here reflect live in the AiList column. Each detail enters with an
+// Apple-spring slide, mirroring opening a conversation/campaign.
+// ════════════════════════════════════════════════════════════════
+export function MijnAi() {
+  const [loc, navigate] = useLocation();
+  const { persona, setPersona, workspace, setWorkspace } = useStilt();
+
+  const canEditWs = canEditWorkspaceKnowledge(workspace.currentRole);
+
+  // Which sub-view? Derived from the hash route.
+  const view: 'empty' | 'persona' | 'kp' | 'kw' = loc.startsWith('/ai/persona')
+    ? 'persona'
+    : loc.startsWith('/ai/knowledge-personal')
+      ? 'kp'
+      : loc.startsWith('/ai/knowledge-workspace')
+        ? 'kw'
+        : 'empty';
+
+  const back = () => navigate('/ai');
+
+  // Plain title shown in the mobile top-chrome center, mirroring how the inbox
+  // shows the contact name when a conversation is open.
+  const detailTitle =
+    view === 'persona'
+      ? 'Persona'
+      : view === 'kp'
+        ? 'Personal knowledge'
+        : view === 'kw'
+          ? 'Workspace knowledge'
+          : '';
+
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      {/* On mobile, an open detail swaps the default ••• for a back arrow in the
+          SAME chrome position (one button, not two) — exactly like the inbox. */}
+      {view !== 'empty' && (
+        <MijnAiDetailChromeSlot title={detailTitle} onBack={back} />
+      )}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={view}
+          initial={{ opacity: 0, x: view === 'empty' ? 0 : 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: view === 'empty' ? 0 : 16 }}
+          transition={APPLE_SPRING}
+          className="absolute inset-0 flex flex-col"
+        >
+          {view === 'empty' && <EmptyAiDetail />}
+          {view === 'persona' && (
+            <PersonaDetail persona={persona} setPersona={setPersona} onBack={back} />
+          )}
+          {view === 'kp' && (
+            <KnowledgeDetail
+              scope="personal"
+              bundle={persona.knowledge}
+              setBundle={(updater) =>
+                setPersona((prev) => ({ ...prev, knowledge: updater(prev.knowledge) }))
+              }
+              editable
+              onBack={back}
+            />
+          )}
+          {view === 'kw' && (
+            <KnowledgeDetail
+              scope="workspace"
+              bundle={workspace.knowledge}
+              setBundle={(updater) =>
+                setWorkspace((prev) => ({ ...prev, knowledge: updater(prev.knowledge) }))
+              }
+              editable={canEditWs}
+              onBack={back}
+            />
           )}
         </motion.div>
-
-        {/* Opslaan — mock confirm (backend upsert volgt) */}
-        <button
-          type="button"
-          data-testid="mijn-ai-save"
-          onClick={() => {}}
-          className="mt-8 w-full pill h-12 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-white hover-elevate active-elevate-2"
-          style={{ background: 'linear-gradient(90deg, #1B3FA8 0%, #2F6BFF 100%)' }}
-        >
-          <Check size={15} strokeWidth={2.2} />
-          Wijzigingen opslaan
-        </button>
-      </div>
+      </AnimatePresence>
     </div>
   );
 }

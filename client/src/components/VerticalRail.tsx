@@ -55,7 +55,7 @@ interface PrimaryItem {
 const PRIMARY: PrimaryItem[] = [
   { key: 'inbox',     icon: Inbox,        href: '/',          label: 'Inbox' },
   { key: 'campaigns', icon: Target,       href: '/campaigns', label: 'Campaigns' },
-  { key: 'ai',        icon: Sparkles,     href: '/ai',        label: 'Mijn AI' },
+  { key: 'ai',        icon: Sparkles,     href: '/ai',        label: 'My AI' },
   { key: 'calendar',  icon: CalendarIcon, href: '/calendar',  label: 'Calendar' },
 ];
 

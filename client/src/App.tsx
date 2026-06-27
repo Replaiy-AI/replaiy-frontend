@@ -16,6 +16,7 @@ import { ConversationDetail } from '@/pages/ConversationDetail';
 import { Briefing } from '@/pages/Briefing';
 import { MijnAi } from '@/pages/MijnAi';
 import { CampaignsList } from '@/components/CampaignsList';
+import { AiList } from '@/components/AiList';
 import CampaignDetail from '@/pages/CampaignDetail';
 import { StiltLogo } from '@/components/Logo';
 import { UniversalSearch } from '@/components/UniversalSearch';
@@ -191,10 +192,13 @@ function LayoutShell() {
   const showingSettings = loc.startsWith('/settings');
   const showingArchive = loc.startsWith('/archive');
   const showingCalendar = loc.startsWith('/calendar');
-  // v-replaiy — 'Mijn AI' surface (persona + knowledge). Eén volledige
-  // pagina (zoals Calendar), geen list+detail: lijst-kolom verbergen en
-  // de pagina full-width in de rechter-pane tonen.
+  // v-replaiy — 'My AI' surface (persona + knowledge). A list+detail surface,
+  // a true sibling of the inbox and campaigns: a fixed-width list column
+  // (AiList) on the left + a detail/empty-state pane on the right. Opening a
+  // part (persona / knowledge) just highlights its row and fills the right
+  // pane — exactly like opening a campaign.
   const showingAi = loc.startsWith('/ai');
+  const showingAiDetail = /^\/ai\/.+/.test(loc);
   const showingCampaigns = loc.startsWith('/campaigns');
   // Campaigns behaves EXACTLY like the inbox: a fixed-width list column on the
   // left (with the briefing + roll-up + campaign list) that never changes when
@@ -225,25 +229,37 @@ function LayoutShell() {
       {/* MAIN AREA — desktop reserves left padding for the floating sidebar
           (rail is fixed-positioned and overlays this padding). */}
       <main className="flex-1 flex min-w-0 relative lg:pl-[88px]">
+        {/* My AI LANDING is a full-width HUB (not a list-detail column). It
+            occupies the whole main area on bare /ai and is replaced by the
+            full-screen detail pane once a part is opened (/ai/...). */}
+        {showingAi && !showingAiDetail && (
+          <div className="flex flex-1 flex-col w-full min-w-0 relative">
+            <AiList />
+          </div>
+        )}
+
         {/* List column. Inbox shows InboxList; Campaigns shows CampaignsList
             (same list+detail architecture).
             Hidden on mobile when a detail pane is open (a conversation or a
-            specific campaign), shown again for bare /campaigns (empty state). */}
-        <div
-          className={`
-            ${
-              showingCalendar || showingAi
-                ? 'hidden'
-                : showingConversation || showingBriefing || showingSettings || showingArchive || showingCampaignDetail
-                  ? 'hidden md:flex'
-                  : 'flex'
-            }
-            md:w-[360px] lg:w-[560px] xl:w-[600px] flex-col w-full md:shrink-0
-            relative lg:pr-2
-          `}
-        >
-          {showingCampaigns ? <CampaignsList /> : <InboxList />}
-        </div>
+            specific campaign), shown again for bare /campaigns (empty state).
+            Not rendered at all for My AI, which uses the hub above. */}
+        {!showingAi && (
+          <div
+            className={`
+              ${
+                showingCalendar
+                  ? 'hidden'
+                  : showingConversation || showingBriefing || showingSettings || showingArchive || showingCampaignDetail
+                    ? 'hidden md:flex'
+                    : 'flex'
+              }
+              md:w-[360px] lg:w-[560px] xl:w-[600px] flex-col w-full md:shrink-0
+              relative lg:pr-2
+            `}
+          >
+            {showingCampaigns ? <CampaignsList /> : <InboxList />}
+          </div>
+        )}
 
         {/* Right detail pane — list + detail just like the inbox. On desktop it
             always shows (empty state on bare /campaigns); on mobile it only
@@ -251,7 +267,13 @@ function LayoutShell() {
             full-screen list underneath (matching the inbox). */}
         <div
           className={`
-            ${showingConversation || showingBriefing || showingSettings || showingArchive || showingCalendar || showingAi || showingCampaignDetail ? 'flex' : 'hidden md:flex'}
+            ${
+              showingAi && !showingAiDetail
+                ? 'hidden'
+                : showingConversation || showingBriefing || showingSettings || showingArchive || showingCalendar || showingAiDetail || showingCampaignDetail
+                  ? 'flex'
+                  : 'hidden md:flex'
+            }
             flex-col flex-1 min-w-0 fixed md:relative inset-0 md:inset-auto z-10 md:z-0
             bg-transparent
           `}
@@ -272,8 +294,12 @@ function LayoutShell() {
             <Route path="/calendar">
               <ComingSoon title="Calendar" />
             </Route>
-            {/* v-replaiy — 'Mijn AI': persona + knowledge surface. */}
+            {/* My AI: the bare /ai landing renders the full-width hub (above,
+                outside this detail pane). Detail routes (persona / knowledge)
+                render here in the detail pane. MijnAi is router-aware and picks
+                its own sub-view. */}
             <Route path="/ai" component={MijnAi} />
+            <Route path="/ai/:rest*" component={MijnAi} />
             <Route path="/archive">
               <ArchiveView />
             </Route>

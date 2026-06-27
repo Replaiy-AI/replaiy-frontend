@@ -1,69 +1,75 @@
 // ─────────────────────────────────────────────────────────────────
-// Mock persona-data — gebruiker/seat niveau (1 persona per member).
+// Mock persona data — user/seat level (one persona per member).
 //
-// Mapt 1:1 op de backend (app/persona/*):
-//   • tone_profile     → HOE we klinken (toon, taal, stijl, do's/don'ts)
-//   • strategy_profile → WAT we strategisch doen (kwalificeren / closen /
-//                        push-vs-wachten)
-// De backend serialiseert beide blobs als JSON in de prompt, dus deze
-// shape moet schoon door JSON.stringify kunnen. We houden 'm bewust
-// gestructureerd (geen losse string) zodat de editor velden kan tonen.
+// Maps 1:1 onto the backend (app/persona/*):
+//   • tone_profile     → HOW we sound (tone, language, style, do's/don'ts)
+//   • strategy_profile → WHAT we do strategically (qualifying / closing /
+//                        push-vs-wait)
+// The backend serialises both blobs as JSON into the prompt, so this shape
+// must round-trip cleanly through JSON.stringify. We deliberately keep it
+// structured (no loose string) so the editor can render discrete fields.
 //
-// Persoonlijke knowledge (docs/bestanden) hangt OOK aan de gebruiker en
-// staat in dit bestand zodat de hub één bron heeft tijdens de mock-fase.
-// (Backend: rag_documents met member_id gevuld.)
+// KNOWLEDGE (personal level) = two ways to feed the AI:
+//   • questions → targeted intake questions the user answers
+//   • files     → uploaded documents (writing samples, pitch, ...)
+// (Backend: rag_documents scoped by member_id; answers become chunks.)
 // ─────────────────────────────────────────────────────────────────
 
-export type ToneFormality = 'informeel' | 'neutraal' | 'formeel';
-export type ToneLength = 'kort' | 'gemiddeld' | 'uitgebreid';
+export type ToneFormality = 'informal' | 'neutral' | 'formal';
+export type ToneLength = 'short' | 'medium' | 'long';
 
 export interface ToneProfile {
-  /** Taal waarin de AI standaard schrijft. */
   language: 'nl' | 'en';
-  /** Mate van formaliteit (je/u, losheid). */
   formality: ToneFormality;
-  /** Voorkeurslengte van berichten. */
   length: ToneLength;
-  /** Vrije omschrijving van de stem — "klinkt als de gebruiker". */
+  /** Free-form description of the voice — "sounds like the user". */
   voice: string;
-  /** Korte, krachtige do's. */
   dos: string[];
-  /** Dingen die de AI nooit mag doen. */
   donts: string[];
 }
 
-export type StrategyStance = 'push' | 'gebalanceerd' | 'geduldig';
+export type StrategyStance = 'push' | 'balanced' | 'patient';
 
 export interface StrategyProfile {
-  /** Hoe hard sturen we aan op de volgende stap? */
   stance: StrategyStance;
-  /** Hoe kwalificeren we (fit + intentie achterhalen). */
   qualification: string;
-  /** Hoe en wanneer closen we (call/demo voorstellen). */
   closing: string;
-  /** Wanneer juist wachten i.p.v. duwen. */
   pushVsWait: string;
 }
 
-export interface PersonaKnowledgeDoc {
+// ── Knowledge: questions + files ──────────────────────────────────
+export interface KnowledgeQA {
+  id: string;
+  /** The question we ask. */
+  question: string;
+  /** Short hint/example shown beneath the question. */
+  hint?: string;
+  /** The user's answer (empty = not answered yet). */
+  answer: string;
+}
+
+export interface KnowledgeDoc {
   id: string;
   title: string;
   kind: 'pdf' | 'doc' | 'note' | 'link';
-  /** Korte omschrijving / waar het over gaat. */
   hint: string;
-  /** Mock-grootte of bron-label. */
   meta: string;
+}
+
+export interface KnowledgeBundle {
+  questions: KnowledgeQA[];
+  files: KnowledgeDoc[];
 }
 
 export interface Persona {
   memberId: string;
   memberName: string;
   memberInitials: string;
-  /** Korte rol/zin onder de naam in de hub-header. */
   role: string;
   tone: ToneProfile;
   strategy: StrategyProfile;
-  knowledge: PersonaKnowledgeDoc[];
+  /** Personal knowledge (questions + files). */
+  knowledge: KnowledgeBundle;
 }
 
 export const mockPersona: Persona = {
@@ -72,45 +78,69 @@ export const mockPersona: Persona = {
   memberInitials: 'SB',
   role: 'Founder · Replaiy',
   tone: {
-    language: 'nl',
-    formality: 'informeel',
-    length: 'kort',
+    language: 'en',
+    formality: 'informal',
+    length: 'short',
     voice:
-      'Direct, warm en menselijk. Praat als een founder die echt geïnteresseerd is — geen sales-praat, geen clichés. Korte zinnen, af en toe een knipoog.',
+      'Direct, warm and human. Talks like a founder who is genuinely interested — no sales talk, no clichés. Short sentences, the occasional wink.',
     dos: [
-      'Leid met waarde en een oprechte observatie',
-      'Stel één concrete, makkelijke vervolgvraag',
-      'Verwijs naar iets specifieks uit hun profiel of post',
+      'Lead with value and a genuine observation',
+      'Ask one concrete, easy follow-up question',
+      'Reference something specific from their profile or post',
     ],
     donts: [
-      'Niet pitchen in het eerste bericht',
-      'Geen overdreven enthousiasme of uitroeptekens',
-      'Geen generieke openers ("Hoi, hoe gaat het?")',
+      "Don't pitch in the first message",
+      'No over-the-top enthusiasm or exclamation marks',
+      'No generic openers ("Hi, how are you?")',
     ],
   },
   strategy: {
-    stance: 'gebalanceerd',
+    stance: 'balanced',
     qualification:
-      'Achterhaal eerst fit en intentie via een open vraag over hun huidige aanpak. Niet kwalificeren als verhoor — laat het natuurlijk vloeien.',
+      'Surface fit and intent first with an open question about their current approach. Never qualify like an interrogation — let it flow naturally.',
     closing:
-      'Stel pas een korte call voor zodra er echte interesse blijkt. Maak de drempel laag: 15 minuten, geen verplichting.',
+      'Only suggest a short call once there is real interest. Keep the bar low: 15 minutes, no obligation.',
     pushVsWait:
-      'Bij twijfel of stilte: één lichte, waardevolle follow-up. Daarna wachten i.p.v. blijven duwen — liever de relatie behouden.',
+      'When in doubt or met with silence: one light, valuable follow-up. After that, wait rather than keep pushing — protect the relationship.',
   },
-  knowledge: [
-    {
-      id: 'kn_voice',
-      title: 'Mijn schrijfvoorbeelden',
-      kind: 'note',
-      hint: 'Winnende berichten die echt als mij klinken',
-      meta: '8 voorbeelden',
-    },
-    {
-      id: 'kn_pitch',
-      title: 'Persoonlijke pitch',
-      kind: 'doc',
-      hint: 'Hoe ik Replaiy in één zin uitleg',
-      meta: 'DOC · 1 pagina',
-    },
-  ],
+  knowledge: {
+    questions: [
+      {
+        id: 'pq_role',
+        question: 'What is your role, and why do you do this work?',
+        hint: 'Gives your AI context about who is talking.',
+        answer:
+          'Founder of Replaiy. I build the product myself and talk to sales teams every day — I know how it feels when good leads quietly die in the inbox.',
+      },
+      {
+        id: 'pq_diff',
+        question: 'What makes your approach in conversations different?',
+        hint: 'How do you stand out personally?',
+        answer:
+          'I never pitch first. I open with a genuine observation about their work and ask one good question. People can tell it is real.',
+      },
+      {
+        id: 'pq_proof',
+        question: 'Which result or story do you like to bring up?',
+        hint: 'A concrete proof point that builds trust.',
+        answer: '',
+      },
+    ],
+    files: [
+      {
+        id: 'pf_voice',
+        title: 'My writing samples',
+        kind: 'note',
+        hint: 'Winning messages that genuinely sound like me',
+        meta: '8 examples',
+      },
+      {
+        id: 'pf_pitch',
+        title: 'Personal pitch',
+        kind: 'doc',
+        hint: 'How I explain Replaiy in one sentence',
+        meta: 'DOC · 1 page',
+      },
+    ],
+  },
 };

@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { mockConversations, type Conversation, type ConversationStatus, type ConversationCategory } from '@/data/mockConversations';
 import { MOCK_CAMPAIGNS, type Campaign } from '@/data/mockCampaigns';
+import { mockPersona, type Persona } from '@/data/mockPersona';
+import { mockWorkspace, type Workspace } from '@/data/mockWorkspace';
 
 type Theme = 'light' | 'dark' | 'auto';
 type Category = ConversationCategory | 'done';
@@ -23,6 +25,13 @@ interface StiltState {
   campaigns: Campaign[];
   addCampaign: (c: Campaign) => void;
   updateCampaign: (id: string, patch: Partial<Campaign>) => void;
+  // Replaiy — "My AI" surface (persona + workspace knowledge). Shared so the
+  // /ai list column and the /ai/* detail pane read/write the same data, exactly
+  // like campaigns are shared between CampaignsList and CampaignDetail.
+  persona: Persona;
+  setPersona: React.Dispatch<React.SetStateAction<Persona>>;
+  workspace: Workspace;
+  setWorkspace: React.Dispatch<React.SetStateAction<Workspace>>;
   /** Replaiy — start a fresh empty conversation with a lead. Creates a
    *  new empty Mail (no messages) and returns its id so the caller can
    *  navigate to /conversation/:id (the normal conversation view + reply bar). */
@@ -81,6 +90,8 @@ function detectSystemDark(): boolean {
 export function StiltProvider({ children }: { children: React.ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
   const [campaigns, setCampaigns] = useState<Campaign[]>(MOCK_CAMPAIGNS);
+  const [persona, setPersona] = useState<Persona>(mockPersona);
+  const [workspace, setWorkspace] = useState<Workspace>(mockWorkspace);
   const [composePrefill, setComposePrefill] = useState<StiltState['composePrefill']>(null);
   const [theme, setTheme] = useState<Theme>('auto');
   const [systemDark, setSystemDark] = useState<boolean>(detectSystemDark());
@@ -191,6 +202,10 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
       campaigns,
       addCampaign,
       updateCampaign,
+      persona,
+      setPersona,
+      workspace,
+      setWorkspace,
       startConversationWith,
       composePrefill,
       setComposePrefill,
@@ -222,7 +237,7 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
       setContextPanelOpen,
       toggleContextPanel,
     }),
-    [conversations, setConversationStatus, campaigns, addCampaign, updateCampaign, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, conversationView, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel]
+    [conversations, setConversationStatus, campaigns, addCampaign, updateCampaign, persona, workspace, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, conversationView, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -35,7 +35,7 @@ export type NavItem = {
 export const PRIMARY_NAV: NavItem[] = [
   { key: 'inbox',     label: 'Inbox',     href: '/',          icon: Inbox,        testId: 'nav-inbox' },
   { key: 'campaigns', label: 'Campaigns', href: '/campaigns', icon: Target,       testId: 'nav-campaigns' },
-  { key: 'ai',        label: 'Mijn AI',   href: '/ai',        icon: Sparkles,     testId: 'nav-ai' },
+  { key: 'ai',        label: 'My AI',   href: '/ai',        icon: Sparkles,     testId: 'nav-ai' },
   { key: 'calendar',  label: 'Calendar',  href: '/calendar',  icon: CalendarIcon, testId: 'nav-calendar' },
 ];
 
