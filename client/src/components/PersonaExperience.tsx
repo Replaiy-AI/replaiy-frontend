@@ -150,62 +150,66 @@ function LivePreview({
   const mascotSrc = MASCOT[preset?.mascot ?? 'warm'];
 
   return (
-    <div className="stilt-card rounded-3xl p-5" data-testid="persona-preview">
-      {/* Header — one calm line, no trailing fragment. */}
-      <div className="mb-1">
+    <div>
+      {/* Header sits OUTSIDE the card, as a normal section header (like
+          "Fine-tune" below). The card itself is purely the chat preview. */}
+      <div className="px-2 mb-1">
         <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
           Example message
         </span>
       </div>
-      <p className="text-[11.5px] leading-[1.45] text-foreground/45 mb-4">
+      <p className="px-2 text-[11.5px] leading-[1.45] text-foreground/45 mb-3">
         Just to give you a feel. Your AI adapts every message to the lead and context.
       </p>
 
-      {/* Lead identity row — mirrors the inbox conversation header (with photo). */}
-      <div className="flex items-center gap-2.5 mb-4">
-        <StiltAvatar name={previewLead.name} src={previewLead.avatar} size={32} />
-        <div className="min-w-0">
-          <div className="text-[13.5px] font-semibold text-foreground leading-tight">
-            {previewLead.name}
+      <div className="stilt-card rounded-3xl p-5" data-testid="persona-preview">
+        {/* Lead identity row — who the AI is writing to (the inbox header look). */}
+        <div className="flex items-center gap-2.5 mb-4">
+          <StiltAvatar name={previewLead.name} src={previewLead.avatar} size={32} />
+          <div className="min-w-0">
+            <div className="text-[13.5px] font-semibold text-foreground leading-tight">
+              {previewLead.name}
+            </div>
+            <div className="text-[11.5px] text-foreground/50 truncate">{previewLead.headline}</div>
           </div>
-          <div className="text-[11.5px] text-foreground/50 truncate">{previewLead.headline}</div>
         </div>
-      </div>
 
-      {/* The AI's message — mascot + bubble, laid out exactly like an inbound
-          message in the inbox conversation (avatar bottom-aligned, narrow
-          bubble at max-w-[78%], .stilt-bubble with tail + timestamp). */}
-      <div className="flex items-end gap-2">
-        <div className="w-8 shrink-0">
-          <motion.img
-            src={mascotSrc}
-            alt=""
-            aria-hidden
-            draggable={false}
-            className="w-8 h-8 object-contain select-none pointer-events-none"
-            key={`m-${preset?.id ?? 'warm'}`}
-            initial={{ scale: 0.6, opacity: 0, y: 6 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            transition={APPLE_SPRING}
-          />
-        </div>
-        <div className="max-w-[78%] flex flex-col items-start">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={sample}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-              className="stilt-bubble rounded-[20px] px-3.5 py-2.5 text-[14.5px] leading-[1.5] text-foreground"
-              style={{ borderBottomLeftRadius: 6 }}
-              data-testid="persona-preview-bubble"
-            >
-              {sample}
-            </motion.div>
-          </AnimatePresence>
-          <div className="text-[10.5px] mt-1 ml-1 tabular-nums text-foreground/45">
-            Just now
+        {/* Replaiy's OWN message — this is the "mine" side, so it sits on the
+            RIGHT, exactly like an outbound message in the inbox conversation
+            (bubble right-aligned with a bottom-right tail, mascot avatar on the
+            right, timestamp right-aligned). */}
+        <div className="flex items-end justify-end gap-2">
+          <div className="max-w-[78%] flex flex-col items-end">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={sample}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+                className="stilt-bubble rounded-[20px] px-3.5 py-2.5 text-[14.5px] leading-[1.5] text-foreground text-left"
+                style={{ borderBottomRightRadius: 6 }}
+                data-testid="persona-preview-bubble"
+              >
+                {sample}
+              </motion.div>
+            </AnimatePresence>
+            <div className="text-[10.5px] mt-1 mr-1 tabular-nums text-foreground/45">
+              Just now
+            </div>
+          </div>
+          <div className="w-8 shrink-0">
+            <motion.img
+              src={mascotSrc}
+              alt=""
+              aria-hidden
+              draggable={false}
+              className="w-8 h-8 object-contain select-none pointer-events-none"
+              key={`m-${preset?.id ?? 'warm'}`}
+              initial={{ scale: 0.6, opacity: 0, y: 6 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={APPLE_SPRING}
+            />
           </div>
         </div>
       </div>
