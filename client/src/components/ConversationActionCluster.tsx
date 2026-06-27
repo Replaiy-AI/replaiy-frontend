@@ -4,7 +4,7 @@ import { CircleCheck, Clock, Sparkles } from 'lucide-react';
 import { APPLE_SPRING } from '@/lib/motion';
 
 // ─────────────────────────────────────────────────────────────────
-// v17 — MailActionCluster
+// v17 — ConversationActionCluster
 //
 // The 3-pill cluster shown on every mail-detail view (top-right):
 //
@@ -21,7 +21,7 @@ import { APPLE_SPRING } from '@/lib/motion';
 // top:16 right:16 inside the mail-detail view).
 // ─────────────────────────────────────────────────────────────────
 
-export interface MailActionClusterProps {
+export interface ConversationActionClusterProps {
   onDone: () => void;
   onSnooze: (key: SnoozeKey) => void;
   onToggleContext: () => void;
@@ -87,13 +87,13 @@ function Pill({
   );
 }
 
-export function MailActionCluster({
+export function ConversationActionCluster({
   onDone,
   onSnooze,
   onToggleContext,
   contextActive,
   className,
-}: MailActionClusterProps) {
+}: ConversationActionClusterProps) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const snoozeWrapRef = useRef<HTMLDivElement>(null);
 

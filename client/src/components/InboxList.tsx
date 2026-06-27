@@ -19,7 +19,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStilt } from '@/state/StiltContext';
 import { useParams, useLocation, Link } from 'wouter';
-import { MailRow } from './MailRow';
+import { ConversationRow } from './ConversationRow';
 import { ListRow } from './ListRow';
 import { StiltAvatar } from './Avatar';
 import remiMascot from '@/assets/replaiy-mascot.png';
@@ -29,7 +29,7 @@ import { GlassCircleButton, ProfileInitials } from './GlassCircleButton';
 import { timeBucket, timeAgo, stateTag, formatInboxTime } from '@/lib/avatar';
 import { useInboxSettings } from '@/lib/inboxSettings';
 import { APPLE_SPRING } from '@/lib/motion';
-import type { Mail } from '@/data/mockEmails';
+import type { Conversation } from '@/data/mockConversations';
 import { SECONDARY_NAV, SETTINGS_NAV } from '@/lib/nav';
 import { GlassSegmentedToggle } from './GlassSegmentedToggle';
 import { useMobileTopChromeSlot } from './MobileTopChrome';
@@ -97,16 +97,16 @@ function SegmentedToggle({
 // Top chrome — three separated floating glass elements.
 // Now uses .glass-pill-dynamic with --glass-alpha / --glass-blur
 // driven by scroll position (Feature 3).
-// v30.30 — TopChrome + MailViewSelectorWrap volledig verwijderd. De mail
+// v30.30 — TopChrome + ConversationViewSelectorWrap volledig verwijderd. De mail
 // view-selector leeft nu in de Universal Search modal (context-aware chips)
 // en de desktop/tablet column 2 heeft geen eigen top-chrome meer nodig.
 
 // ─────────────────────────────────────────────────────────────────
 // Inbox mode — chronological time-grouped
 // ─────────────────────────────────────────────────────────────────
-function InboxModeList({ items, params }: { items: Mail[]; params: { id?: string } | null }) {
+function InboxModeList({ items, params }: { items: Conversation[]; params: { id?: string } | null }) {
   const groups = useMemo(() => {
-    const g: Record<string, Mail[]> = { today: [], yesterday: [], thisWeek: [], earlier: [] };
+    const g: Record<string, Conversation[]> = { today: [], yesterday: [], thisWeek: [], earlier: [] };
     for (const m of items) g[timeBucket(m.ts)].push(m);
     for (const k of Object.keys(g)) g[k].sort((a, b) => +new Date(b.ts) - +new Date(a.ts));
     return g;
@@ -137,7 +137,7 @@ function InboxModeList({ items, params }: { items: Mail[]; params: { id?: string
                     {i > 0 && (
                       <div className="ml-[64px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
                     )}
-                    <MailRow mail={m} active={params?.id === m.id} />
+                    <ConversationRow mail={m} active={params?.id === m.id} />
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -165,12 +165,12 @@ function SmartReasoningChip({ text }: { text: string }) {
 // v15.2 — Smart Inbox card content (without wrapper). Used INSIDE a
 // SwipeableRow when the section supports swipe, or inside a plain Link
 // when it doesn't (e.g. Auto-quieted is already AI-handled).
-function SmartMailContent({
+function SmartConversationContent({
   mail,
   showReasoning,
   reasoningText,
 }: {
-  mail: Mail;
+  mail: Conversation;
   showReasoning?: boolean;
   reasoningText?: string;
 }) {
@@ -219,13 +219,13 @@ function SmartMailContent({
 
 // Smart Inbox card — v17: swipe gesture removed. Plain clickable surface
 // that navigates to the mail detail. Same styling as before.
-function SmartMailRow({
+function SmartConversationRow({
   mail,
   showReasoning,
   reasoningText,
   active,
 }: {
-  mail: Mail;
+  mail: Conversation;
   showReasoning?: boolean;
   reasoningText?: string;
   active?: boolean;
@@ -235,28 +235,28 @@ function SmartMailRow({
   return (
     <ListRow
       testId={`smart-row-${mail.id}`}
-      onClick={() => navigate(`/mail/${mail.id}`)}
+      onClick={() => navigate(`/conversation/${mail.id}`)}
       active={active}
     >
-      <SmartMailContent mail={mail} showReasoning={showReasoning} reasoningText={reasoningText} />
+      <SmartConversationContent mail={mail} showReasoning={showReasoning} reasoningText={reasoningText} />
     </ListRow>
   );
 }
 
 // Non-swipeable Smart Inbox card — used in Auto-quieted (already done).
-function SmartMailRowStatic({ mail, active }: { mail: Mail; active?: boolean }) {
+function SmartConversationRowStatic({ mail, active }: { mail: Conversation; active?: boolean }) {
   return (
     <Link
-      href={`/mail/${mail.id}`}
+      href={`/conversation/${mail.id}`}
       data-testid={`smart-row-${mail.id}`}
       className={`block px-4 py-3 hover-elevate active-elevate-2 ${active ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''}`}
     >
-      <SmartMailContent mail={mail} />
+      <SmartConversationContent mail={mail} />
     </Link>
   );
 }
 
-function SmartInboxView({ mails, setMailStatus, params }: { mails: Mail[]; setMailStatus: (id: string, s: any) => void; params?: { id?: string } | null }) {
+function SmartInboxView({ conversations, setConversationStatus, params }: { conversations: Conversation[]; setConversationStatus: (id: string, s: any) => void; params?: { id?: string } | null }) {
   const activeId = params?.id;
 
   // v-replaiy — drie buckets:
@@ -264,11 +264,11 @@ function SmartInboxView({ mails, setMailStatus, params }: { mails: Mail[]; setMa
   //     gesorteerd op confidence (hoog → laag).
   //   • Waiting on reply    = verstuurd, wacht op antwoord (status waiting).
   //   • Auto-sent today     = automatisch verstuurd (isAutoSent), ingeklapt.
-  const needsApproval = mails
+  const needsApproval = conversations
     .filter((m) => m.priority === 'high' && m.status === 'open' && m.needsReply)
     .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
-  const waiting = mails.filter((m) => m.status === 'waiting');
-  const autoSent = mails.filter((m) => (m as any).isAutoSent === true);
+  const waiting = conversations.filter((m) => m.status === 'waiting');
+  const autoSent = conversations.filter((m) => (m as any).isAutoSent === true);
 
   const [autoSentOpen, setAutoSentOpen] = useState(false);
 
@@ -349,7 +349,7 @@ function SmartInboxView({ mails, setMailStatus, params }: { mails: Mail[]; setMa
               return (
                 <div key={m.id}>
                   {i > 0 && <div className="ml-[64px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />}
-                  <SmartMailRow
+                  <SmartConversationRow
                     mail={m}
                     showReasoning
                     reasoningText={reasoning}
@@ -372,7 +372,7 @@ function SmartInboxView({ mails, setMailStatus, params }: { mails: Mail[]; setMa
             {waiting.map((m, i) => (
               <div key={m.id}>
                 {i > 0 && <div className="ml-[64px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />}
-                <SmartMailRow mail={m} active={activeId === m.id} />
+                <SmartConversationRow mail={m} active={activeId === m.id} />
               </div>
             ))}
           </div>
@@ -410,7 +410,7 @@ function SmartInboxView({ mails, setMailStatus, params }: { mails: Mail[]; setMa
                   {autoSent.map((m, i) => (
                     <div key={m.id}>
                       {i > 0 && <div className="ml-[64px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />}
-                      <SmartMailRowStatic mail={m} active={activeId === m.id} />
+                      <SmartConversationRowStatic mail={m} active={activeId === m.id} />
                     </div>
                   ))}
                 </div>
@@ -451,16 +451,16 @@ function MobileCarousel({
   swipeProgress,
   inboxItems,
   params,
-  mails,
-  setMailStatus,
+  conversations,
+  setConversationStatus,
 }: {
   viewMode: 'inbox' | 'smart';
   setViewMode: (m: 'inbox' | 'smart') => void;
   swipeProgress: MotionValue<number>;
-  inboxItems: Mail[];
+  inboxItems: Conversation[];
   params: { id?: string } | null;
-  mails: Mail[];
-  setMailStatus: (id: string, s: any) => void;
+  conversations: Conversation[];
+  setConversationStatus: (id: string, s: any) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
@@ -540,7 +540,7 @@ function MobileCarousel({
           className="h-full overflow-y-auto no-scrollbar px-3 pt-[86px] pb-44"
           style={{ width: '50%', flexShrink: 0, touchAction: 'pan-y' }}
         >
-          <SmartInboxView mails={mails} setMailStatus={setMailStatus} params={params} />
+          <SmartInboxView conversations={conversations} setConversationStatus={setConversationStatus} params={params} />
         </div>
         {/* Inbox page — RIGHT */}
         <div
@@ -583,13 +583,13 @@ function MobileProfileAvatar() {
 
 export function InboxList() {
   const {
-    mails,
+    conversations,
     smartMode,
     setSmartMode,
-    mailView,
-    setMailView,
+    conversationView,
+    setConversationView,
     query,
-    setMailStatus,
+    setConversationStatus,
   } = useStilt();
   // Map global smartMode → viewMode-style flag for the existing carousel.
   const viewMode: 'inbox' | 'smart' = smartMode ? 'smart' : 'inbox';
@@ -662,21 +662,21 @@ export function InboxList() {
   );
   useMobileTopChromeSlot(inboxSlot);
 
-  // v15.4 — filter by view-selector (mailView).
+  // v15.4 — filter by view-selector (conversationView).
   const inboxItems = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matchesQ = (m: Mail) =>
+    const matchesQ = (m: Conversation) =>
       !q ||
       m.from.name.toLowerCase().includes(q) ||
       m.subject.toLowerCase().includes(q) ||
       m.preview.toLowerCase().includes(q) ||
       m.body.toLowerCase().includes(q);
-    return mails.filter((m) => {
-      if (mailView === 'done') return m.status === 'done' && matchesQ(m);
-      if (mailView === 'snoozed') return m.status === 'snoozed' && matchesQ(m);
-      if (mailView === 'sent') return (m as any).isSent === true && matchesQ(m);
-      if (mailView === 'drafts') return (m as any).isDraft === true && matchesQ(m);
-      if (mailView === 'spam') return m.category === 'promo' && matchesQ(m);
+    return conversations.filter((m) => {
+      if (conversationView === 'done') return m.status === 'done' && matchesQ(m);
+      if (conversationView === 'snoozed') return m.status === 'snoozed' && matchesQ(m);
+      if (conversationView === 'sent') return (m as any).isSent === true && matchesQ(m);
+      if (conversationView === 'drafts') return (m as any).isDraft === true && matchesQ(m);
+      if (conversationView === 'spam') return m.category === 'promo' && matchesQ(m);
       // Sent emails never appear in inbox
       if ((m as any).isSent === true) return false;
       // Default inbox — primary + fyi + newsletter, non-done.
@@ -689,7 +689,7 @@ export function InboxList() {
         return false;
       return matchesQ(m);
     });
-  }, [mails, query, mailView]);
+  }, [conversations, query, conversationView]);
 
   return (
     <div className="relative flex flex-col h-full min-h-0">
@@ -701,8 +701,8 @@ export function InboxList() {
             swipeProgress={swipeProgress}
             inboxItems={inboxItems}
             params={params}
-            mails={mails}
-            setMailStatus={setMailStatus}
+            conversations={conversations}
+            setConversationStatus={setConversationStatus}
           />
         </div>
       ) : (
@@ -734,7 +734,7 @@ export function InboxList() {
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.22 }}
               >
-                <SmartInboxView mails={mails} setMailStatus={setMailStatus} params={params} />
+                <SmartInboxView conversations={conversations} setConversationStatus={setConversationStatus} params={params} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -797,7 +797,7 @@ function _LegacyDotsMenuSheet() {
           >
             <div className="px-3 pt-1.5 pb-2 flex items-center justify-between">
               <span className="text-[11.5px] uppercase tracking-wider font-semibold text-foreground/55">
-                Mail
+                Conversations
               </span>
               <button
                 onClick={() => setDotsMenuOpen(false)}

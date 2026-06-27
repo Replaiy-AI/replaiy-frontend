@@ -3,7 +3,7 @@
 //
 // Compact glass dropdown popover shown when a user attempts to close
 // the compose view while it still contains content. Visually mirrors
-// the Snooze dropdown in MailActionCluster: `lg-sheet` glass surface,
+// the Snooze dropdown in ConversationActionCluster: `lg-sheet` glass surface,
 // rounded-2xl, small padding, items in a flex-col list.
 //
 // Replaces the previous ConfirmDiscardSheet (centered iOS-style alert).

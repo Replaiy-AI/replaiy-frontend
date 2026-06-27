@@ -11,7 +11,7 @@
 // Exports:
 //   • IdentityPill     — avatar + name (clickable → Contact sheet)
 //   • SubjectPill      — Subject label + subject text + clickable meta-badge
-//   • MailActionPills  — two action pills (Done, Snooze). NO Sparkle.
+//   • ConversationActionPills  — two action pills (Done, Snooze). NO Sparkle.
 //
 // Each component is its own `.lg-pill` floating element. The parent
 // is responsible for layout and gap. Sticky behavior is applied at
@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CircleCheck, Clock, CornerUpRight, MoreHorizontal } from 'lucide-react';
 import { APPLE_SPRING } from '@/lib/motion';
 import { StiltAvatar } from './Avatar';
-import type { SnoozeKey } from './MailActionCluster';
+import type { SnoozeKey } from './ConversationActionCluster';
 import VadikGlass from './VadikGlass';
 
 const SNOOZE_OPTIONS: { key: SnoozeKey; label: string; hint: string }[] = [
@@ -279,7 +279,7 @@ export function ActionPill({
 // v19 — Sparkle/Context pill REMOVED. Summary toggling now lives on
 // SubjectPill's meta-badge. Two pills with gap-2.
 // v30.30 — Forward toegevoegd in dezelfde top-right row als Done en Snooze.
-export function MailActionPills({
+export function ConversationActionPills({
   onDone,
   onSnooze,
   onForward,
@@ -583,7 +583,7 @@ function MiniCalendar({
 // v30.30 — Mobile-only compact variant: Done als enige zichtbare actie
 // plus een ••• overflow dat een liquid-glass dropdown opent met Forward
 // + Snooze opties + inline kalender (Spark stijl, geen modal).
-export function MailActionPillsCompact({
+export function ConversationActionPillsCompact({
   onDone,
 }: {
   onDone: () => void;
@@ -606,7 +606,7 @@ export function MailActionPillsCompact({
 }
 
 // ─── Back-compat shim ─────────────────────────────────────────────
-interface MailDetailToolbarProps {
+interface ConversationDetailToolbarProps {
   name: string;
   meta?: string;
   onOpenContact: () => void;
@@ -616,19 +616,19 @@ interface MailDetailToolbarProps {
   contextActive?: boolean;
 }
 
-export function MailDetailToolbar({
+export function ConversationDetailToolbar({
   name,
   onOpenContact,
   onDone,
   onSnooze,
-}: MailDetailToolbarProps) {
+}: ConversationDetailToolbarProps) {
   return (
     <div
       data-testid="mail-detail-toolbar"
       className="flex items-center justify-between gap-3"
     >
       <IdentityPill name={name} onOpenContact={onOpenContact} />
-      <MailActionPills onDone={onDone} onSnooze={onSnooze} />
+      <ConversationActionPills onDone={onDone} onSnooze={onSnooze} />
     </div>
   );
 }

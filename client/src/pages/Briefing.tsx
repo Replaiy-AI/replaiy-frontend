@@ -5,17 +5,17 @@ import { Link } from 'wouter';
 import { StiltAvatar } from '@/components/Avatar';
 
 export function Briefing() {
-  const { mails, setMailStatus } = useStilt();
+  const { conversations, setConversationStatus } = useStilt();
 
-  const replyToday = mails.filter((m) => m.needsReply && m.status === 'open');
-  const waiting = mails.filter((m) => m.status === 'waiting');
-  const snoozed = mails.filter((m) => m.status === 'snoozed');
-  const newsletters = mails.filter((m) => m.category === 'newsletter' && m.status === 'open');
-  const topPriority = mails
+  const replyToday = conversations.filter((m) => m.needsReply && m.status === 'open');
+  const waiting = conversations.filter((m) => m.status === 'waiting');
+  const snoozed = conversations.filter((m) => m.status === 'snoozed');
+  const newsletters = conversations.filter((m) => m.category === 'newsletter' && m.status === 'open');
+  const topPriority = conversations
     .filter((m) => m.status === 'open' && m.priority === 'high')
     .sort((a, b) => +new Date(b.ts) - +new Date(a.ts))[0];
 
-  const handledThisWeek = mails.filter((m) => m.status === 'done').length;
+  const handledThisWeek = conversations.filter((m) => m.status === 'done').length;
 
   const greeting = (() => {
     const h = new Date().getHours();
@@ -85,7 +85,7 @@ export function Briefing() {
                 Top priority
               </span>
             </div>
-            <Link href={`/mail/${topPriority.id}`} className="block hover-elevate active-elevate-2 rounded-2xl p-3 -m-1">
+            <Link href={`/conversation/${topPriority.id}`} className="block hover-elevate active-elevate-2 rounded-2xl p-3 -m-1">
               <div className="flex items-start gap-3">
                 <StiltAvatar name={topPriority.from.name} src={topPriority.from.avatar} size={42} />
                 <div className="flex-1 min-w-0">
@@ -119,7 +119,7 @@ export function Briefing() {
             </div>
             <div className="space-y-2">
               {waiting.slice(0, 3).map((m) => (
-                <Link key={m.id} href={`/mail/${m.id}`} className="flex items-center gap-3 hover-elevate active-elevate-2 -mx-2 px-2 py-1.5 rounded-xl">
+                <Link key={m.id} href={`/conversation/${m.id}`} className="flex items-center gap-3 hover-elevate active-elevate-2 -mx-2 px-2 py-1.5 rounded-xl">
                   <StiltAvatar name={m.from.name} src={m.from.avatar} size={32} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[13.5px] font-medium truncate">{m.from.name}</div>
@@ -156,14 +156,14 @@ export function Briefing() {
             <div className="flex gap-2 mt-3">
               <button
                 data-testid="button-snooze-weekend"
-                onClick={() => newsletters.forEach((m) => setMailStatus(m.id, 'snoozed'))}
+                onClick={() => newsletters.forEach((m) => setConversationStatus(m.id, 'snoozed'))}
                 className="pill px-3.5 py-1.5 text-[13px] font-medium glass hover-elevate active-elevate-2 flex items-center gap-1.5"
               >
                 <Moon size={13} /> Snooze to weekend
               </button>
               <button
                 data-testid="button-archive-all"
-                onClick={() => newsletters.forEach((m) => setMailStatus(m.id, 'done'))}
+                onClick={() => newsletters.forEach((m) => setConversationStatus(m.id, 'done'))}
                 className="pill px-3.5 py-1.5 text-[13px] font-semibold bg-foreground text-white hover-elevate active-elevate-2 flex items-center gap-1.5"
               >
                 <CheckCircle2 size={13} /> Archive all

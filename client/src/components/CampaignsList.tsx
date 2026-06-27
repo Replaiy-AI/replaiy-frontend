@@ -106,7 +106,7 @@ function ConversionBar({ pct, dim }: { pct: number; dim?: boolean }) {
 }
 
 // ── Campaign row — calm, inbox-style, anchored by a leading dot ─────
-// A leading status dot gives the row weight (like SmartMailRow's avatar)
+// A leading status dot gives the row weight (like SmartConversationRow's avatar)
 // so rows don't float. Inactive (off) campaigns desaturate + dim. The
 // conversion % is integrated into the meta line — no repeated "Conversion"
 // label per row.

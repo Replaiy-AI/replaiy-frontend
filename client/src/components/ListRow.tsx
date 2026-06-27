@@ -1,5 +1,5 @@
 // Shared interactive list-row shell — ONE source of truth for the row chrome
-// used by both the Inbox (SmartMailRow) and Campaigns (CampaignRow). It owns
+// used by both the Inbox (SmartConversationRow) and Campaigns (CampaignRow). It owns
 // exactly the interaction surface that must stay identical across the app:
 //   • padding (px-4 py-3)
 //   • hover-elevate + active-elevate-2 (the full-bleed glass highlight that

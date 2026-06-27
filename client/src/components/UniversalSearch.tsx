@@ -32,7 +32,7 @@ import VadikGlass from './VadikGlass';
 //           Keyboard: ↑↓ to navigate, ↵ to open, ⎋ to close.
 //
 // Mock data is real enough to feel useful — typing "Nora" or "Q4"
-// returns matching mails/events/docs from the project's own fixtures.
+// returns matching conversations/events/docs from the project's own fixtures.
 // ─────────────────────────────────────────────────────────────────
 
 // v-replaiy — Draft-filter chips were removed for the inbox surface:
@@ -40,7 +40,7 @@ import VadikGlass from './VadikGlass';
 // already groups by section). The `activeChip` filter logic below is
 // retained but unreachable unless a chip is re-introduced.
 
-interface ResultMail {
+interface ResultConversation {
   kind: 'mail';
   id: string;
   title: string;
@@ -60,7 +60,7 @@ interface ResultContact {
   meta: string; // role/last contact
   avatar?: string;
 }
-type Result = ResultMail | ResultContact;
+type Result = ResultConversation | ResultContact;
 
 export function UniversalSearch() {
   const [open, setOpen] = useState(false);
@@ -70,7 +70,7 @@ export function UniversalSearch() {
   // user expliciet op een chip klikt. Bij open van modal reset altijd
   // naar null (= alles zoeken across all sources).
   const [activeChip, setActiveChip] = useState<string | null>(null);
-  const { mails } = useStilt();
+  const { conversations } = useStilt();
   const [, navigate] = useLocation();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -93,7 +93,7 @@ export function UniversalSearch() {
       if (inField) return;
     };
     // v30.32 — accept optional `detail.query` to pre-fill search input.
-    // Used by contact panel "View N mails" to open search filtered op persoon.
+    // Used by contact panel "View N conversations" to open search filtered op persoon.
     const openEv = (e: Event) => {
       const ce = e as CustomEvent<{ query?: string } | undefined>;
       const pre = ce.detail?.query;
@@ -132,7 +132,7 @@ export function UniversalSearch() {
     // filter, alle bronnen tonen. Bij actieve draft-chip filteren we de
     // drafts op de juiste Replaiy-status (zelfde velden als InboxList.tsx)
     // én verbergen we andere groepen (events/leads).
-    let mailsFiltered = mails;
+    let mailsFiltered = conversations;
     const hasChipFilter = !!activeChip;
     if (hasChipFilter) {
       if (activeChip === 'needsApproval') {
@@ -169,7 +169,7 @@ export function UniversalSearch() {
     }
     // Bij actieve chip: toon meer drafts (max 30) en verberg andere groepen.
     const mailLimit = hasChipFilter ? 30 : 5;
-    const mailItems: ResultMail[] = mailsFiltered.slice(0, mailLimit).map((m) => {
+    const mailItems: ResultConversation[] = mailsFiltered.slice(0, mailLimit).map((m) => {
       const headline = (m as any).leadHeadline ?? '';
       const company = (m as any).leadCompany ?? '';
       const sub = [headline, company].filter(Boolean).join(' · ');
@@ -196,7 +196,7 @@ export function UniversalSearch() {
     // bedrijf (geen e-mail).
     const contactMap = new Map<string, ResultContact>();
     if (!hasChipFilter) {
-      for (const m of mails) {
+      for (const m of conversations) {
         const name = m.from.name;
         const headline = (m as any).leadHeadline ?? '';
         const company = (m as any).leadCompany ?? '';
@@ -232,7 +232,7 @@ export function UniversalSearch() {
       contactResults: contactItems,
       flat,
     };
-  }, [mails, term, activeChip]);
+  }, [conversations, term, activeChip]);
 
   // Keep selectedIdx in range.
   useEffect(() => {
@@ -241,8 +241,8 @@ export function UniversalSearch() {
 
   const openResult = (r: Result) => {
     setOpen(false);
-    if (r.kind === 'mail') navigate(`/mail/${r.id}`);
-    else if (r.kind === 'contact') navigate(`/mail/${r.id}`);
+    if (r.kind === 'mail') navigate(`/conversation/${r.id}`);
+    else if (r.kind === 'contact') navigate(`/conversation/${r.id}`);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -262,7 +262,7 @@ export function UniversalSearch() {
   // v30.30 — Klik op chip = filter binnen de modal, modal blijft open.
   // Toggle: tweede klik op zelfde chip = filter weer uit.
   // v-replaiy — De draft-chips (needsApproval/waiting/autoSent/dismissed)
-  // zijn lokale filters, geen mail-views meer, dus we setten geen MailView
+  // zijn lokale filters, geen mail-views meer, dus we setten geen ConversationView
   // op de context. Alleen de Calendar-surface zet z'n cal-view persistent.
 
   return (

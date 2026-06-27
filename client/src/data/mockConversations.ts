@@ -1,6 +1,6 @@
-export type MailStatus = 'open' | 'waiting' | 'snoozed' | 'done';
-export type MailCategory = 'primary' | 'newsletter' | 'fyi' | 'promo';
-export type MailPriority = 'high' | 'normal' | 'low';
+export type ConversationStatus = 'open' | 'waiting' | 'snoozed' | 'done';
+export type ConversationCategory = 'primary' | 'newsletter' | 'fyi' | 'promo';
+export type ConversationPriority = 'high' | 'normal' | 'low';
 
 // Replaiy — LinkedIn outbound draft types. These are the kinds of
 // LinkedIn messages Replaiy drafts on the user's behalf.
@@ -22,17 +22,19 @@ export interface ThreadMessage {
   attachments?: Attachment[];
 }
 
-export interface Mail {
+export interface Conversation {
   id: string;
+  // NOTE: inner field names (from.email, subject, preview, authorEmail) are
+  // intentionally kept as legacy email-style names to minimise churn.
   from: { name: string; email: string; avatar?: string };
   to: string;
   subject: string;
   preview: string;
   body: string;
   ts: string; // ISO date
-  status: MailStatus;
-  category: MailCategory;
-  priority: MailPriority;
+  status: ConversationStatus;
+  category: ConversationCategory;
+  priority: ConversationPriority;
   needsReply: boolean;
   summary: string;
   smartReplies: [string, string, string];
@@ -100,7 +102,7 @@ const daysAgo = (days: number, h = 10, m = 0) => {
 // ─────────────────────────────────────────────────────────────────
 // Replaiy LinkedIn-outbound drafts.
 //
-// Each Mail represents a LinkedIn conversation: the lead's last inbound
+// Each Conversation represents a LinkedIn conversation: the lead's last inbound
 // message (body / first thread message) plus the Replaiy-proposed reply
 // (smartReplies[0]) shown in the floating draft bar.
 //
@@ -115,7 +117,7 @@ const daysAgo = (days: number, h = 10, m = 0) => {
 // approved drafts → status:'waiting' ("Waiting on reply").
 // auto-sent drafts → isAutoSent:true ("Auto-sent today" collapsed).
 // ─────────────────────────────────────────────────────────────────
-export const mockEmails: Mail[] = [
+export const mockConversations: Conversation[] = [
   // ── Needs your approval (pending) ───────────────────────────────
   {
     id: 'd2',

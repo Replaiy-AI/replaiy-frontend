@@ -7,10 +7,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { APPLE_SPRING } from '@/lib/motion';
 import { ConversationTimeline } from '@/components/ConversationTimeline';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
-import { IdentityPill, MailActionPills, MailActionPillsCompact, SubjectPill, SubjectIdentityPill, ActionPill } from '@/components/MailDetailToolbar';
-import { MailSummaryPanel, hasSummaryPanelValue } from '@/components/MailSummaryPanel';
+import { IdentityPill, ConversationActionPills, ConversationActionPillsCompact, SubjectPill, SubjectIdentityPill, ActionPill } from '@/components/ConversationDetailToolbar';
+import { ConversationSummaryPanel, hasSummaryPanelValue } from '@/components/ConversationSummaryPanel';
 import { InlineReplyBar, type ForwardContext } from '@/components/InlineReplyBar';
-import type { SnoozeKey } from '@/components/MailActionCluster';
+import type { SnoozeKey } from '@/components/ConversationActionCluster';
 
 // Lightweight "how old" label for the single-mail meta-badge.
 // Returns e.g. "just now", "2h ago", "yesterday", "3 days".
@@ -46,16 +46,16 @@ function AttachmentChip({ name, size, kind }: { name: string; size: string; kind
   );
 }
 
-// v30.30 — MailDetail outer dispatcher: ALLEEN universal hooks hier
-// (useParams + useStilt + useMemo). Daarna delegeert naar SingleMailDetail
+// v30.30 — ConversationDetail outer dispatcher: ALLEEN universal hooks hier
+// (useParams + useStilt + useMemo). Daarna delegeert naar SingleConversationDetail
 // of ConversationTimeline. Voorkomt rules-of-hooks crash bij switchen
 // tussen single → thread (verschillende hook counts).
-export function MailDetail() {
+export function ConversationDetail() {
   const params = useParams<{ id: string }>();
-  const { mails } = useStilt();
+  const { conversations } = useStilt();
   const mail = useMemo(
-    () => mails.find((m) => m.id === params.id),
-    [mails, params.id],
+    () => conversations.find((m) => m.id === params.id),
+    [conversations, params.id],
   );
   if (!mail) {
     return (
@@ -64,8 +64,8 @@ export function MailDetail() {
       </div>
     );
   }
-  // v30.32 — ALLE mails (single + thread) renderen via ConversationTimeline.
-  // Voorheen had single-mail een eigen SingleMailDetail render-tree, wat
+  // v30.32 — ALLE conversations (single + thread) renderen via ConversationTimeline.
+  // Voorheen had single-mail een eigen SingleConversationDetail render-tree, wat
   // visueel inconsistent was (andere bubble, andere chrome, andere
   // spacing). ConversationTimeline maakt nu automatisch één synthetic
   // message als mail.messages leeg is — zelfde render-pad voor beide.
@@ -73,18 +73,18 @@ export function MailDetail() {
   return <ConversationTimeline mail={mail} key={mail.id} />;
 }
 
-function SingleMailDetail({ mailId }: { mailId: string }) {
+function SingleConversationDetail({ mailId }: { mailId: string }) {
   const [, navigate] = useLocation();
   const {
-    mails,
-    setMailStatus,
+    conversations,
+    setConversationStatus,
     setComposePrefill,
     ai,
     summaryPanelOpen,
     toggleSummaryPanel,
     setSummaryPanelOpen,
   } = useStilt();
-  const mail = mails.find((m) => m.id === mailId)!;
+  const mail = conversations.find((m) => m.id === mailId)!;
 
   // v30.30 — Forward state. Wanneer gezet opent InlineReplyBar in
   // forward-mode — geen route-switch naar oud compose scherm.
@@ -111,7 +111,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
       navigate('/');
       return;
     }
-    setMailStatus(mail.id, 'waiting');
+    setConversationStatus(mail.id, 'waiting');
     navigate('/');
   };
 
@@ -120,8 +120,8 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
   // vereist state-lift uit InlineReplyBar. Voor nu: open Compose leeg
   // (of met smart reply prefill) en laat user opnieuw beginnen.
   // v-replaiy — The standalone /compose route was removed in the Stilt
-  // cleanup (this SingleMailDetail path is itself legacy/unused — the
-  // exported MailDetail renders ConversationTimeline). Staging prefill
+  // cleanup (this SingleConversationDetail path is itself legacy/unused — the
+  // exported ConversationDetail renders ConversationTimeline). Staging prefill
   // only; no route switch.
   const onExpandCompose = () => {
     setComposePrefill({
@@ -195,7 +195,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
     });
   };
 
-  // v30.30 — AI-draft pre-fill alleen voor Today-for-you mails (high prio
+  // v30.30 — AI-draft pre-fill alleen voor Today-for-you conversations (high prio
   // + needsReply + status open). Zelfde logic als InboxList's Today-for-you
   // sectie. Voorkomt AI-drafts bij newsletters/bots waar ze niet zinvol zijn.
   const isTodayForYou =
@@ -206,12 +206,12 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
       : null;
 
   const handleDone = () => {
-    setMailStatus(mail.id, 'done');
+    setConversationStatus(mail.id, 'done');
     navigate('/');
   };
 
   const handleSnooze = (_key: SnoozeKey) => {
-    setMailStatus(mail.id, 'snoozed');
+    setConversationStatus(mail.id, 'snoozed');
     navigate('/');
   };
 
@@ -238,12 +238,12 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
   return (
     <div className="flex flex-col h-full min-h-0 relative">
       {/* Mobile top-chrome slot — back + identity + Done/Snooze acties. */}
-      <MailDetailChromeSlot
+      <ConversationDetailChromeSlot
         name={mail.from.name}
         avatar={mail.from.avatar}
         onBack={() => navigate('/')}
-        onDone={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
-        onSnooze={() => { setMailStatus(mail.id, 'snoozed'); navigate('/'); }}
+        onDone={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
+        onSnooze={() => { setConversationStatus(mail.id, 'snoozed'); navigate('/'); }}
         onForward={onForward}
       />
 
@@ -268,10 +268,10 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
         <div className="flex justify-center items-center pl-4 lg:pl-6 pr-[136px]">
           <div className="pointer-events-auto flex items-center gap-3 min-w-0 max-w-[640px]">
             {/* v30.32 — Combined identity + subject pill (zie
-               MailDetailToolbar.tsx). Vervangt IdentityPill + SubjectPill
+               ConversationDetailToolbar.tsx). Vervangt IdentityPill + SubjectPill
                losse pillen — één pill met avatar + naam | subject + meta. */}
             {/* v30.32 — meta-badge alleen tonen als panel waarde heeft
-               (lange thread). Voor single mails: geen badge, geen klik. */}
+               (lange thread). Voor single conversations: geen badge, geen klik. */}
             <SubjectIdentityPill
               name={mail.from.name}
               avatar={mail.from.avatar}
@@ -284,7 +284,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
         </div>
         <div className="absolute top-0 right-4 lg:right-6 pointer-events-auto">
           {/* v30.30 — Desktop = mobile compact pattern */}
-          <MailActionPillsCompact
+          <ConversationActionPillsCompact
             onDone={handleDone}
             onSnooze={handleSnooze}
             onForward={onForward}
@@ -317,7 +317,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
                   data-testid="inline-summary-wrapper"
                 >
                   <div className="pb-3">
-                    <MailSummaryPanel
+                    <ConversationSummaryPanel
                       mail={mail}
                       onClose={() => setSummaryPanelOpen(false)}
                     />
@@ -385,7 +385,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
               className="overflow-hidden"
             >
               <div className="pb-3">
-                <MailSummaryPanel mail={mail} onClose={() => setSummaryPanelOpen(false)} />
+                <ConversationSummaryPanel mail={mail} onClose={() => setSummaryPanelOpen(false)} />
               </div>
             </motion.div>
           )}
@@ -447,8 +447,8 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
       {/* v30.30 — Inline reply bar onderaan, vervangt de oude floating
          Reply pill + Compose-pagina flow. AI-draft staat pre-filled als
          smart-reply aanstaat. Forward zit nu in de top-right action row
-         (zie MailActionPills hierboven). Desktop only — mobile heeft
-         z'n eigen MailDetailBottomBar met inline reply. */}
+         (zie ConversationActionPills hierboven). Desktop only — mobile heeft
+         z'n eigen ConversationDetailBottomBar met inline reply. */}
       <div
         className="hidden lg:block"
         style={{
@@ -466,7 +466,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
           mailId={mail.id}
           forwardContext={forwardContext}
           onForwardCancel={() => setForwardContext(null)}
-          onDismiss={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
+          onDismiss={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
           onSend={onSendInline}
           onExpand={onExpandCompose}
         />
@@ -484,7 +484,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
           mailId={mail.id}
           forwardContext={forwardContext}
           onForwardCancel={() => setForwardContext(null)}
-          onDismiss={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
+          onDismiss={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
           onSend={onSendInline}
           onExpand={onExpandCompose}
           onExpandedChange={setReplyBarExpanded}
@@ -494,7 +494,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
   );
 }
 
-function MailDetailChromeSlot({
+function ConversationDetailChromeSlot({
   name,
   avatar,
   onBack,
@@ -534,7 +534,7 @@ function MailDetailChromeSlot({
       // v30.30 — Mobile: Done + ••• overflow (compact).
       rightSlot:
         onDone && onSnooze ? (
-          <MailActionPillsCompact
+          <ConversationActionPillsCompact
             onDone={onDone}
             onSnooze={onSnooze}
             onForward={onForward}

@@ -13,18 +13,18 @@ import { useLocation } from 'wouter';
 import { useStilt } from '@/state/StiltContext';
 import { StiltAvatar } from './Avatar';
 import { APPLE_SPRING, APPLE_SPRING_TIGHT } from '@/lib/motion';
-import type { Mail, ThreadMessage, Attachment } from '@/data/mockEmails';
+import type { Conversation, ThreadMessage, Attachment } from '@/data/mockConversations';
 import { useMobileTopChromeSlot } from './MobileTopChrome';
-import { IdentityPill, MailActionPills, MailActionPillsCompact, SubjectPill, SubjectIdentityPill, ActionPill } from './MailDetailToolbar';
+import { IdentityPill, ConversationActionPills, ConversationActionPillsCompact, SubjectPill, SubjectIdentityPill, ActionPill } from './ConversationDetailToolbar';
 
-import { MailSummaryPanel, hasSummaryPanelValue } from './MailSummaryPanel';
+import { ConversationSummaryPanel, hasSummaryPanelValue } from './ConversationSummaryPanel';
 import { InlineReplyBar, type ForwardContext } from './InlineReplyBar';
 import {
   ComposeSheetMobile,
   useComposeSheetRefs,
 } from './ComposeSheetMobile';
 import { ComposeColumnDesktop } from './ComposeColumnDesktop';
-import type { SnoozeKey } from './MailActionCluster';
+import type { SnoozeKey } from './ConversationActionCluster';
 
 // v36 — Mobile breakpoint mirrors Compose.tsx (1024px). Anything below
 // the laptop tier gets the ComposeSheetMobile bottom-sheet host for the
@@ -416,26 +416,26 @@ function StickyConversationSummary({
 // ─────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────
-export function ConversationTimeline({ mail }: { mail: Mail }) {
-  // v17 — thread view uses the same MailActionCluster + Context state.
+export function ConversationTimeline({ mail }: { mail: Conversation }) {
+  // v17 — thread view uses the same ConversationActionCluster + Context state.
   // Read global open state so the Context pill reflects it.
 
   const [, navigate] = useLocation();
   const {
-    setMailStatus,
+    setConversationStatus,
     setComposePrefill,
     summaryPanelOpen,
     toggleSummaryPanel,
     setSummaryPanelOpen,
   } = useStilt();
-  // v30.32 — ConversationTimeline rendert nu ALLE mails (single + thread).
-  // Voorheen had SingleMailDetail een eigen render-tree, wat tot subtiele
+  // v30.32 — ConversationTimeline rendert nu ALLE conversations (single + thread).
+  // Voorheen had SingleConversationDetail een eigen render-tree, wat tot subtiele
   // styling-verschillen leidde tussen "Elena's mail" en "Nora's thread".
   // Nu: als mail.messages leeg is, sintetiseren we één message uit
-  // mail.body — het hele thread-systeem werkt dan ook voor single mails.
+  // mail.body — het hele thread-systeem werkt dan ook voor single conversations.
   // Replaiy — een NIEUWE lege conversatie (geen messages én geen body)
   // houdt een lege thread: alleen de lead-header bovenin + de reply-balk
-  // onderaan, geen synthetische bubble. Bestaande mails blijven één
+  // onderaan, geen synthetische bubble. Bestaande conversations blijven één
   // bubble synthetiseren uit mail.body.
   const messages: ThreadMessage[] =
     mail.messages && mail.messages.length > 0
@@ -598,7 +598,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
       navigate('/');
       return;
     }
-    setMailStatus(mail.id, 'waiting');
+    setConversationStatus(mail.id, 'waiting');
     navigate('/');
   };
 
@@ -943,8 +943,8 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
         avatar={mail.from.avatar}
         threadCount={messages.length}
         onBack={() => navigate('/')}
-        onDone={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
-        onSnooze={() => { setMailStatus(mail.id, 'snoozed'); navigate('/'); }}
+        onDone={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
+        onSnooze={() => { setConversationStatus(mail.id, 'snoozed'); navigate('/'); }}
       />
 
       {/* DESKTOP top pill row (v19.3) — absolutely positioned at top:12px
@@ -972,7 +972,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
         <div className="flex justify-center items-center px-[136px]">
           <div className="pointer-events-auto flex items-center gap-3 min-w-0 max-w-[640px]">
             {/* v30.32 — Combined identity + subject pill (zie
-               MailDetailToolbar.tsx). */}
+               ConversationDetailToolbar.tsx). */}
             {/* v30.32 — meta-badge alleen tonen als panel waarde heeft. */}
             <SubjectIdentityPill
               name={titleName}
@@ -987,9 +987,9 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
         <div className="absolute top-0 right-4 lg:right-6 pointer-events-auto">
           {/* v30.30 — Desktop gebruikt nu hetzelfde compact-pattern als
              mobile: Done + ••• overflow met Forward + Snooze + kalender. */}
-          <MailActionPillsCompact
-            onDone={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
-            onSnooze={() => { setMailStatus(mail.id, 'snoozed'); navigate('/'); }}
+          <ConversationActionPillsCompact
+            onDone={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
+            onSnooze={() => { setConversationStatus(mail.id, 'snoozed'); navigate('/'); }}
           />
         </div>
       </div>
@@ -1020,7 +1020,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
             className="mx-auto pointer-events-auto"
             style={{ maxWidth: 720 }}
           >
-            <MailSummaryPanel mail={mail} />
+            <ConversationSummaryPanel mail={mail} />
           </div>
         </div>
       )}
@@ -1062,7 +1062,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
                   className="overflow-hidden"
                 >
                   <div className="pb-3">
-                    <MailSummaryPanel mail={mail} onClose={() => setSummaryPanelOpen(false)} />
+                    <ConversationSummaryPanel mail={mail} onClose={() => setSummaryPanelOpen(false)} />
                   </div>
                 </motion.div>
               )}
@@ -1148,7 +1148,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
           mailId={mail.id}
           forwardContext={forwardContext}
           onForwardCancel={() => setForwardContext(null)}
-          onDismiss={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
+          onDismiss={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
           onSend={onSendInline}
           onExpand={onExpandCompose}
           onFocusMode={() => setReplyFocusOpen(true)}
@@ -1252,7 +1252,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
           mailId={mail.id}
           /* No forwardContext here — forward state is owned by the sheet
              instance (below) so this inline placeholder never auto-expands. */
-          onDismiss={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
+          onDismiss={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
           onSend={onSendInline}
           onExpand={onExpandCompose}
           onExpandedChange={setReplyBarExpanded}
@@ -1380,7 +1380,7 @@ function ThreadChromeSlot({
       // Snooze + Forward in een liquid-glass dropdown.
       rightSlot:
         onDone && onSnooze ? (
-          <MailActionPillsCompact
+          <ConversationActionPillsCompact
             onDone={onDone}
             onSnooze={onSnooze}
             onForward={onForward}

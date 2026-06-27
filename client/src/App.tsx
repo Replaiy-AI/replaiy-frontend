@@ -12,7 +12,7 @@ import { DesktopRail, MobileBottomNav, TabletLeftRail } from '@/components/Chrom
 import { MobileTopChromeProvider, MobileTopChromeShell } from '@/components/MobileTopChrome';
 import { DotsMenuSheet } from '@/components/DotsMenuSheet';
 import { InboxList } from '@/components/InboxList';
-import { MailDetail } from '@/pages/MailDetail';
+import { ConversationDetail } from '@/pages/ConversationDetail';
 import { Briefing } from '@/pages/Briefing';
 import { CampaignsList } from '@/components/CampaignsList';
 import CampaignDetail from '@/pages/CampaignDetail';
@@ -109,11 +109,11 @@ function Shortcuts() {
 
 function KeyboardShortcuts() {
   const [loc, navigate] = useLocation();
-  const { mails, category, setMailStatus, setShowShortcuts, toggleContextPanel } = useStilt();
+  const { conversations, category, setConversationStatus, setShowShortcuts, toggleContextPanel } = useStilt();
   const params = useParams<{ id?: string }>();
 
   useEffect(() => {
-    const visible = mails.filter((m) => {
+    const visible = conversations.filter((m) => {
       if (category === 'done') return m.status === 'done';
       return m.status !== 'done' && m.category === category;
     });
@@ -136,26 +136,26 @@ function KeyboardShortcuts() {
         return;
       }
       // mail-specific
-      const currentId = params.id || loc.replace('/mail/', '');
+      const currentId = params.id || loc.replace('/conversation/', '');
       const idx = visible.findIndex((m) => m.id === currentId);
       if (key === 'j') {
         e.preventDefault();
         const next = visible[Math.min(visible.length - 1, idx + 1)];
-        if (next) navigate(`/mail/${next.id}`);
+        if (next) navigate(`/conversation/${next.id}`);
         return;
       }
       if (key === 'k') {
         e.preventDefault();
         const prev = visible[Math.max(0, idx - 1)];
-        if (prev) navigate(`/mail/${prev.id}`);
+        if (prev) navigate(`/conversation/${prev.id}`);
         return;
       }
       if (currentId && idx !== -1) {
         if (key === 'e') {
           e.preventDefault();
-          setMailStatus(currentId, 'done');
+          setConversationStatus(currentId, 'done');
           const next = visible[idx + 1];
-          navigate(next ? `/mail/${next.id}` : '/');
+          navigate(next ? `/conversation/${next.id}` : '/');
         }
         if (key === 's') {
           e.preventDefault();
@@ -176,7 +176,7 @@ function KeyboardShortcuts() {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [loc, mails, category, navigate, setMailStatus, params.id, setShowShortcuts, toggleContextPanel]);
+  }, [loc, conversations, category, navigate, setConversationStatus, params.id, setShowShortcuts, toggleContextPanel]);
 
   return null;
 }
@@ -185,7 +185,7 @@ function LayoutShell() {
   const [loc] = useLocation();
 
   // Determine right-pane content based on route
-  const showingMail = loc.startsWith('/mail/');
+  const showingConversation = loc.startsWith('/conversation/');
   const showingBriefing = loc.startsWith('/briefing');
   const showingSettings = loc.startsWith('/settings');
   const showingArchive = loc.startsWith('/archive');
@@ -229,7 +229,7 @@ function LayoutShell() {
             ${
               showingCalendar
                 ? 'hidden'
-                : showingMail || showingBriefing || showingSettings || showingArchive || showingCampaignDetail
+                : showingConversation || showingBriefing || showingSettings || showingArchive || showingCampaignDetail
                   ? 'hidden md:flex'
                   : 'flex'
             }
@@ -246,13 +246,13 @@ function LayoutShell() {
             full-screen list underneath (matching the inbox). */}
         <div
           className={`
-            ${showingMail || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaignDetail ? 'flex' : 'hidden md:flex'}
+            ${showingConversation || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaignDetail ? 'flex' : 'hidden md:flex'}
             flex-col flex-1 min-w-0 fixed md:relative inset-0 md:inset-auto z-10 md:z-0
             bg-transparent
           `}
         >
           <Switch>
-            <Route path="/mail/:id" component={MailDetail} />
+            <Route path="/conversation/:id" component={ConversationDetail} />
             <Route path="/briefing" component={Briefing} />
             {/* v15.4 — /settings redirects to profile menu (opens sheet). */}
             <Route path="/settings" component={SettingsRedirect} />
@@ -291,9 +291,9 @@ function LayoutShell() {
 }
 
 function ArchiveView() {
-  const { mails } = useStilt();
+  const { conversations } = useStilt();
   const [q, setQ] = useState('');
-  const items = mails
+  const items = conversations
     .filter((m) => m.status === 'done')
     .filter((m) => {
       const s = q.trim().toLowerCase();
@@ -334,7 +334,7 @@ function ArchiveView() {
                 {i > 0 && (
                   <div className="ml-[64px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
                 )}
-                <MailRowLite mail={m} />
+                <ConversationRowLite mail={m} />
               </div>
             ))}
           </div>
@@ -344,10 +344,10 @@ function ArchiveView() {
   );
 }
 
-function MailRowLite({ mail }: { mail: any }) {
+function ConversationRowLite({ mail }: { mail: any }) {
   return (
     <Link
-      href={`/mail/${mail.id}`}
+      href={`/conversation/${mail.id}`}
       className="px-4 py-3 flex items-start gap-3 hover-elevate active-elevate-2"
     >
       <StiltAvatar name={mail.from.name} src={mail.from.avatar} size={36} />

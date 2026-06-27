@@ -1,6 +1,6 @@
 // Replaiy — Campaign detail + create pane (right column of the split view).
 //
-// Mirrors MailDetail.tsx structure exactly:
+// Mirrors ConversationDetail.tsx structure exactly:
 //   • A floating desktop pill row at top-3 (name + on/off + ... overflow).
 //   • Separate desktop / mobile scroll containers (max-w-2xl mx-auto content).
 //   • Mobile top-chrome registered via useMobileTopChromeSlot (priority 100):
@@ -54,7 +54,7 @@ import {
   type FlowStepKind,
 } from '@/data/mockCampaigns';
 import { StiltAvatar } from '@/components/Avatar';
-import { ActionPill } from '@/components/MailDetailToolbar';
+import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { GlassToggle } from '@/components/GlassToggle';
 import { conversionPct, replyRatePct } from '@/components/CampaignsList';
@@ -976,7 +976,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
   return (
     <div className="flex flex-col h-full min-h-0 relative">
       {/* DESKTOP floating top pill row — editable name (left) + switch +
-          overflow (right), on the same top:12 baseline as MailDetail. */}
+          overflow (right), on the same top:12 baseline as ConversationDetail. */}
       <div
         data-testid="campaign-desktop-header"
         className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none"

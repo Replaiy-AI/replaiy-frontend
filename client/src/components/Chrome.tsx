@@ -63,7 +63,7 @@ export function MobileBottomNav() {
   const [loc, setLoc] = useLocation();
   const { sheetOpen } = useStilt();
 
-  if (loc.startsWith('/mail/')) {
+  if (loc.startsWith('/conversation/')) {
     return null;
   }
 

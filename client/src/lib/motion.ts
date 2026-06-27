@@ -30,7 +30,7 @@ export const APPLE_EASE_DURATION = 0.32;
 // ─── Glass icon-button standardization (v30.36) ───────────────────
 // One source of truth for the hover-scale animation on every glass
 // icon button (VadikGlass, GlassCircleButton, VerticalRail pills,
-// MailActionCluster, etc.). Previously each component had its own
+// ConversationActionCluster, etc.). Previously each component had its own
 // scale value (1.05, 1.1, 1.2) — too aggressive, especially on the
 // VadikLiquidSwitcher icons which jumped to 1.2 on hover. This soft
 // 1.03 is the universal target.

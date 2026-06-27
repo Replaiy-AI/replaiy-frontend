@@ -36,7 +36,7 @@ export function DotsMenuSheet() {
   // Conversation detail registers its own leftSlot (back arrow), so the
   // ••• button isn't rendered there at all; we don't open a menu for
   // those routes either as a safety net.
-  const isConversationDetail = loc.startsWith('/mail/');
+  const isConversationDetail = loc.startsWith('/conversation/');
   if (isConversationDetail) {
     return null;
   }

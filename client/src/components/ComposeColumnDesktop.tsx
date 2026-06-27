@@ -12,7 +12,7 @@
 // supply that chrome instead.
 //
 // Mobile (<1024px) uses ComposeSheetMobile and is unchanged. The
-// reply / forward use case on MailDetail does not use chromeless and
+// reply / forward use case on ConversationDetail does not use chromeless and
 // is also unaffected.
 // ─────────────────────────────────────────────────────────────────
 import { useRef, useState, type ReactNode } from 'react';

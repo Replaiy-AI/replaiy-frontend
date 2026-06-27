@@ -1,4 +1,4 @@
-import { senderAvatarHue, initials } from '@/data/mockEmails';
+import { senderAvatarHue, initials } from '@/data/mockConversations';
 
 export function avatarFor(name: string) {
   const hue = senderAvatarHue(name);

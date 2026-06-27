@@ -1,13 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { mockEmails, type Mail, type MailStatus, type MailCategory } from '@/data/mockEmails';
+import { mockConversations, type Conversation, type ConversationStatus, type ConversationCategory } from '@/data/mockConversations';
 import { MOCK_CAMPAIGNS, type Campaign } from '@/data/mockCampaigns';
 
 type Theme = 'light' | 'dark' | 'auto';
-type Category = MailCategory | 'done';
+type Category = ConversationCategory | 'done';
 export type ViewMode = 'inbox' | 'smart';
 
 // View-selector state for the inbox (conversation) surface.
-export type MailView = 'inbox' | 'snoozed' | 'sent' | 'done' | 'drafts' | 'spam';
+export type ConversationView = 'inbox' | 'snoozed' | 'sent' | 'done' | 'drafts' | 'spam';
 
 // Replaiy AI settings — only toggles that apply to LinkedIn outbound.
 interface AISettings {
@@ -16,8 +16,8 @@ interface AISettings {
 }
 
 interface StiltState {
-  mails: Mail[];
-  setMailStatus: (id: string, status: MailStatus) => void;
+  conversations: Conversation[];
+  setConversationStatus: (id: string, status: ConversationStatus) => void;
   // Replaiy — campaigns (inbox-style list + detail). Shared so the list,
   // the detail pane, and the create-view all read/write the same data.
   campaigns: Campaign[];
@@ -25,7 +25,7 @@ interface StiltState {
   updateCampaign: (id: string, patch: Partial<Campaign>) => void;
   /** Replaiy — start a fresh empty conversation with a lead. Creates a
    *  new empty Mail (no messages) and returns its id so the caller can
-   *  navigate to /mail/:id (the normal conversation view + reply bar). */
+   *  navigate to /conversation/:id (the normal conversation view + reply bar). */
   startConversationWith: (lead: {
     name: string;
     email?: string;
@@ -47,8 +47,8 @@ interface StiltState {
   smartMode: boolean;
   setSmartMode: (v: boolean) => void;
   // Inbox view selector state.
-  mailView: MailView;
-  setMailView: (v: MailView) => void;
+  conversationView: ConversationView;
+  setConversationView: (v: ConversationView) => void;
   query: string;
   setQuery: (q: string) => void;
   ai: AISettings;
@@ -79,7 +79,7 @@ function detectSystemDark(): boolean {
 }
 
 export function StiltProvider({ children }: { children: React.ReactNode }) {
-  const [mails, setMails] = useState<Mail[]>(mockEmails);
+  const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
   const [campaigns, setCampaigns] = useState<Campaign[]>(MOCK_CAMPAIGNS);
   const [composePrefill, setComposePrefill] = useState<StiltState['composePrefill']>(null);
   const [theme, setTheme] = useState<Theme>('auto');
@@ -88,7 +88,7 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
   const [viewMode, setViewMode] = useState<ViewMode>('smart');
   // v15.4 — Default Smart ON. Single state used by all 3 surfaces.
   const [smartMode, setSmartMode] = useState<boolean>(true);
-  const [mailView, setMailView] = useState<MailView>('inbox');
+  const [conversationView, setConversationView] = useState<ConversationView>('inbox');
   const [query, setQuery] = useState('');
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [dotsMenuOpen, setDotsMenuOpen] = useState(false);
@@ -122,8 +122,8 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
     else root.classList.remove('dark');
   }, [effectiveDark]);
 
-  const setMailStatus = useCallback((id: string, status: MailStatus) => {
-    setMails((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
+  const setConversationStatus = useCallback((id: string, status: ConversationStatus) => {
+    setConversations((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
   }, []);
 
   const startConversationWith = useCallback(
@@ -136,7 +136,7 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
       leadLocation?: string;
     }) => {
       const id = `new-${Date.now()}`;
-      const newMail: Mail = {
+      const newMail: Conversation = {
         id,
         from: { name: lead.name, email: lead.email ?? '', avatar: lead.avatar },
         contact: {
@@ -162,7 +162,7 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
         // empty timeline with the reply/draft bar at the bottom.
         messages: [],
       };
-      setMails((prev) => [newMail, ...prev]);
+      setConversations((prev) => [newMail, ...prev]);
       return id;
     },
     []
@@ -186,8 +186,8 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<StiltState>(
     () => ({
-      mails,
-      setMailStatus,
+      conversations,
+      setConversationStatus,
       campaigns,
       addCampaign,
       updateCampaign,
@@ -203,8 +203,8 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
       setViewMode,
       smartMode,
       setSmartMode,
-      mailView,
-      setMailView,
+      conversationView,
+      setConversationView,
       query,
       setQuery,
       ai,
@@ -222,7 +222,7 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
       setContextPanelOpen,
       toggleContextPanel,
     }),
-    [mails, setMailStatus, campaigns, addCampaign, updateCampaign, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, mailView, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel]
+    [conversations, setConversationStatus, campaigns, addCampaign, updateCampaign, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, conversationView, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

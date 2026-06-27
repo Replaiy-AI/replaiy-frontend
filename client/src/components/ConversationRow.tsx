@@ -2,22 +2,22 @@ import { useLocation } from 'wouter';
 import { StiltAvatar } from './Avatar';
 import { formatInboxTime } from '@/lib/avatar';
 import { useInboxSettings } from '@/lib/inboxSettings';
-import type { Mail } from '@/data/mockEmails';
+import type { Conversation } from '@/data/mockConversations';
 
 // ─────────────────────────────────────────────────────────────────
 // v17 — Swipe gesture removed. Rows are now plain clickable surfaces
 // that navigate to the mail detail. SwipeableRow is no longer used.
 // HoverActionButton is kept exported for any legacy callers (e.g. the
-// search-result rows) but is no longer rendered inline by MailRow.
+// search-result rows) but is no longer rendered inline by ConversationRow.
 // ─────────────────────────────────────────────────────────────────
-export function MailRow({ mail, active }: { mail: Mail; active?: boolean }) {
+export function ConversationRow({ mail, active }: { mail: Conversation; active?: boolean }) {
   const [, navigate] = useLocation();
   const [{ showTimestamps }] = useInboxSettings();
 
   return (
     <div
       data-testid={`row-mail-${mail.id}`}
-      onClick={() => navigate(`/mail/${mail.id}`)}
+      onClick={() => navigate(`/conversation/${mail.id}`)}
       className={`relative cursor-pointer select-none rounded-2xl px-4 py-3 flex items-center gap-3 ${active ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''}`}
     >
       <StiltAvatar name={mail.from.name} src={mail.from.avatar} size={36} className="shrink-0" />
@@ -53,7 +53,7 @@ export function MailRow({ mail, active }: { mail: Mail; active?: boolean }) {
 }
 
 // Kept for any consumer that still imports it (e.g. specialized rows).
-// No longer rendered by MailRow / SmartMailRow themselves.
+// No longer rendered by ConversationRow / SmartConversationRow themselves.
 export function HoverActionButton({
   onClick,
   label,

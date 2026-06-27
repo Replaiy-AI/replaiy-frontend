@@ -18,7 +18,7 @@
 //
 // Belangrijke regels:
 //   • Alle React hooks MOETEN voor de early return staan (anders
-//     "Rendered more hooks" crash bij switchen tussen mails).
+//     "Rendered more hooks" crash bij switchen tussen conversations).
 //   • Geen <button>-in-<button>: VadikGlass rendert intern al een button,
 //     dus wrappers gebruiken `div role="button"` of `stopPropagation`.
 // ─────────────────────────────────────────────────────────────────
@@ -346,7 +346,7 @@ export function InlineReplyBar({
 
   // v30.30 — visualViewport tracker tijdelijk gedisabled tijdens crash-debug.
   // setVisibleHeight blijft null, we vallen terug op standaard 50vh/100vh.
-  // (Was de oorzaak van een infinite render loop bij thread mails.)
+  // (Was de oorzaak van een infinite render loop bij thread conversations.)
 
   // v30.30 — storedDraft: lezen 1x bij mailId-verandering uit localStorage.
   // Bewaren in state zodat collapsed-preview het kan tonen zonder per
@@ -1460,7 +1460,7 @@ export function InlineReplyBar({
 
   // v30.30 — Bouw de expanded UI één keer, en hijs hem in een portal als
   // we mobile-fullscreen zijn (zo overleven we 'position:fixed' onder
-  // framer-motion transformed ancestors in MailDetail).
+  // framer-motion transformed ancestors in ConversationDetail).
   const expandedNode = (
     <>
       {/* Desktop fullscreen backdrop wordt nu door de portal hieronder

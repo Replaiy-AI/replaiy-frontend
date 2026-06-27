@@ -1,4 +1,4 @@
-// v30.32 — MailSummaryPanel als DELTA-BRIEFING voor lange threads.
+// v30.32 — ConversationSummaryPanel als DELTA-BRIEFING voor lange threads.
 //
 // Conceptueel: dit panel is GEEN AI-recap van de inhoud (die info zit
 // al in de bubbles eronder, en de inbox heeft al gefilterd op "moet je
@@ -7,7 +7,7 @@
 //     "Waar zijn we gebleven en wat staat er open?"
 //
 // Zinvol bij lange threads (≥3 messages) en/of threads waar je een
-// tijd niet bent geweest — niet bij single-message mails.
+// tijd niet bent geweest — niet bij single-message conversations.
 //
 // Layout (V1 uit mockups):
 //   1. Hero "where we left off" box (teal accent) — 1-2 zin status
@@ -18,7 +18,7 @@
 // Geen "Ask AI" button meer (functieloos). Geen abstracte "Pending
 // actions" — vervangen door concrete "You → / Other → " open items.
 import { Sparkles } from 'lucide-react';
-import type { Mail } from '@/data/mockEmails';
+import type { Conversation } from '@/data/mockConversations';
 
 // v30.33 — EXACTE editor glass recipe (1:1 copy van glassSurfaceStyle
 // uit InlineReplyBar.tsx) + AI teal gloed onderlangs (zelfde recipe als
@@ -41,8 +41,8 @@ function summaryPanelGlassStyle(): React.CSSProperties {
   };
 }
 
-interface MailSummaryPanelProps {
-  mail: Mail;
+interface ConversationSummaryPanelProps {
+  mail: Conversation;
   /** Optional close button (mobile bottom-sheet + desktop dismiss). */
   onClose?: () => void;
   /** When true, render without outer card padding (caller controls). */
@@ -57,7 +57,7 @@ interface MailSummaryPanelProps {
  * Returns true if the mail has enough context to warrant a delta-briefing.
  * Single messages or trivial 2-message threads = no panel value.
  */
-export function hasSummaryPanelValue(mail: Mail): boolean {
+export function hasSummaryPanelValue(mail: Conversation): boolean {
   if (!mail.isThread) return false;
   const msgCount = mail.messages?.length ?? 0;
   if (msgCount < 3) return false;
@@ -65,14 +65,14 @@ export function hasSummaryPanelValue(mail: Mail): boolean {
   return !!(mail.threadDelta || mail.threadAiSummary);
 }
 
-export function MailSummaryPanel({
+export function ConversationSummaryPanel({
   mail,
   onClose,
   bare,
   onDraftReply,
   onScheduleEvent,
   onSnooze,
-}: MailSummaryPanelProps) {
+}: ConversationSummaryPanelProps) {
   // Fall back to threadAiSummary if no specific delta is set (keeps
   // backward-compat with threads that haven't been enriched yet).
   const delta = mail.threadDelta || mail.threadAiSummary;
