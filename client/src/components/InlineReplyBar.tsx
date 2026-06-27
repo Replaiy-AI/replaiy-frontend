@@ -47,6 +47,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useLocation } from 'wouter';
 import { DiscardDraftPopover } from './DiscardDraftPopover';
 import { activePersona } from '@/data/mockPersona';
+import { useStilt } from '@/state/StiltContext';
 
 /** v30.30 — Forward state: leeg To-veld, pre-filled editor met forward-block.
  *  Wanneer aanwezig openen we de bar in forward-mode (expanded + leeg To). */
@@ -287,6 +288,10 @@ export function InlineReplyBar({
 }: InlineReplyBarProps) {
   const forwardMode = !!forwardContext;
   const [, navigate] = useLocation();
+  // Live persona from shared state, so the AI-draft avatar + glow update the
+  // moment the user changes the persona (preset or fine-tune) in My AI.
+  const { persona: livePersona } = useStilt();
+  const persona = activePersona(livePersona);
   // v36.3 — sheetMode unifies composeMode and initialExpanded for the
   // "this bar runs as the body of a 92vh bottom sheet" use case. Both
   // share the same rendering needs: edge-to-edge container (no nested
@@ -1295,15 +1300,26 @@ export function InlineReplyBar({
     // The AI-draft tint + accents follow the ACTIVE PERSONA colour (scoped to
     // this draft only). Default/balanced persona keeps Replaiy blue, so the
     // rest of the product stays the single blue accent.
-    const persona = activePersona();
     const aiTint = hasAiDraft
       ? {
           // Scope --ai-accent to the persona colour for this draft container,
-          // so the gradient, the avatar and the send button all match it.
+          // so the gradient, the border-glow and the avatar all match it.
           ['--ai-accent' as any]: persona.color,
+          // Subtle bottom-up tint over the glass base (kept light)...
           background:
             (baseStyle.background as string) +
-            ', linear-gradient(180deg, transparent 30%, color-mix(in srgb, var(--ai-accent, #2F6BFF) var(--ai-glow-strength, 9%), transparent) 100%)',
+            ', linear-gradient(180deg, transparent 45%, color-mix(in srgb, var(--ai-accent, #2F6BFF) 10%, transparent) 100%)',
+          // ...plus a soft coloured RING + outer bloom around the whole draft,
+          // like an iridescent edge — makes the persona colour clearly visible
+          // without shouting. Preserves any existing glass shadow.
+          boxShadow: [
+            baseStyle.boxShadow as string,
+            'inset 0 0 0 1px color-mix(in srgb, var(--ai-accent, #2F6BFF) 42%, transparent)',
+            '0 0 0 1px color-mix(in srgb, var(--ai-accent, #2F6BFF) 14%, transparent)',
+            '0 8px 30px -10px color-mix(in srgb, var(--ai-accent, #2F6BFF) 38%, transparent)',
+          ]
+            .filter(Boolean)
+            .join(', '),
         }
       : {};
     return (
