@@ -302,3 +302,37 @@ export const personaPresets: PersonaPreset[] = [
       'Emma, straight to it: we book qualified meetings from your existing LinkedIn conversations. I have Thursday 11:00 or Friday 14:00, which works to take a look?',
   },
 ];
+
+// ── Active persona resolution ──────────────────────────────────────
+// The mascot image per preset id (Vite needs static import refs).
+import mascotPatient from '@/assets/preset_patient.png';
+import mascotWarm from '@/assets/preset_warm.png';
+import mascotConsultative from '@/assets/preset_consultative.png';
+import mascotSharp from '@/assets/preset_sharp.png';
+import mascotDirect from '@/assets/preset_direct.png';
+
+const PRESET_MASCOT: Record<PersonaPreset['mascot'], string> = {
+  patient: mascotPatient,
+  warm: mascotWarm,
+  consultative: mascotConsultative,
+  sharp: mascotSharp,
+  direct: mascotDirect,
+};
+
+// Replaiy's ONE UI accent. Used as the default whenever no preset is active
+// (or the balanced "warm" preset is chosen) so the rest of the product stays
+// the single blue accent.
+export const DEFAULT_AI_ACCENT = '#2F6BFF';
+
+/** The colour + mascot of the currently-active persona, with safe defaults
+ *  (blue accent + the real warm mascot). Drives the inbox AI-draft tinting. */
+export function activePersona(persona: Persona = mockPersona): {
+  color: string;
+  mascot: string;
+} {
+  const preset = personaPresets.find((p) => p.id === persona.activePresetId);
+  return {
+    color: preset?.color ?? DEFAULT_AI_ACCENT,
+    mascot: preset ? PRESET_MASCOT[preset.mascot] : mascotWarm,
+  };
+}

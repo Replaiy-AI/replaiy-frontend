@@ -46,6 +46,7 @@ import VadikGlass from './VadikGlass';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useLocation } from 'wouter';
 import { DiscardDraftPopover } from './DiscardDraftPopover';
+import { activePersona } from '@/data/mockPersona';
 
 /** v30.30 — Forward state: leeg To-veld, pre-filled editor met forward-block.
  *  Wanneer aanwezig openen we de bar in forward-mode (expanded + leeg To). */
@@ -1291,11 +1292,18 @@ export function InlineReplyBar({
     // Subtiele teal glow alleen aan de onderkant — geïnspireerd door
     // iOS 26 "Meldingen met prioriteit" (zachte iridescent edge). Veel
     // lichter dan v30.30 (was 17/12), nu 9/5 + verticaal.
+    // The AI-draft tint + accents follow the ACTIVE PERSONA colour (scoped to
+    // this draft only). Default/balanced persona keeps Replaiy blue, so the
+    // rest of the product stays the single blue accent.
+    const persona = activePersona();
     const aiTint = hasAiDraft
       ? {
+          // Scope --ai-accent to the persona colour for this draft container,
+          // so the gradient, the avatar and the send button all match it.
+          ['--ai-accent' as any]: persona.color,
           background:
             (baseStyle.background as string) +
-            ', linear-gradient(180deg, transparent 30%, color-mix(in srgb, var(--ai-accent, #13A89E) var(--ai-glow-strength, 9%), transparent) 100%)',
+            ', linear-gradient(180deg, transparent 30%, color-mix(in srgb, var(--ai-accent, #2F6BFF) var(--ai-glow-strength, 9%), transparent) 100%)',
         }
       : {};
     return (
@@ -1340,10 +1348,12 @@ export function InlineReplyBar({
                  zwarte streep, leest als zachte scheidslaag. */}
               <div className="flex items-center gap-1.5 pb-1.5 mb-1.5 relative">
                 {hasAiDraft && (
-                  <Sparkles
-                    className="shrink-0"
-                    style={{ width: 12, height: 12, color: 'var(--ai-accent, #13A89E)' }}
-                    strokeWidth={2}
+                  <img
+                    src={persona.mascot}
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                    className="shrink-0 w-[15px] h-[15px] object-contain select-none pointer-events-none -ml-0.5"
                   />
                 )}
                 <span className="text-[11px] tracking-[-0.005em] text-foreground/50">
