@@ -66,17 +66,48 @@ export interface Persona {
   memberName: string;
   memberInitials: string;
   role: string;
+  /** Which preset is currently applied (null = custom / fine-tuned). */
+  activePresetId: string | null;
   tone: ToneProfile;
   strategy: StrategyProfile;
   /** Personal knowledge (questions + files). */
   knowledge: KnowledgeBundle;
 }
 
+// ── Persona presets ───────────────────────────────────────────────
+// One-click personalities that fill tone + strategy. Pick one and be done,
+// or fine-tune afterwards. Each carries the same mascot with a different fin
+// colour as a character label (agreed exception to the single-blue rule).
+export interface PersonaPreset {
+  id: string;
+  name: string;
+  blurb: string;
+  color: string;
+  mascot: 'patient' | 'warm' | 'consultative' | 'sharp' | 'direct';
+  tone: Pick<ToneProfile, 'formality' | 'length' | 'voice' | 'dos' | 'donts'>;
+  strategy: StrategyProfile;
+  /** Example opener shown in the live preview. */
+  sample: string;
+}
+
+export interface PreviewLead {
+  name: string;
+  headline: string;
+  initials: string;
+}
+
+export const previewLead: PreviewLead = {
+  name: 'Emma Chen',
+  headline: 'VP Sales · Series-B SaaS',
+  initials: 'EC',
+};
+
 export const mockPersona: Persona = {
   memberId: 'mem_simon',
   memberName: 'Simon van Basten',
   memberInitials: 'SB',
   role: 'Founder · Replaiy',
+  activePresetId: 'warm',
   tone: {
     language: 'en',
     formality: 'informal',
@@ -144,3 +175,127 @@ export const mockPersona: Persona = {
     ],
   },
 };
+
+// Ordered from most patient to most assertive.
+export const personaPresets: PersonaPreset[] = [
+  {
+    id: 'patient',
+    name: 'Patient Nurturer',
+    blurb: 'Plays the long game. Stays warm, never pushes.',
+    color: '#F59E0B',
+    mascot: 'patient',
+    tone: {
+      formality: 'informal',
+      length: 'short',
+      voice:
+        'Calm, warm and unhurried. Sounds like someone happy to stay in touch with no agenda. Gentle and human.',
+      dos: ['Lead with genuine interest', 'Keep it light and low-pressure', 'Add value before anything else'],
+      donts: ["Don't ask for time early", 'No urgency or pressure', 'No pitching'],
+    },
+    strategy: {
+      stance: 'patient',
+      qualification: 'Let fit emerge naturally over a few light exchanges. No interrogation.',
+      closing: 'Only suggest a next step once they clearly lean in. Otherwise keep nurturing.',
+      pushVsWait: 'Strongly favour waiting. One soft follow-up at most, then give space.',
+    },
+    sample:
+      'Hey Emma, really enjoyed your take on rep ramp time. No agenda here, just following along. Curious what is working for your team lately?',
+  },
+  {
+    id: 'warm',
+    name: 'Warm & Personal',
+    blurb: 'Friendly and human. Sounds like a real founder.',
+    color: '#2F6BFF',
+    mascot: 'warm',
+    tone: {
+      formality: 'informal',
+      length: 'short',
+      voice:
+        'Direct, warm and human. Talks like a founder who is genuinely interested, no sales talk, no clichés. Short sentences, the occasional wink.',
+      dos: [
+        'Lead with value and a genuine observation',
+        'Ask one concrete, easy follow-up question',
+        'Reference something specific from their profile or post',
+      ],
+      donts: ["Don't pitch in the first message", 'No over-the-top enthusiasm', 'No generic openers'],
+    },
+    strategy: {
+      stance: 'balanced',
+      qualification:
+        'Surface fit and intent first with an open question about their current approach. Let it flow naturally.',
+      closing: 'Suggest a short call once there is real interest. Keep the bar low: 15 minutes, no obligation.',
+      pushVsWait: 'One light, valuable follow-up when in doubt, then wait and protect the relationship.',
+    },
+    sample:
+      'Hey Emma, saw your post on scaling SDR outbound, sharp read. Curious how you are handling reply quality as the team grows?',
+  },
+  {
+    id: 'consultative',
+    name: 'Consultative',
+    blurb: 'Asks sharp questions. Advises before selling.',
+    color: '#14B8A6',
+    mascot: 'consultative',
+    tone: {
+      formality: 'neutral',
+      length: 'medium',
+      voice:
+        'Thoughtful and advisory. Leads with smart questions and frames insight before any offer. Calm and credible.',
+      dos: ['Open with an insightful question', 'Diagnose before prescribing', 'Reference a relevant pattern you see'],
+      donts: ['No pitching before understanding', 'No hype', 'No assumptions about their needs'],
+    },
+    strategy: {
+      stance: 'balanced',
+      qualification: 'Qualify deeply through questions about their process, goals and current gaps.',
+      closing: 'Propose a working session or call framed as solving a specific problem you uncovered.',
+      pushVsWait: 'Follow up with new insight, not reminders. Earn the next step.',
+    },
+    sample:
+      'Hi Emma, quick question on your outbound setup, are dead threads the bottleneck, or is it reply quality? Seeing both slow teams down lately, curious where it bites for you.',
+  },
+  {
+    id: 'sharp',
+    name: 'Sharp Closer',
+    blurb: 'Direct and focused. Moves toward the next step.',
+    color: '#6D5BFF',
+    mascot: 'sharp',
+    tone: {
+      formality: 'neutral',
+      length: 'short',
+      voice:
+        'Confident, crisp and to the point. Friendly but clearly steering toward a next step. No fluff.',
+      dos: ['Get to the point quickly', 'Offer a clear, easy next step', 'Stay confident and concise'],
+      donts: ['No rambling', 'No over-softening', 'No vague endings'],
+    },
+    strategy: {
+      stance: 'balanced',
+      qualification: 'Confirm fit fast with one or two pointed questions.',
+      closing: 'Propose a concrete time for a short call early once interest shows.',
+      pushVsWait: 'Follow up promptly and clearly. Two nudges before easing off.',
+    },
+    sample:
+      'Hey Emma, we help teams like yours turn dead LinkedIn threads into booked meetings. Worth a quick 15 min this week to see if it fits?',
+  },
+  {
+    id: 'direct',
+    name: 'Direct Closer',
+    blurb: 'Most assertive. Pushes firmly for the meeting.',
+    color: '#F43F5E',
+    mascot: 'direct',
+    tone: {
+      formality: 'neutral',
+      length: 'short',
+      voice:
+        'Bold and decisive. Leads straight to the ask with confidence. Respectful but unmistakably driving to close.',
+      dos: ['Open with the value and the ask', 'Be specific about the next step', 'Project conviction'],
+      donts: ['No hedging', 'No long warm-ups', 'No leaving the next step open'],
+    },
+    strategy: {
+      stance: 'push',
+      qualification: 'Qualify in one line, then move to the ask.',
+      closing: 'Ask for the meeting directly with a specific time. Make saying yes effortless.',
+      pushVsWait: 'Push persistently with value-led follow-ups until you get a clear yes or no.',
+    },
+    sample:
+      'Emma, straight to it: we book qualified meetings from your existing LinkedIn conversations. I have Thursday 11:00 or Friday 14:00, which works to take a look?',
+  },
+];

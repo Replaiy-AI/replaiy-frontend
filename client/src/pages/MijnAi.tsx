@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useStilt } from '@/state/StiltContext';
 import { StiltLogo } from '@/components/Logo';
+import { PersonaExperience } from '@/components/PersonaExperience';
 import iconPersona from '@/assets/ai_icon_persona.png';
 import iconPersonal from '@/assets/ai_icon_personal.png';
 import iconWorkspace from '@/assets/ai_icon_workspace.png';
@@ -386,31 +387,27 @@ function PersonaDetail({
 }) {
   const tone = persona.tone;
   const strategy = persona.strategy;
+  // Fine-tuning any control moves the persona off its preset into "custom"
+  // (activePresetId = null), so the preset cards no longer show as selected.
   const patchTone = (p: Partial<typeof tone>) =>
-    setPersona((prev) => ({ ...prev, tone: { ...prev.tone, ...p } }));
+    setPersona((prev) => ({ ...prev, activePresetId: null, tone: { ...prev.tone, ...p } }));
   const patchStrategy = (p: Partial<typeof strategy>) =>
-    setPersona((prev) => ({ ...prev, strategy: { ...prev.strategy, ...p } }));
-
-  // Live one-line state for the header, in the platform voice. Reads the
-  // current tone settings so the header reflects the real configuration.
-  const langLabel = tone.language === 'en' ? 'English' : 'Dutch';
-  const formalityLabel =
-    tone.formality === 'informal' ? 'informal' : tone.formality === 'formal' ? 'formal' : 'neutral';
-  const lengthLabel =
-    tone.length === 'short' ? 'short replies' : tone.length === 'long' ? 'longer replies' : 'medium replies';
-  const headerSummary = `${langLabel}, ${formalityLabel}, ${lengthLabel}.`;
+    setPersona((prev) => ({ ...prev, activePresetId: null, strategy: { ...prev.strategy, ...p } }));
 
   return (
     <ViewShell title="Persona" onBack={onBack}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-        <DetailHeader
-          iconSrc={iconPersona}
-          eyebrow="Persona"
-          title="How your AI sounds and thinks"
-          intro="The voice and strategy your AI uses in every conversation."
-          summary={headerSummary}
-        />
+        {/* Living top: preset personalities + live mascot preview. */}
+        <PersonaExperience persona={persona} setPersona={setPersona} />
 
+        {/* Optional fine-tuning, for users who want to go beyond a preset. */}
+        <div className="flex items-center gap-3 mt-8 mb-1 px-2">
+          <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground/80">
+            Fine-tune
+          </span>
+          <span className="text-[12px] text-foreground/45">Optional, adjust anything by hand</span>
+          <div className="flex-1 h-px bg-foreground/[0.08] dark:bg-white/[0.08]" />
+        </div>
         <div className="flex flex-col gap-5 md:gap-6">
         {/* Tone of voice */}
         <section>
