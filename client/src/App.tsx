@@ -16,7 +16,8 @@ import { InboxList } from '@/components/InboxList';
 import { MailDetail } from '@/pages/MailDetail';
 import { Compose } from '@/pages/Compose';
 import { Briefing } from '@/pages/Briefing';
-import Campaigns from '@/pages/Campaigns';
+import { CampaignsList } from '@/components/CampaignsList';
+import CampaignDetail from '@/pages/CampaignDetail';
 import { ProfileMenu } from '@/components/ProfileMenu';
 import { StiltLogo } from '@/components/Logo';
 import { UniversalSearch } from '@/components/UniversalSearch';
@@ -200,6 +201,15 @@ function LayoutShell() {
   const showingArchive = loc.startsWith('/archive');
   const showingCalendar = loc.startsWith('/calendar');
   const showingCampaigns = loc.startsWith('/campaigns');
+  // Campaigns has TWO screens (see campaigns_design_brief.md §A/B):
+  //   • bare /campaigns        → FULL-WIDTH overview (roll-up dashboard +
+  //                              campaign list). The list column owns the
+  //                              whole area; the right detail pane is hidden,
+  //                              the same way Calendar takes the full width.
+  //   • /campaigns/:id | /new   → SPLIT view exactly like /mail/:id: list
+  //                              column (left) + detail/create pane (right).
+  const showingCampaignDetail = /^\/campaigns\/.+/.test(loc);
+  const showingCampaignsOverview = showingCampaigns && !showingCampaignDetail;
 
   // Mobile: only show one column at a time
   // Tablet: list + detail
@@ -224,22 +234,25 @@ function LayoutShell() {
       {/* MAIN AREA — desktop reserves left padding for the floating sidebar
           (rail is fixed-positioned and overlays this padding). */}
       <main className="flex-1 flex min-w-0 relative lg:pl-[88px]">
-        {/* Inbox list column — hidden on docs/calendar routes since those
-            pages own the full middle+right area themselves. */}
+        {/* List column. Inbox shows InboxList; Campaigns shows CampaignsList
+            (same list+detail architecture). Calendar still owns full width.
+            Hidden on mobile when a detail pane is open (mail or a specific
+            campaign), shown again for bare /campaigns (empty state). */}
         <div
           className={`
-            ${showingMail || showingCompose || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaigns ? 'hidden md:flex' : 'flex'}
-            ${showingCampaigns || showingCalendar ? 'md:hidden' : 'md:flex'} flex-col w-full md:w-[360px] lg:w-[520px] xl:w-[560px] md:shrink-0
-            relative lg:pr-2
+            ${showingMail || showingCompose || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaignDetail ? 'hidden md:flex' : 'flex'}
+            ${showingCalendar || showingCampaignsOverview ? 'md:flex md:w-full lg:w-full' : 'md:flex md:w-[360px] lg:w-[520px] xl:w-[560px]'} flex-col w-full md:shrink-0
+            relative ${showingCampaignsOverview ? '' : 'lg:pr-2'}
           `}
         >
-          <InboxList />
+          {showingCampaigns ? <CampaignsList /> : <InboxList />}
         </div>
 
-        {/* Right detail pane */}
+        {/* Right detail pane — hidden for the full-width campaigns overview. */}
         <div
           className={`
-            ${showingMail || showingCompose || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaigns ? 'flex' : 'hidden md:flex'}
+            ${showingCampaignsOverview ? 'hidden' : ''}
+            ${showingMail || showingCompose || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaignDetail ? 'flex' : 'hidden md:flex'}
             flex-col flex-1 min-w-0 fixed md:relative inset-0 md:inset-auto z-10 md:z-0
             bg-transparent
           `}
@@ -250,7 +263,8 @@ function LayoutShell() {
             <Route path="/briefing" component={Briefing} />
             {/* v15.4 — /settings redirects to profile menu (opens sheet). */}
             <Route path="/settings" component={SettingsRedirect} />
-            <Route path="/campaigns" component={Campaigns} />
+            <Route path="/campaigns/:id" component={CampaignDetail} />
+            <Route path="/campaigns" component={CampaignDetail} />
             <Route path="/calendar/new">
               <ComingSoon title="Calendar" />
             </Route>

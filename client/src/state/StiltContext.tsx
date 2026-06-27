@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { mockEmails, type Mail, type MailStatus, type MailCategory } from '@/data/mockEmails';
 import type { AccountId, RsvpStatus } from '@/data/mockEvents';
+import { MOCK_CAMPAIGNS, type Campaign } from '@/data/mockCampaigns';
 
 type Theme = 'light' | 'dark' | 'auto';
 type Category = MailCategory | 'done';
@@ -22,6 +23,11 @@ interface AISettings {
 interface StiltState {
   mails: Mail[];
   setMailStatus: (id: string, status: MailStatus) => void;
+  // Replaiy — campaigns (inbox-style list + detail). Shared so the list,
+  // the detail pane, and the create-view all read/write the same data.
+  campaigns: Campaign[];
+  addCampaign: (c: Campaign) => void;
+  updateCampaign: (id: string, patch: Partial<Campaign>) => void;
   /** Replaiy — start a fresh empty conversation with a lead. Creates a
    *  new empty Mail (no messages) and returns its id so the caller can
    *  navigate to /mail/:id (the normal conversation view + reply bar). */
@@ -95,6 +101,7 @@ function detectSystemDark(): boolean {
 
 export function StiltProvider({ children }: { children: React.ReactNode }) {
   const [mails, setMails] = useState<Mail[]>(mockEmails);
+  const [campaigns, setCampaigns] = useState<Campaign[]>(MOCK_CAMPAIGNS);
   const [composePrefill, setComposePrefill] = useState<StiltState['composePrefill']>(null);
   const [theme, setTheme] = useState<Theme>('auto');
   const [systemDark, setSystemDark] = useState<boolean>(detectSystemDark());
@@ -208,10 +215,25 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
     setAIState((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  const addCampaign = useCallback((c: Campaign) => {
+    setCampaigns((prev) => [c, ...prev]);
+  }, []);
+  const updateCampaign = useCallback(
+    (id: string, patch: Partial<Campaign>) => {
+      setCampaigns((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, ...patch } : c))
+      );
+    },
+    []
+  );
+
   const value = useMemo<StiltState>(
     () => ({
       mails,
       setMailStatus,
+      campaigns,
+      addCampaign,
+      updateCampaign,
       startConversationWith,
       composePrefill,
       setComposePrefill,
@@ -256,7 +278,7 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
       rsvpOverrides,
       setRsvp,
     }),
-    [mails, setMailStatus, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, mailView, calView, docsView, profileMenuOpen, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contactPanelOpen, setContactPanelOpen, toggleContactPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel, accountVisible, setAccountVisible, rsvpOverrides, setRsvp]
+    [mails, setMailStatus, campaigns, addCampaign, updateCampaign, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, mailView, calView, docsView, profileMenuOpen, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contactPanelOpen, setContactPanelOpen, toggleContactPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel, accountVisible, setAccountVisible, rsvpOverrides, setRsvp]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

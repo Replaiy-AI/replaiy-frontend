@@ -21,10 +21,13 @@ export interface Campaign {
   goalType: CampaignGoalType;
   goalLabel?: string; // required when goalType === 'custom'
   status: CampaignStatus;
-  // Lightweight funnel stats for the list view.
+  // Full outbound funnel. The list shows only conversion% (derived); the
+  // detail shows the whole trechter so you can see where it leaks.
   stats: {
-    leads: number; // total leads in this campaign
+    connectsSent: number; // connection requests sent (top of funnel / reach)
+    leads: number; // accepted connections = leads in the campaign
     inConversation: number; // active threads
+    replies: number; // leads who replied at least once (for reply rate)
     goalAchieved: number; // conversions (the configurable goal)
   };
   createdAt: string; // ISO
@@ -81,7 +84,13 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     name: 'Q3 — Series-B founders',
     goalType: 'meeting',
     status: 'active',
-    stats: { leads: 142, inConversation: 23, goalAchieved: 11 },
+    stats: {
+      connectsSent: 420,
+      leads: 142,
+      inConversation: 23,
+      replies: 61,
+      goalAchieved: 11,
+    },
     createdAt: '2026-06-02T09:00:00Z',
   },
   {
@@ -89,7 +98,13 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     name: 'RevOps leaders — NL/BE',
     goalType: 'demo',
     status: 'active',
-    stats: { leads: 88, inConversation: 17, goalAchieved: 6 },
+    stats: {
+      connectsSent: 260,
+      leads: 88,
+      inConversation: 17,
+      replies: 34,
+      goalAchieved: 6,
+    },
     createdAt: '2026-06-10T09:00:00Z',
   },
   {
@@ -97,7 +112,13 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     name: 'Newsletter signups — warm',
     goalType: 'reply',
     status: 'active',
-    stats: { leads: 210, inConversation: 41, goalAchieved: 58 },
+    stats: {
+      connectsSent: 540,
+      leads: 210,
+      inConversation: 41,
+      replies: 132,
+      goalAchieved: 58,
+    },
     createdAt: '2026-05-21T09:00:00Z',
   },
   {
@@ -106,7 +127,13 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     goalType: 'custom',
     goalLabel: 'Intro call with their head of partnerships',
     status: 'paused',
-    stats: { leads: 34, inConversation: 5, goalAchieved: 2 },
+    stats: {
+      connectsSent: 110,
+      leads: 34,
+      inConversation: 5,
+      replies: 12,
+      goalAchieved: 2,
+    },
     createdAt: '2026-06-15T09:00:00Z',
   },
   {
@@ -114,7 +141,13 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     name: 'Inbound waitlist — qualify',
     goalType: 'qualified',
     status: 'draft',
-    stats: { leads: 0, inConversation: 0, goalAchieved: 0 },
+    stats: {
+      connectsSent: 0,
+      leads: 0,
+      inConversation: 0,
+      replies: 0,
+      goalAchieved: 0,
+    },
     createdAt: '2026-06-25T09:00:00Z',
   },
 ];
