@@ -384,7 +384,34 @@ function ConversationRowLite({ mail }: { mail: any }) {
   );
 }
 
+// Preload the My AI assets (mascots + section icons) in the background as soon
+// as the app mounts, so they are cached before the user opens that tab and
+// appear instantly — just like the blue mascot already does (it's used in the
+// inbox header, so it warms early).
+const MY_AI_ASSETS = import.meta.glob(
+  ['@/assets/preset_*.png', '@/assets/ai_icon_*.png', '@/assets/replaiy-mascot.png'],
+  { eager: true, query: '?url', import: 'default' },
+) as Record<string, string>;
+
+function useWarmMyAiAssets() {
+  useEffect(() => {
+    const urls = Object.values(MY_AI_ASSETS);
+    const imgs = urls.map((u) => {
+      const im = new Image();
+      im.decoding = 'async';
+      im.src = u;
+      return im;
+    });
+    return () => {
+      imgs.forEach((im) => {
+        im.src = '';
+      });
+    };
+  }, []);
+}
+
 function App() {
+  useWarmMyAiAssets();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
