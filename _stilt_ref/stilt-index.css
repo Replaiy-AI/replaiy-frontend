@@ -1,0 +1,1575 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Stilt — iOS Liquid Glass Email — Design Tokens */
+:root {
+  /* SF Pro / system font stack */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "New York", "Iowan Old Style", Georgia, serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+
+  /* v30.31 — Perplexity Paper White (light)
+     Bijna-wit met minimale warm-neutral hint. */
+  --background: 30 5% 97.5%;         /* #F9F8F7 — tussen #F8F7F5 en #FAFAF9 */
+  --foreground: 30 8% 8%;            /* near-black, slight warmth */
+  --border: 30 8% 8% / 0.07;
+  --card: 42 25% 99%;
+  --card-foreground: 30 8% 8%;
+  --card-border: 30 8% 8% / 0.06;
+  --popover: 42 30% 98%;
+  --popover-foreground: 30 8% 8%;
+  --popover-border: 30 8% 8% / 0.06;
+  --primary: 30 8% 8%;               /* foreground itself — buttons/links neutraal */
+  --primary-foreground: 42 30% 98%;
+  --secondary: 42 25% 99%;
+  --secondary-foreground: 30 8% 8%;
+  --muted: 42 25% 99%;
+  --muted-foreground: 30 5% 48%;     /* warm grey */
+  --accent: 42 25% 99%;
+  --accent-foreground: 30 8% 8%;
+  --destructive: 4 80% 58%;          /* slightly desaturated red */
+  --destructive-foreground: 42 30% 98%;
+  --input: 30 8% 8% / 0.05;
+  --ring: 30 8% 8% / 0.3;
+  --chart-1: 172 71% 42%;
+  --chart-2: 195 75% 50%;
+  --chart-3: 165 60% 42%;
+  --chart-4: 36 90% 55%;
+  --chart-5: 350 80% 60%;
+  --sidebar: 42 30% 97%;
+  --sidebar-foreground: 30 8% 8%;
+  --sidebar-border: 30 8% 8% / 0.06;
+  --sidebar-primary: 30 8% 8%;
+  --sidebar-primary-foreground: 42 30% 98%;
+  --sidebar-accent: 42 25% 99%;
+  --sidebar-accent-foreground: 30 8% 8%;
+  --sidebar-ring: 30 8% 8% / 0.3;
+
+  --radius: 1.5rem;
+
+  /* v30.30 — AI accent = Perplexity Turquoise. Same hue as --primary,
+     used for AI-cues (Draft generated label, draft tint, sparkles). */
+  --ai-accent: #13A89E;
+  /* v30.31 — strength van de AI gradient tint op collapsed reply bar.
+     Light = 9%, Dark = 15% (anders valt 'ie weg op donker oppervlak). */
+  --ai-glow-strength: 9%;
+
+  /* ╔══════════════════════════════════════════════════════════════╗
+     v30.31 — SURFACE TOKENS (single source of truth)
+     ╔══════════════════════════════════════════════════════════════╣
+     Elk visueel oppervlak in de app gebruikt één van deze tokens.
+     NOOIT direct rgba(...) of hex in een component schrijven. Als je
+     een nieuwe context tegenkomt, voeg hier een token toe — zet 'm niet
+     inline. Dit voorkomt dat verschillende threads/cards/bubbles
+     subtiel verschillende tints krijgen.
+
+     • surface-bubble    = chat-bubbles, single-message body cards,
+                            email content containers
+     • surface-card      = inbox cards, subject/header pills,
+                            attachment pills, summary panels
+     • surface-quiet     = subtiel achtergrondvlak (input pills,
+                            sheet headers) — net iets onder bubble
+     • surface-elevated  = floating sheets, dropdowns, modals
+
+     Regels:
+     - Mine vs other bubble: zelfde surface-bubble (verschil via
+       alignment + author label, NIET via kleur)
+     - Geen !important nodig op tokens — die mogen overschreven worden
+       door specifieke contexten (bv. AI tint), maar nooit door
+       ad-hoc rgba/hex.
+     ╚═════════════════════════════════════════════════════════════╝ */
+  --surface-bubble:   rgba(255, 255, 255, 0.82);
+  --surface-bubble-border: rgba(0, 0, 0, 0.05);
+  --surface-bubble-text:   inherit;
+  --surface-bubble-shadow-inset:  inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --surface-bubble-shadow-drop:   0 1px 1px rgba(0, 0, 0, 0.03);
+  /* v30.32 — was 0.78 transparant — met de near-white background
+     (#F9F8F7) gaf dat een fill van ~#FAF9F8, bijna onzichtbaar.
+     Nu hoger opaque + iets witter zodat de card duidelijk uit het
+     vlak komt zonder dat we de aura/halo terug moeten brengen. */
+  --surface-card:     #FFFFFF;
+  --surface-card-border:   rgba(0, 0, 0, 0.07);
+  --surface-quiet:    rgba(0, 0, 0, 0.04);
+  --surface-elevated: rgba(255, 255, 255, 0.92);
+  --surface-divider:  hsl(var(--foreground) / 0.08);
+
+  /* ─── Liquid Glass v16 tokens (light) ──────────────────────────────
+     Fill alphas live in the 0.10–0.22 band so the canvas reads through.
+     Backdrop blur + saturation do the legibility work. The tonal outer
+     stroke uses black (not white-on-white). The top sheen is warm-white
+     but NOT 100% — needs to read against the non-pure-white canvas. */
+
+  --lg-fill:          rgba(255, 255, 255, 0.14);
+  --lg-fill-strong:   rgba(255, 255, 255, 0.22);
+  /* v30.31 — was paars (124, 92, 250). Perplexity gebruikt neutrale
+     warme glass, geen paarse tint. Set to transparent (no tint). */
+  --lg-tint:          rgba(0, 0, 0, 0);
+
+  /* v19.6 — single-frame liquid glass.
+     Apple's Liquid Glass adapts to its background. On a flat neutral
+     canvas (like ours) using BOTH an outer border AND inset top/bottom
+     strokes stacks two near-parallel lines around every rounded corner,
+     reading as a phantom double frame. The fix is to commit to ONE
+     frame system: keep the inset sheen (Apple's signature "glass catches
+     light from above") and drop the outer border. Dropping all visible
+     edges and relying only on background fill loses the material entirely
+     — the inset sheen is what makes it glass, not chrome. */
+  --lg-stroke-outer:  transparent;
+  --lg-stroke-top:    rgba(255, 255, 255, 0.45);
+  --lg-stroke-bottom: rgba(0, 0, 0, 0.04);
+
+  --lg-shadow-soft:   0 18px 40px rgba(0, 0, 0, 0.06);
+  --lg-shadow-near:   0 2px 8px  rgba(0, 0, 0, 0.04);
+
+  --lg-blur:          32;
+  --lg-saturate:      180;
+
+  --lg-fill-clear:    rgba(255, 255, 255, 0.06);
+  --lg-dim-clear:     rgba(0, 0, 0, 0.35);
+
+  /* v20 — Liquid Glass v2 canvas tokens (cool neutral, NOT warm beige).
+     Endpoint colours give a ~2.7 L* delta — invisible as a gradient but
+     plenty for backdrop-filter:saturate() to lift. SVG noise (3% opacity)
+     gives feDisplacementMap and saturate() real per-pixel variance.
+     Same hue/luminance band across Mail / Calendar / Docs. */
+  /* v30.31 — Perplexity Paper White stack. Near-white met minimale
+     warm hint. */
+  --canvas-warm:      #F9F8F7;
+  --canvas-cool:      #F3F2F0;
+  --canvas-tint:      hsl(30 4% 96% / 0.02);
+  --canvas-noise:     0.030;
+
+  /* ─── Liquid Glass v2 (--lg2-*) ──────────────────────────────────── */
+  /* Fill */
+  /* v20.1 — fill alpha bumped to production Apple Liquid Glass levels.
+     Apple's iOS 26 / macOS Tahoe shipped values are 0.70-0.80 for
+     regular glass, NOT the 0.18 the spec proposed (which was visually
+     too light on flat backgrounds). The earlier WWDC25 beta was even
+     dialed back in beta 3 because users couldn't see contrast.
+     See https://techcrunch.com/2025/07/07/ios-26-beta-3-dials-back-liquid-glass/ */
+  --lg2-fill-base:           #ffffff;
+  --lg2-fill-alpha:          0.72;
+  --lg2-fill-alpha-rest:     0.72;
+  --lg2-fill-alpha-scrolled: 0.82;
+  --lg2-fill-alpha-strong:   0.85;
+  --lg2-fill-alpha-clear:    0.32;
+  /* Tint (per-context, set via data-tint) */
+  --lg2-tint-context:        transparent;
+  /* Aura — outer halo */
+  /* v30.31 — was blauwe aura (hue 220). Perplexity glass = neutraal
+     warm. Hue 35 = subtiele warme rand zonder kleur-shift. */
+  --lg2-aura-color:          hsl(35 15% 70% / 0.18);
+  --lg2-aura-opacity:        0.25;
+  --lg2-aura-blur:           20px;
+  --lg2-aura-inset:          -4px;
+  /* Specular */
+  --lg2-spec-x:              25%;
+  --lg2-spec-y:              25%;
+  --lg2-spec-a:              0.20;
+  --lg2-spec-a-hover:        0.28;
+  --lg2-spec-spread:         38%;
+  --lg2-spec-warm:           rgb(255 250 240);
+  /* Rim */
+  --lg2-rim-top:             rgba(255, 255, 255, 0.55);
+  --lg2-rim-side:            rgba(255, 255, 255, 0.18);
+  --lg2-rim-bottom:          rgba(0, 0, 0, 0.06);
+  /* Tap-ripple */
+  --lg2-tap-x:               50%;
+  --lg2-tap-y:               50%;
+  --lg2-tap-r:               0%;
+  --lg2-tap-a:               0;
+  /* Refraction */
+  --lg2-displace-scale:      -44;
+  /* Frosting */
+  --lg2-blur:                28;
+  --lg2-saturate:            180;
+  --lg2-brightness:          1.04;
+  /* Geometry */
+  --lg2-radius-pill:         9999px;
+  --lg2-radius-card:         20px;
+  --lg2-radius-sheet:        24px;
+  --lg2-radius-rail:         28px;
+  --lg2-bezel:               6px;
+  /* Shadows */
+  --lg2-shadow-near:         0 2px 6px rgba(0, 0, 0, 0.04);
+  --lg2-shadow-soft:         0 18px 40px rgba(0, 0, 0, 0.06);
+  --lg2-shadow-boost:        1;
+  /* Motion */
+  --lg2-ease:                cubic-bezier(.22, .61, .36, 1);
+  --lg2-press-ease:          cubic-bezier(.4, 0, 1, 1);
+
+  /* Legacy --glass-* aliases — kept so any component we miss still
+     renders with the new Liquid Glass tokens. Migrate gradually. */
+  --glass-bg:         var(--lg-fill);
+  --glass-bg-strong:  var(--lg-fill-strong);
+  --glass-border:     var(--lg-stroke-outer);
+  --glass-edge:       var(--lg-stroke-top);
+  --glass-shadow:
+    inset 0 1px 0 var(--lg-stroke-top),
+    inset 0 -1px 0 var(--lg-stroke-bottom),
+    var(--lg-shadow-soft),
+    var(--lg-shadow-near);
+  --canvas-flat:      var(--canvas-warm);
+
+  /* v23.1 — Vadik Matveev liquid-glass switcher vars (CodePen KwpRaGr).
+     Drive all 9 inset shadows of VadikLiquidSwitcher. Same names in
+     dark mode (.dark) below shift to higher reflex multipliers so the
+     same recipe reads correctly on dark canvases. */
+  --vadik-glass:        #bbbbbc;
+  --vadik-light:        #fff;
+  --vadik-dark:         #000;
+  --vadik-reflex-light: 1;
+  --vadik-reflex-dark:  1;
+
+  --button-outline: rgba(0,0,0,0.06);
+  --badge-outline: rgba(0,0,0,0.04);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(0,0,0,0.025);
+  --elevate-2: rgba(0,0,0,0.05);
+
+  --shadow-2xs: 0 1px 1px rgba(0,0,0,0.03);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.04);
+  --shadow: 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.05);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.08);
+  --shadow-xl: 0 20px 48px rgba(0,0,0,0.10);
+  --shadow-2xl: 0 30px 64px rgba(0,0,0,0.12);
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: transparent;
+  --muted-border: transparent;
+  --accent-border: transparent;
+  --destructive-border: hsl(var(--destructive));
+
+  /* ╔══════════════════════════════════════════════════════════════╗
+     v30.35 — ICON COLOR SYSTEM (single source of truth)
+     ╠══════════════════════════════════════════════════════════════╣
+     Eén token-set voor ALLE icoon-kleuren in het platform. Geen
+     ad-hoc text-foreground/55, /65, /70, /85, /90 of hardcoded hex
+     meer door de codebase.
+
+     Gouden standaard = MailActionCluster Done/Snooze: Lucide-icon op
+     foreground met 85% alpha in een glass-pill. Die waarde is de
+     basis van het systeem.
+
+     Tokens:
+     • --icon-primary  = standaard icoon-kleur in glass icon buttons,
+                         tab pill icons (Done, Snooze, Search, +, X,
+                         Pencil, Inbox/Calendar/Docs in tab pills).
+                         Equivalent aan text-foreground/85.
+     • --icon-active   = actieve tab-pill icon. Bewust ZELFDE waarde
+                         als primary — het glass-pill oppervlak doet
+                         het visuele onderscheid, niet de kleur.
+                         Aparte token zodat we 'm later kunnen tunen
+                         zonder primary aan te raken.
+     • --icon-muted    = secundair, achtergrond-iconen (chevrons,
+                         hint-glyphs). Equivalent aan foreground/55.
+     • --icon-accent   = AI accent (sparkle teal) = --ai-accent.
+
+     Gebruik:
+       Inline op Lucide:  style={{ color: 'var(--icon-primary)' }}
+       Tailwind utility:  className="text-icon" (zie tailwind.config)
+     ╚══════════════════════════════════════════════════════════════╝ */
+  /* v30.34.1 — Corrigeerde waardes. De originele 8% lightness met 85%
+     opacity oogde bijna zwart op canvas. Tailwind's text-foreground/70
+     (de gouden standaard die op Done/Snooze stond) is hsl(0 0% 30% / 0.7)
+     wat ~mid-grijs is. We matchen die hier. */
+  --icon-primary: hsl(30 6% 35%);
+  --icon-active:  hsl(30 6% 35%);
+  --icon-muted:   hsl(30 6% 55%);
+  --icon-accent:  var(--ai-accent);
+}
+
+.dark {
+  /* v30.31 — AI glow iets sterker in dark anders valt 'ie weg. */
+  --ai-glow-strength: 15%;
+
+  /* v30.31 — SURFACE TOKENS (dark). Zie comment bij :root voor regels. */
+  --surface-bubble:   rgba(55, 55, 58, 0.82);
+  --surface-bubble-border: rgba(255, 255, 255, 0.08);
+  --surface-bubble-shadow-inset:  inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --surface-bubble-shadow-drop:   0 1px 1px rgba(0, 0, 0, 0.30);
+  /* v30.32 — cards in dark mode moeten OOK duidelijk contrast geven
+     met de warme charcoal bg. Iets lichter dan voorheen + minder
+     transparant. */
+  --surface-card:     rgba(58, 58, 62, 0.92);
+  --surface-card-border:   rgba(255, 255, 255, 0.08);
+  --surface-quiet:    rgba(255, 255, 255, 0.06);
+  --surface-elevated: rgba(60, 60, 64, 0.92);
+  --surface-divider:  hsl(var(--foreground) / 0.10);
+  /* v30.30 — Perplexity-style warm charcoal (NOT blue-tinted) */
+  --background: 30 8% 9%;            /* #191814 warm dark */
+  --foreground: 42 25% 95%;          /* warm offwhite text */
+  --border: 42 25% 95% / 0.08;
+  --card: 30 6% 13%;
+  --card-foreground: 42 25% 95%;
+  --card-border: 42 25% 95% / 0.07;
+  --popover: 30 6% 13%;
+  --popover-foreground: 42 25% 95%;
+  --popover-border: 42 25% 95% / 0.09;
+  --primary: 42 25% 95%;             /* foreground itself in dark mode */
+  --primary-foreground: 30 8% 9%;
+  --secondary: 30 6% 13%;
+  --secondary-foreground: 42 25% 95%;
+  --muted: 30 6% 13%;
+  --muted-foreground: 30 5% 62%;
+  --accent: 30 6% 13%;
+  --accent-foreground: 42 25% 95%;
+  --destructive: 4 80% 60%;
+  --destructive-foreground: 42 25% 95%;
+  --input: 42 25% 95% / 0.06;
+  --ring: 42 25% 95% / 0.3;
+  --sidebar: 30 8% 9%;
+  --sidebar-foreground: 42 25% 95%;
+  --sidebar-border: 42 25% 95% / 0.06;
+  --sidebar-primary: 42 25% 95%;
+  --sidebar-primary-foreground: 30 8% 9%;
+  --sidebar-accent: 30 6% 13%;
+  --sidebar-accent-foreground: 42 25% 95%;
+  --sidebar-ring: 42 25% 95% / 0.3;
+
+  /* ─── Liquid Glass v16 tokens (dark) ───────────────────────────────
+     Fill flips from white-base to near-black. Apple's Regular variant
+     in dark mode sits at ~rgb(28,28,30) with a slightly higher alpha
+     because the dark canvas doesn't carry the same legibility risk. */
+
+  /* v23.1 — Vadik vars (dark) */
+  --vadik-glass:        #bbbbbc;
+  --vadik-light:        #fff;
+  --vadik-dark:         #000;
+  --vadik-reflex-light: 0.3;
+  --vadik-reflex-dark:  2;
+
+  --lg-fill:          rgba(28, 28, 30, 0.42);
+  --lg-fill-strong:   rgba(38, 38, 42, 0.62);
+  /* v30.31 — was paars (167, 139, 250). Neutraliseren voor Perplexity look. */
+  --lg-tint:          rgba(255, 255, 255, 0);
+
+  --lg-stroke-outer:  transparent;
+  --lg-stroke-top:    rgba(255, 255, 255, 0.18);
+  --lg-stroke-bottom: rgba(0, 0, 0, 0.45);
+
+  /* v30.31 — was te-zwaar voor dark mode (0.50/0.30 gaf zichtbare halo
+     rond card-blokken). Lichter zodat cards 'floaten' zonder schaduwbox. */
+  --lg-shadow-soft:   0 18px 40px rgba(0, 0, 0, 0.28);
+  --lg-shadow-near:   0 2px 8px  rgba(0, 0, 0, 0.18);
+
+  --lg-blur:          36;
+  --lg-saturate:      170;
+
+  --lg-fill-clear:    rgba(255, 255, 255, 0.05);
+  --lg-dim-clear:     rgba(0, 0, 0, 0.45);
+
+  /* v30.31 — Perplexity Offblack dark mode: pure neutral dark, geen
+     warmte, geen koelte. Heel subtiele luminance variatie tussen warm/
+     cool zodat backdrop-filter saturate iets heeft om op te tillen. */
+  --canvas-warm:      #1A1A1A;
+  --canvas-cool:      #1F1F1F;
+  /* v30.31 — was paars. Perplexity = puur neutraal, geen tint. */
+  --canvas-tint:      hsl(0 0% 20% / 0.03);
+  --canvas-noise:     0.040;
+
+  /* ─── Liquid Glass v2 dark overrides ─────────────────────────────── */
+  /* v30.31 — was #1a1a1f (blauwig: b=31 > r/g=26). Neutraal warm-charcoal. */
+  --lg2-fill-base:           #1F1F1F;
+  --lg2-fill-alpha:          0.70;
+  --lg2-fill-alpha-rest:     0.70;
+  --lg2-fill-alpha-scrolled: 0.82;
+  --lg2-fill-alpha-strong:   0.66;
+  --lg2-fill-alpha-clear:    0.20;
+  /* v30.31 — was blauwe aura (hue 220, 30% sat). Neutraal grey aura. */
+  --lg2-aura-color:          hsl(0 0% 30% / 0.25);
+  --lg2-aura-opacity:        0.30;
+  --lg2-aura-blur:           22px;
+  --lg2-spec-a:              0.10;
+  --lg2-spec-a-hover:        0.14;
+  --lg2-spec-warm:           rgb(255 245 220);
+  --lg2-rim-top:             rgba(255, 255, 255, 0.22);
+  --lg2-rim-side:            rgba(255, 255, 255, 0.06);
+  --lg2-rim-bottom:          rgba(0, 0, 0, 0.40);
+  --lg2-blur:                32;
+  --lg2-saturate:            170;
+  --lg2-brightness:          1.00;
+  /* v30.31 — lichter dan eerst (was 0.50/0.30). */
+  --lg2-shadow-near:         0 2px 8px rgba(0, 0, 0, 0.18);
+  --lg2-shadow-soft:         0 18px 40px rgba(0, 0, 0, 0.28);
+
+  /* Legacy --glass-* aliases (dark). */
+  --glass-bg:         var(--lg-fill);
+  --glass-bg-strong:  var(--lg-fill-strong);
+  --glass-border:     var(--lg-stroke-outer);
+  --glass-edge:       var(--lg-stroke-top);
+  --glass-shadow:
+    inset 0 1px 0 var(--lg-stroke-top),
+    inset 0 -1px 0 var(--lg-stroke-bottom),
+    var(--lg-shadow-soft),
+    var(--lg-shadow-near);
+  --canvas-flat:      var(--canvas-warm);
+
+  --button-outline: rgba(255,255,255,0.08);
+  --badge-outline: rgba(255,255,255,0.06);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255,0.04);
+  --elevate-2: rgba(255,255,255,0.08);
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: transparent;
+  --muted-border: transparent;
+  --accent-border: transparent;
+  --destructive-border: hsl(var(--destructive));
+
+  /* v30.35 — Icon color system (dark). Dezelfde semantiek als light,
+     maar gebaseerd op de warme offwhite foreground (42 25% 95%).
+     Active = primary (glass-pill levert contrast). */
+  /* Dark mode — matched aan de light mode mid-grijs strategy. */
+  --icon-primary: hsl(42 15% 75%);
+  --icon-active:  hsl(42 15% 75%);
+  --icon-muted:   hsl(42 15% 55%);
+  --icon-accent:  var(--ai-accent);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    @apply antialiased text-foreground;
+    background: hsl(var(--background));
+    overflow: hidden;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* v16 Liquid Glass canvas — warm/cool diagonal + faint purple radial.
+     Pure white canvas defeats glass: backdrop-filter saturate has
+     nothing to lift, blur has nothing to refract. We bump luminance
+     delta to ~6% across a 135deg diagonal and layer a faint purple
+     haze — invisible-but-felt, gives the glass something to operate on.
+
+     Mobile keeps the flat fill since glass over a busy background
+     can read noisy on small screens. */
+  .stilt-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    /* v30.31 — Perplexity = flat off-white. Mobile = flat (geen blobs)
+       om gradient-banding op kleine schermen te voorkomen. */
+    background: var(--canvas-warm);
+  }
+  .dark .stilt-canvas {
+    /* v30.31 — mobile dark flat ook, anders gebruikt mobile per ongeluk
+       de light-mode blobs op donkere achtergrond (= lichte strepen). */
+    background: var(--canvas-warm);
+  }
+  /* v20 Liquid Glass v2 canvas — cool-neutral diagonal + faint purple
+     radial tint + SVG noise overlay. The noise gives feDisplacementMap
+     and saturate() real per-pixel variance to operate on. */
+  .stilt-canvas::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/></svg>");
+    background-size: 240px 240px;
+    background-repeat: repeat;
+    opacity: var(--canvas-noise, 0.030);
+    mix-blend-mode: overlay;
+  }
+  @media (min-width: 768px) {
+    .stilt-canvas {
+      /* v30.31 — Perplexity off-white. Heel subtiele luminance shift. */
+      background:
+        radial-gradient(45% 60% at 6% 12%, hsla(30, 6%, 97%, 0.45) 0%, transparent 65%),
+        radial-gradient(40% 50% at 95% 18%, hsla(30, 4%, 95%, 0.30) 0%, transparent 65%),
+        linear-gradient(
+          135deg,
+          var(--canvas-warm) 0%,
+          var(--canvas-cool) 100%
+        );
+    }
+    .dark .stilt-canvas {
+      /* v30.31 — Perplexity dark = flat neutral, geen ambient blobs.
+         Alleen een hele subtiele diagonal luminance shift. */
+      background: linear-gradient(
+        135deg,
+        var(--canvas-warm) 0%,
+        var(--canvas-cool) 100%
+      );
+    }
+  }
+  .dark .stilt-canvas::after {
+    mix-blend-mode: soft-light;
+  }
+}
+
+@layer components {
+  /* v30.31 — .stilt-bubble: globale chat/message body styling.
+     Used by:
+     • ConversationTimeline chat bubbles (mine + other)
+     • MailDetail single-message body container
+     Source-of-truth: --surface-bubble* tokens in :root + .dark.
+     Geen ad-hoc rgba/box-shadow in componenten meer. */
+  .stilt-bubble {
+    background: var(--surface-bubble);
+    border: 1px solid var(--surface-bubble-border);
+    box-shadow:
+      var(--surface-bubble-shadow-inset),
+      var(--surface-bubble-shadow-drop);
+  }
+  .dark .stilt-bubble {
+    color: hsl(var(--foreground) / 0.95);
+  }
+
+  /* v30.32 — .stilt-card: inbox/list card-cluster surface.
+     Gebruikt door:
+     • InboxList "Today for you" / "Quick to clear" / "Waiting on others"
+       blokken
+     • elk ander aaneengeschakeld card-blok dat NIET moet floaten
+
+     Krijgt de volle glass recipe (refraction + blur + saturate + rim)
+     zoals .glass, MAAR geen outer aura (::after halo). Stacked cards
+     in een lijst hoeven niet elk een eigen "gloeiende" bubble te
+     hebben — dat geeft visuele soep. Dropshadow ook subtieler. */
+  .stilt-card {
+    position: relative;
+    isolation: isolate;
+    background:
+      linear-gradient(var(--lg2-tint-context, transparent),
+                       var(--lg2-tint-context, transparent)),
+      rgb(from var(--lg2-fill-base) r g b / var(--lg2-fill-alpha, 0.18));
+    backdrop-filter:
+      url(#lg-edge-refract)
+      blur(calc(var(--lg2-blur, 28) * 1px))
+      saturate(calc(var(--lg2-saturate, 180) * 1%))
+      brightness(var(--lg2-brightness, 1.04));
+    -webkit-backdrop-filter:
+      blur(calc(var(--lg2-blur, 28) * 1px))
+      saturate(calc(var(--lg2-saturate, 180) * 1%))
+      brightness(var(--lg2-brightness, 1.04));
+    box-shadow:
+      inset 0 1px 0 var(--lg2-rim-top),
+      inset 1px 0 0 var(--lg2-rim-side),
+      inset -1px 0 0 var(--lg2-rim-side),
+      inset 0 -1px 0 var(--lg2-rim-bottom),
+      0 4px 12px rgba(0, 0, 0, 0.04);
+  }
+  .dark .stilt-card {
+    color: hsl(var(--foreground) / 0.95);
+    box-shadow:
+      inset 0 1px 0 var(--lg2-rim-top),
+      inset 1px 0 0 var(--lg2-rim-side),
+      inset -1px 0 0 var(--lg2-rim-side),
+      inset 0 -1px 0 var(--lg2-rim-bottom),
+      0 4px 12px rgba(0, 0, 0, 0.20);
+  }
+  /* Child content boven backdrop-filter pseudo */
+  .stilt-card > * { position: relative; z-index: 1; }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Liquid Glass v2 (lg2) — the production multi-layer recipe.
+
+     Apple's iOS 26 / macOS Tahoe Liquid Glass stacks 5 visual layers on
+     every glass surface:
+       1.  Outer aura     — a sampled halo behind the element. Reads
+                            background colour through SVG bloom + tint.
+       2.  Refraction     — backdrop-filter url(#lg-edge-refract...) with
+                            feDisplacementMap. Edge-only lensing.
+       3.  Frost          — blur + saturate + brightness on backdrop.
+       4.  Fill + tint    — translucent white (or context tint).
+       5.  Specular       — animated radial sheen pinned to top-left,
+                            offset by mouse / scroll.
+       6.  Rim            — 1px lit ring (top + sides) + dark bottom.
+
+     Implementation: ::after = outer aura, ::before = specular + tap
+     ripple. The element itself carries fill + frost + refraction + rim.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* Unified v2 base recipe — applied to every lg2-* class AND every
+     legacy .glass* / .lg-* class. This is the *only* glass recipe in
+     the system; the old ones above are intentionally replaced. */
+  :where(
+    .lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail,
+    .glass, .glass-pill, .glass-strong, .glass-ai, .glass-sidebar,
+    .glass-pill-dynamic, .glass-fill-active,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-sheet, .lg-rail,
+    .lg-strong, .lg-ai,
+    .mono-circle
+  ) {
+    position: relative;
+    isolation: isolate;
+    background:
+      linear-gradient(var(--lg2-tint-context, transparent),
+                       var(--lg2-tint-context, transparent)),
+      rgb(from var(--lg2-fill-base) r g b / var(--lg2-fill-alpha, 0.18));
+    backdrop-filter:
+      url(#lg-edge-refract)
+      blur(calc(var(--lg2-blur, 28) * 1px))
+      saturate(calc(var(--lg2-saturate, 180) * 1%))
+      brightness(var(--lg2-brightness, 1.04));
+    -webkit-backdrop-filter:
+      blur(calc(var(--lg2-blur, 28) * 1px))
+      saturate(calc(var(--lg2-saturate, 180) * 1%))
+      brightness(var(--lg2-brightness, 1.04));
+    box-shadow:
+      inset 0 1px 0 var(--lg2-rim-top),
+      inset 1px 0 0 var(--lg2-rim-side),
+      inset -1px 0 0 var(--lg2-rim-side),
+      inset 0 -1px 0 var(--lg2-rim-bottom),
+      var(--lg2-shadow-soft),
+      var(--lg2-shadow-near);
+    transition:
+      background 220ms var(--lg2-ease),
+      box-shadow 220ms var(--lg2-ease),
+      transform 90ms var(--lg2-press-ease);
+  }
+
+  /* Outer aura — sampled halo. */
+  :where(
+    .lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail,
+    .glass, .glass-pill, .glass-strong, .glass-ai, .glass-sidebar,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-sheet, .lg-rail,
+    .lg-strong, .lg-ai,
+    .mono-circle
+  )::after {
+    content: '';
+    position: absolute;
+    inset: var(--lg2-aura-inset, -8px);
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--lg2-aura-color);
+    filter: blur(var(--lg2-aura-blur, 18px));
+    opacity: var(--lg2-aura-opacity, 0.65);
+    transition: opacity 280ms var(--lg2-ease), filter 280ms var(--lg2-ease);
+  }
+
+  /* v20.1 — specular layer removed. With opaque fill (0.72) the
+     ::before screen-blended specular added more noise than light
+     and produced a constant moving "shimmer" that read as flicker on
+     mobile. Apple's real Liquid Glass specular only kicks in on the
+     corners under specific lighting; static CSS can't replicate that
+     subtlety, so we don't fake it. */
+
+  /* Make sure child content sits above ::before/::after. */
+  :where(
+    .lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail,
+    .glass, .glass-pill, .glass-strong, .glass-ai, .glass-sidebar,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-sheet, .lg-rail,
+    .lg-strong, .lg-ai,
+    .mono-circle
+  ) > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Hover — bump fill slightly, intensify specular + aura. */
+  :where(
+    .lg2-pill, .lg2-card, .lg2-rail, .lg2-sheet,
+    .glass-pill, .glass-strong, .glass-ai,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-rail, .lg-strong, .lg-ai
+  ):hover {
+    background:
+      linear-gradient(var(--lg2-tint-context, transparent),
+                       var(--lg2-tint-context, transparent)),
+      rgb(from var(--lg2-fill-base) r g b / var(--lg2-fill-alpha-strong, 0.30));
+  }
+  :where(
+    .lg2-pill, .lg2-card, .lg2-rail, .lg2-sheet,
+    .glass-pill, .glass-strong, .glass-ai,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-rail, .lg-strong, .lg-ai
+  ):hover::before {
+    background:
+      radial-gradient(
+        circle at var(--lg2-spec-x, 25%) var(--lg2-spec-y, 25%),
+        rgb(from var(--lg2-spec-warm) r g b / var(--lg2-spec-a-hover, 0.28)) 0%,
+        transparent var(--lg2-spec-spread, 38%)
+      );
+  }
+  :where(
+    .lg2-pill, .lg2-card, .lg2-rail, .lg2-sheet,
+    .glass-pill, .glass-strong, .glass-ai,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-rail, .lg-strong, .lg-ai
+  ):hover::after {
+    opacity: calc(var(--lg2-aura-opacity, 0.65) + 0.18);
+  }
+
+  /* Active press — micro scale + ripple. */
+  :where(
+    .lg2-pill, .lg2-card, .lg2-rail,
+    .glass-pill, .glass-strong,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-rail, .lg-strong
+  ):active {
+    transform: scale(0.985);
+  }
+
+  /* Focus-visible — primary ring, NOT a border. */
+  :where(
+    .lg2-pill, .lg2-card, .lg2-rail, .lg2-sheet,
+    .glass-pill, .glass-strong, .glass-ai,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-rail, .lg-strong, .lg-ai
+  ):focus-visible {
+    outline: 2px solid hsl(var(--ring) / 0.6);
+    outline-offset: 2px;
+  }
+
+  /* ─── Shape radius per class ───────────────────────────────────────── */
+  .lg2-pill, .glass-pill, .lg-pill { border-radius: var(--lg2-radius-pill); }
+  .lg-pill-rect { border-radius: 16px; }
+  .lg2-card, .glass, .glass-ai, .lg-card { border-radius: var(--lg2-radius-card); }
+  .lg2-sheet, .glass-strong, .lg-sheet {
+    border-radius: var(--lg2-radius-sheet);
+    overflow: hidden;
+  }
+  .lg2-rail, .glass-sidebar, .lg-rail { border-radius: var(--lg2-radius-rail); }
+  .mono-circle { border-radius: 9999px; }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     LIQUID GLASS MAX — chrome surfaces (v22)
+
+     Apple's production Liquid Glass on iOS 26 / macOS 26 lives on the
+     *topmost* control layer: navigation pills, action buttons, the
+     floating rail. It is highly transparent (15–25% fill), heavily
+     blurred, and has a *luminous rim* — the bright stroke that catches
+     light at the top edge. That rim is the single most-recognisable
+     visual cue people associate with Liquid Glass.
+
+     This recipe applies *only* to chrome (pills, rails, floating circles).
+     Cards keep the opaque 0.72 fill from the base recipe so mail rows
+     stay legible at all scroll depths.
+
+     Layer stack (inside ::before / ::after pseudos so it composes
+     correctly over any background):
+
+       ::before  — SVG-displaced backdrop blur (the "warp" layer)
+       element   — invisible (border-only container, rim lives here)
+       ::after   — luminous-rim mask (XOR composite of two strokes)
+       content   — sits on z-index: 2 so it's never frosted
+
+     Tuning sits in the :root --lg-max-* tokens for easy per-mode
+     overrides (dark mode shifts rim colour + alpha).
+     ══════════════════════════════════════════════════════════════════ */
+  :root {
+    --lg-max-fill:           rgba(255, 255, 255, 0.18);
+    --lg-max-fill-hover:     rgba(255, 255, 255, 0.26);
+    --lg-max-blur:           18px;
+    --lg-max-saturate:       180%;
+    --lg-max-brightness:     1.10;
+    /* Rim of light — the bright top-edge stroke that says "glass". */
+    --lg-max-rim:            rgba(255, 255, 255, 0.55);
+    --lg-max-rim-w:          1.2px;
+    --lg-max-rim-shine:      rgba(255, 255, 255, 0.85);
+    /* Inner highlight — subtle gradient from top-left for depth. */
+    --lg-max-sheen-a:        0.32;
+    --lg-max-sheen-b:        0.04;
+    --lg-max-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 8px 24px rgba(8, 10, 18, 0.10),
+      0 2px 6px rgba(8, 10, 18, 0.06);
+  }
+  .dark {
+    --lg-max-fill:           rgba(255, 255, 255, 0.06);
+    --lg-max-fill-hover:     rgba(255, 255, 255, 0.10);
+    --lg-max-blur:           22px;
+    --lg-max-saturate:       170%;
+    --lg-max-brightness:     1.06;
+    --lg-max-rim:            rgba(255, 255, 255, 0.22);
+    --lg-max-rim-shine:      rgba(255, 255, 255, 0.50);
+    --lg-max-sheen-a:        0.14;
+    --lg-max-sheen-b:        0.02;
+    --lg-max-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.30),
+      0 10px 28px rgba(0, 0, 0, 0.55),
+      0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Chrome target list — pills, rails, floating circles, action clusters.
+     NOT cards: .glass / .glass-ai / .lg-card / .glass-strong stay opaque.
+
+     v22.1 — the CRUCIAL fix: re-introduce the SVG displacement filter
+     in the backdrop-filter chain. Without `url(#lg-edge-refract)` it's
+     just frosted glass (blur + tint). With it, the pixels behind the
+     pill *bend* at the edge — that's the actual liquid lensing effect
+     Apple Liquid Glass is named after.
+
+     Chromium: full chain (url + blur + saturate + brightness) works
+     as backdrop-filter.
+     Safari: ignores url() in backdrop-filter (WebKit bug 127102), but
+     the blur+saturate+brightness still apply — graceful degradation
+     to frosted glass. Tested ok. */
+  .lg-pill, .glass-pill, .lg2-pill,
+  .lg-pill-rect,
+  .lg-rail, .glass-sidebar, .lg2-rail,
+  .mono-circle,
+  .lg-max {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(from var(--lg-max-rim-shine) r g b / var(--lg-max-sheen-a, 0.32)) 0%,
+        transparent 38%,
+        rgb(from var(--lg-max-rim-shine) r g b / var(--lg-max-sheen-b, 0.04)) 100%
+      ),
+      var(--lg-max-fill) !important;
+    /* THE refraction — SVG displacement bends the backdrop at the edge,
+       then blur+saturate amplifies the bend. Order matters: url() runs
+       first, so its output is what blur/saturate operate on. */
+    backdrop-filter:
+      url(#lg-chrome-refract)
+      blur(var(--lg-max-blur))
+      saturate(var(--lg-max-saturate))
+      brightness(var(--lg-max-brightness)) !important;
+    -webkit-backdrop-filter:
+      blur(var(--lg-max-blur))
+      saturate(var(--lg-max-saturate))
+      brightness(var(--lg-max-brightness)) !important;
+    /* Rim of light + a hint of chromatic shift in the side rims.
+       Cyan-bias top, magenta-bias bottom — the signature liquid-glass
+       prism colours, dialled WAY down so it reads as light, not colour. */
+    box-shadow:
+      inset 0 var(--lg-max-rim-w) 0 var(--lg-max-rim-shine),
+      inset 0 0 0 1px var(--lg-max-rim),
+      inset 0 -0.5px 0 rgba(220, 200, 255, 0.10),
+      inset 0 1px 1px 0 rgba(180, 220, 255, 0.10),
+      var(--lg-max-shadow) !important;
+    border: none !important;
+  }
+
+  /* Hover — boost fill alpha + rim luminance slightly. */
+  .lg-pill:hover, .glass-pill:hover, .lg2-pill:hover,
+  .lg-pill-rect:hover,
+  .lg-rail:hover, .lg2-rail:hover,
+  .mono-circle:hover,
+  .lg-max:hover {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(from var(--lg-max-rim-shine) r g b / calc(var(--lg-max-sheen-a, 0.32) + 0.06)) 0%,
+        transparent 38%,
+        rgb(from var(--lg-max-rim-shine) r g b / var(--lg-max-sheen-b, 0.04)) 100%
+      ),
+      var(--lg-max-fill-hover) !important;
+  }
+
+  /* Press — micro scale. */
+  .lg-pill:active, .glass-pill:active, .lg2-pill:active,
+  .lg-pill-rect:active,
+  .mono-circle:active,
+  .lg-max:active {
+    transform: scale(0.97);
+  }
+
+  /* Suppress the base ::after aura on chrome — it was creating a
+     muddy halo that fought with the rim of light. */
+  .lg-pill::after, .glass-pill::after, .lg2-pill::after,
+  .lg-pill-rect::after,
+  .lg-rail::after, .glass-sidebar::after, .lg2-rail::after,
+  .mono-circle::after,
+  .lg-max::after {
+    display: none !important;
+  }
+
+  /* Active / selected state — darker tint, stronger top-rim. */
+  .lg-pill[data-active="true"],
+  .glass-pill[data-active="true"],
+  .lg-pill-rect[data-active="true"],
+  .lg-max[data-active="true"] {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(from var(--lg-max-rim-shine) r g b / 0.42) 0%,
+        transparent 38%,
+        rgb(from var(--lg-max-rim-shine) r g b / 0.08) 100%
+      ),
+      rgba(255, 255, 255, 0.30) !important;
+  }
+  .dark .lg-pill[data-active="true"],
+  .dark .glass-pill[data-active="true"],
+  .dark .lg-pill-rect[data-active="true"],
+  .dark .lg-max[data-active="true"] {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(from var(--lg-max-rim-shine) r g b / 0.20) 0%,
+        transparent 38%,
+        rgb(from var(--lg-max-rim-shine) r g b / 0.03) 100%
+      ),
+      rgba(255, 255, 255, 0.14) !important;
+  }
+
+  /* ═════════════ END LIQUID GLASS MAX (chrome) ════════════════════ */
+
+  /* Sidebar — only round the right edge, shadow falls right. */
+  .glass-sidebar {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    box-shadow:
+      inset 0 1px 0 var(--lg2-rim-top),
+      inset 1px 0 0 var(--lg2-rim-side),
+      inset 0 -1px 0 var(--lg2-rim-bottom),
+      4px 0 24px rgba(0, 0, 0, 0.06),
+      2px 0 8px rgba(0, 0, 0, 0.03);
+  }
+  .dark .glass-sidebar {
+    box-shadow:
+      inset 0 1px 0 var(--lg2-rim-top),
+      inset 1px 0 0 var(--lg2-rim-side),
+      inset 0 -1px 0 var(--lg2-rim-bottom),
+      4px 0 24px rgba(0, 0, 0, 0.45),
+      2px 0 8px rgba(0, 0, 0, 0.30);
+  }
+
+  /* v20.1 — .glass-ai is visually identical to .glass. NO purple fill,
+     NO purple aura. Only the Sparkle icon and SMART INBOX caps label
+     carry the AI signal. User has been explicit about this multiple
+     times — don't reintroduce purple tinted cards. */
+  .lg2-pill[data-tint="ai"], .lg2-card[data-tint="ai"],
+  .lg2-sheet[data-tint="ai"], .lg2-rail[data-tint="ai"],
+  .glass-ai, .lg-ai {
+    --lg2-tint-context: transparent;
+  }
+
+  /* Other contextual tints (purely token shifts, no colour outside spec). */
+  :where(.lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail)[data-tint="calendar"] {
+    --lg2-tint-context: rgba(80, 110, 230, 0.05);
+  }
+  :where(.lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail)[data-tint="warning"] {
+    --lg2-tint-context: rgba(220, 80, 60, 0.06);
+  }
+
+  /* Strong variant — bump fill alpha by default. */
+  .lg2-pill[data-density="strong"], .lg2-card[data-density="strong"],
+  .lg2-sheet[data-density="strong"], .lg2-rail[data-density="strong"],
+  .glass-strong, .lg-strong, .glass-fill-active {
+    --lg2-fill-alpha: var(--lg2-fill-alpha-strong, 0.30);
+  }
+
+  /* Clear variant — extra translucent. */
+  .lg2-pill[data-density="clear"], .lg2-card[data-density="clear"] {
+    --lg2-fill-alpha: var(--lg2-fill-alpha-clear, 0.08);
+  }
+
+  /* Text-heavy content — flatten frost so type stays sharp. */
+  :where(.lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail)[data-content="text-heavy"] {
+    --lg2-blur: 20;
+    --lg2-saturate: 140;
+    --lg2-fill-alpha: var(--lg2-fill-alpha-scrolled, 0.26);
+  }
+
+  /* ─── v21: Liquid Glass with chromatic aberration ──────────────────
+   *
+   * Recipe ported from open-web liquid-glass demos (archisvaze/liquid-glass,
+   * diviengine.com snippet, kube.io article). Tuned for Safari
+   * (iOS + macOS) because `backdrop-filter: url(#filter)` is Chrome-only.
+   * The working Safari-compatible chain is:
+   *   1. A `::before` pseudo with `backdrop-filter: blur(…)` captures the
+   *      blurred backdrop image as its rendered content.
+   *   2. `filter: url(#lg-liquid-aberration)` displaces that backdrop
+   *      image with R/G/B channel offsets → chromatic aberration at the
+   *      edge. Both primitives are Safari-supported individually; chaining
+   *      them on the same element keeps it on the Safari path.
+   *   3. A `::after` pseudo lays a soft white tint + inner highlights
+   *      so the active state still reads as "selected".
+   *
+   * Apply ONLY to the active indicator + reply circle — NOT every glass
+   * surface. WhatsApp does the same: only the SELECTED tab gets the
+   * aberration treatment.
+   * ─────────────────────────────────────────────────────────────── */
+  .lg-aberration {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.55) inset,
+      0 0 0 1px rgba(255, 255, 255, 0.10) inset,
+      0 6px 18px rgba(8, 10, 18, 0.18),
+      0 1px 2px rgba(8, 10, 18, 0.10);
+  }
+  .dark .lg-aberration {
+    border-color: rgba(255, 255, 255, 0.20);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.25) inset,
+      0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+      0 8px 22px rgba(0, 0, 0, 0.45),
+      0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+
+  /* Refraction layer — backdrop blur captured, then SVG-displaced. */
+  .lg-aberration::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    backdrop-filter: blur(14px) saturate(180%);
+    filter: url(#lg-liquid-aberration);
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+  .dark .lg-aberration::before {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Tint + shine layer — soft frosted highlight to keep it readable */
+  .lg-aberration::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.30) 0%,
+        rgba(255, 255, 255, 0.10) 60%,
+        rgba(255, 255, 255, 0.04) 100%
+      );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.65),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.18);
+  }
+  .dark .lg-aberration::after {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.14) 0%,
+        rgba(255, 255, 255, 0.05) 60%,
+        rgba(255, 255, 255, 0.02) 100%
+      );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.30),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  /* Direct children (icons, content) sit above the ::after tint layer. */
+  .lg-aberration > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Smaller-scale variant for the 44px indicator circle inside nav. */
+  .lg-aberration-sm::before {
+    filter: url(#lg-liquid-aberration-sm);
+    -webkit-backdrop-filter: blur(12px) saturate(170%);
+    backdrop-filter: blur(12px) saturate(170%);
+  }
+
+  /* ─── Dynamic-alpha pill (scroll-thicken) ──────────────────────────── */
+  .glass-pill-dynamic {
+    --lg2-fill-alpha: var(--glass-alpha, var(--lg2-fill-alpha-rest));
+    --lg2-blur: var(--glass-blur, 28);
+    will-change: background, backdrop-filter;
+  }
+
+  /* ─── Monochrome solid action pill (Reply / Go) ────────────────────── */
+  /* This is intentionally non-glass — solid mono. Keep as-is. */
+  .liquid-blue {
+    background: #1d1d1f;
+    color: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+  .dark .liquid-blue {
+    background: #ffffff;
+    color: #0b0b0d;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  }
+  .liquid-blue .text-white { color: inherit; }
+
+  /* mono-circle — solid frosted circle for FABs. Keeps icon contrast. */
+  .mono-circle {
+    color: #1d1d1f;
+    --lg2-fill-alpha: var(--lg2-fill-alpha-strong, 0.30);
+  }
+  .dark .mono-circle { color: #ffffff; }
+
+  /* glass-fill-active — used behind active nav icons. */
+  .glass-fill-active {
+    --lg2-aura-opacity: 0.40;
+  }
+
+  /* Flat top bar — no glass treatment. */
+  .glass-flat {
+    background: transparent;
+    border: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+  .glass-flat::before,
+  .glass-flat::after { display: none; }
+
+  /* Chrome backdrop fade — sits behind floating pills. */
+  .chrome-backdrop {
+    background: linear-gradient(
+      to bottom,
+      rgba(248, 249, 251, 0.85) 0%,
+      rgba(248, 249, 251, 0.65) 60%,
+      rgba(248, 249, 251, 0) 100%
+    );
+    backdrop-filter: blur(18px) saturate(170%);
+    -webkit-backdrop-filter: blur(18px) saturate(170%);
+  }
+  .dark .chrome-backdrop {
+    background: linear-gradient(
+      to bottom,
+      rgba(18, 18, 22, 0.85) 0%,
+      rgba(18, 18, 22, 0.65) 60%,
+      rgba(18, 18, 22, 0) 100%
+    );
+  }
+
+  /* ─── Plain section header / utilities (preserved) ─────────────────── */
+  .section-header {
+    font-size: 13px;
+    font-weight: 400;
+    color: hsl(var(--muted-foreground));
+    letter-spacing: 0;
+  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Sidebar item hover — soft tint behind nav items. */
+  .pill { border-radius: 9999px; }
+  .sidebar-item {
+    transition: background-color 150ms ease;
+  }
+  .sidebar-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+  .dark .sidebar-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .sidebar-item-active {
+    background: rgba(0, 0, 0, 0.06);
+  }
+  .dark .sidebar-item-active {
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .sidebar-item-active:hover {
+    background: rgba(0, 0, 0, 0.08);
+  }
+  .dark .sidebar-item-active:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  /* Scroll-edge fade (preserved) — used inside lg-sheet. */
+  .lg-sheet-scroll {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
+            mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
+  }
+
+  /* Sheen helpers retained as no-ops — the v2 base recipe already
+     supplies specular + rim, so legacy .lg-sheen* utility classes
+     should not double-apply gradients. Keep them as harmless markers. */
+  .lg-sheen,
+  .lg-sheen-rim,
+  .lg-sheen-hover { position: relative; }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Animations
+     ═══════════════════════════════════════════════════════════════════ */
+  @keyframes lg2-spec-drift {
+    0%, 100% {
+      background-position: 0% 0%;
+    }
+    50% {
+      background-position: 12% 8%;
+    }
+  }
+
+  @keyframes lg2-materialize-in {
+    0% {
+      opacity: 0;
+      transform: translateY(4px) scale(0.985);
+      filter: blur(8px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
+  .lg2-materialize {
+    animation: lg2-materialize-in 360ms var(--lg2-ease) both;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Accessibility — Reduce Motion: kill specular drift & materialize.
+   ═══════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  :where(
+    .lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail,
+    .glass, .glass-pill, .glass-strong, .glass-ai, .glass-sidebar,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-sheet, .lg-rail,
+    .lg-strong, .lg-ai, .mono-circle
+  )::before {
+    animation: none !important;
+  }
+  .lg2-materialize { animation: none !important; }
+}
+
+/* Reduce-transparency override — bump fill to near-opaque, drop blur,
+   drop refraction (which adds visual noise for low-vision users). */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --lg2-fill-alpha: 0.95;
+    --lg2-fill-alpha-rest: 0.95;
+    --lg2-fill-alpha-strong: 0.97;
+    --lg2-blur: 10;
+    --lg2-saturate: 100;
+  }
+  .dark {
+    --lg2-fill-alpha: 0.92;
+    --lg2-fill-alpha-rest: 0.92;
+    --lg2-fill-alpha-strong: 0.96;
+  }
+  :where(
+    .lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail,
+    .glass, .glass-pill, .glass-strong, .glass-ai, .glass-sidebar,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-sheet, .lg-rail,
+    .lg-strong, .lg-ai, .mono-circle
+  ) {
+    backdrop-filter:
+      blur(calc(var(--lg2-blur, 10) * 1px))
+      saturate(calc(var(--lg2-saturate, 100) * 1%)) !important;
+    -webkit-backdrop-filter:
+      blur(calc(var(--lg2-blur, 10) * 1px))
+      saturate(calc(var(--lg2-saturate, 100) * 1%)) !important;
+  }
+  :where(
+    .lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail,
+    .glass, .glass-pill, .glass-strong, .glass-ai, .glass-sidebar,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-sheet, .lg-rail,
+    .lg-strong, .lg-ai, .mono-circle
+  )::before,
+  :where(
+    .lg2-pill, .lg2-card, .lg2-sheet, .lg2-rail,
+    .glass, .glass-pill, .glass-strong, .glass-ai, .glass-sidebar,
+    .lg-pill, .lg-pill-rect, .lg-card, .lg-sheet, .lg-rail,
+    .lg-strong, .lg-ai, .mono-circle
+  )::after {
+    display: none;
+  }
+}
+
+/* Increase-contrast — re-introduce a visible outer hairline. */
+@media (prefers-contrast: more) {
+  :root {
+    --lg2-rim-top:    rgba(0, 0, 0, 0.20);
+    --lg2-rim-side:   rgba(0, 0, 0, 0.18);
+    --lg2-rim-bottom: rgba(0, 0, 0, 0.28);
+  }
+  .dark {
+    --lg2-rim-top:    rgba(255, 255, 255, 0.55);
+    --lg2-rim-side:   rgba(255, 255, 255, 0.40);
+    --lg2-rim-bottom: rgba(255, 255, 255, 0.30);
+  }
+}
+
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  input[type='search']::-webkit-search-cancel-button { display: none; }
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+
+  .no-default-hover-elevate {}
+  .no-default-active-elevate {}
+
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: -1;
+  }
+  .toggle-elevate.toggle-elevated::before { background-color: var(--elevate-2); }
+  .border.toggle-elevate::before { inset: -1px; }
+
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: 999;
+  }
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after {
+    inset: -1px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Stilt prose / Tiptap editor styling (v14 Docs)
+   ───────────────────────────────────────────────────────────────── */
+.stilt-prose {
+  font-size: 16px;
+  line-height: 1.55;
+  letter-spacing: -0.003em;
+  color: var(--foreground);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'Inter', system-ui, sans-serif;
+  min-height: 60vh;
+  caret-color: hsl(var(--foreground));
+}
+.stilt-prose ::selection {
+  background: rgba(167, 139, 250, 0.22);
+}
+.dark .stilt-prose ::selection {
+  background: rgba(167, 139, 250, 0.32);
+}
+.stilt-prose > * + * {
+  margin-top: 0.55em;
+}
+.stilt-prose h1 {
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.022em;
+  font-weight: 600;
+  margin-top: 1.1em;
+  margin-bottom: 0.25em;
+}
+.stilt-prose h2 {
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.2em;
+}
+.stilt-prose h3 {
+  font-size: 17px;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+  font-weight: 600;
+  margin-top: 0.9em;
+  margin-bottom: 0.15em;
+}
+.stilt-prose h1:first-child,
+.stilt-prose h2:first-child,
+.stilt-prose h3:first-child {
+  margin-top: 0;
+}
+.stilt-prose p {
+  margin: 0;
+}
+.stilt-prose ul,
+.stilt-prose ol {
+  padding-left: 1.4em;
+  margin: 0.2em 0;
+}
+.stilt-prose ul li,
+.stilt-prose ol li {
+  margin: 0.1em 0;
+}
+.stilt-prose ul {
+  list-style-type: disc;
+}
+.stilt-prose ol {
+  list-style-type: decimal;
+}
+.stilt-prose ul li::marker,
+.stilt-prose ol li::marker {
+  color: rgba(0, 0, 0, 0.42);
+}
+.dark .stilt-prose ul li::marker,
+.dark .stilt-prose ol li::marker {
+  color: rgba(255, 255, 255, 0.4);
+}
+.stilt-prose blockquote.stilt-quote {
+  border-left: 2px solid rgba(0, 0, 0, 0.18);
+  padding-left: 0.95em;
+  margin: 0.45em 0;
+  font-style: italic;
+  color: rgba(0, 0, 0, 0.72);
+}
+.dark .stilt-prose blockquote.stilt-quote {
+  border-left-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.78);
+}
+.stilt-prose blockquote.stilt-quote p {
+  margin: 0;
+}
+.stilt-prose pre.stilt-codeblock {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;
+  font-size: 13.5px;
+  line-height: 1.5;
+  background: rgba(0, 0, 0, 0.045);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  color: var(--foreground);
+}
+.dark .stilt-prose pre.stilt-codeblock {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+.stilt-prose pre.stilt-codeblock code {
+  font-family: inherit;
+  background: transparent;
+  padding: 0;
+}
+.stilt-prose code {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 0.92em;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.dark .stilt-prose code {
+  background: rgba(255, 255, 255, 0.07);
+}
+.stilt-prose hr.stilt-hr {
+  border: 0;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 1.2em 0;
+}
+.dark .stilt-prose hr.stilt-hr {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Task list (todos) */
+.stilt-prose ul.stilt-tasklist {
+  list-style: none;
+  padding-left: 0;
+}
+.stilt-prose ul.stilt-tasklist li.stilt-taskitem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0.15em 0;
+}
+.stilt-prose ul.stilt-tasklist li.stilt-taskitem > label {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.32em;
+  flex-shrink: 0;
+}
+.stilt-prose ul.stilt-tasklist li.stilt-taskitem > label > input[type='checkbox'] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 0, 0, 0.25);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.dark .stilt-prose ul.stilt-tasklist li.stilt-taskitem > label > input[type='checkbox'] {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.stilt-prose ul.stilt-tasklist li.stilt-taskitem > label > input[type='checkbox']:checked {
+  background: hsl(var(--foreground));
+  border-color: hsl(var(--foreground));
+}
+.stilt-prose ul.stilt-tasklist li.stilt-taskitem > label > input[type='checkbox']:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid hsl(var(--background));
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(45deg);
+}
+.stilt-prose ul.stilt-tasklist li.stilt-taskitem > div {
+  flex: 1;
+  min-width: 0;
+}
+.stilt-prose ul.stilt-tasklist li.stilt-taskitem[data-checked='true'] > div {
+  color: rgba(0, 0, 0, 0.45);
+  text-decoration: line-through;
+}
+.dark .stilt-prose ul.stilt-tasklist li.stilt-taskitem[data-checked='true'] > div {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Empty placeholder (Tiptap) */
+.stilt-prose p.is-editor-empty:first-child::before,
+.stilt-prose h1.is-empty::before,
+.stilt-prose h2.is-empty::before,
+.stilt-prose h3.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: rgba(0, 0, 0, 0.32);
+  pointer-events: none;
+  height: 0;
+}
+.dark .stilt-prose p.is-editor-empty:first-child::before,
+.dark .stilt-prose h1.is-empty::before,
+.dark .stilt-prose h2.is-empty::before,
+.dark .stilt-prose h3.is-empty::before {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+/* Stilt doc surface — subtle off-white in light, near-black in dark */
+.stilt-doc-surface {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(248, 248, 250, 0.6));
+}
+.dark .stilt-doc-surface {
+  background: linear-gradient(180deg, rgba(20, 20, 22, 0.6), rgba(14, 14, 16, 0.6));
+}
