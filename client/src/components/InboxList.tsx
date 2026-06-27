@@ -185,7 +185,7 @@ function ConversationProgressLine({ mail }: { mail: Conversation }) {
         <ConversionBar pct={meta.progress} />
       </span>
       <span className="shrink-0 text-[12px] text-muted-foreground whitespace-nowrap">
-        <span className="font-semibold text-foreground/85">{meta.label}</span>
+        {meta.label}
       </span>
     </div>
   );

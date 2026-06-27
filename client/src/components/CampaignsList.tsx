@@ -105,13 +105,21 @@ export function GoalPill({
 // neutral progress-bar treatment as the campaign rows.
 export function ConversionBar({ pct, dim }: { pct: number; dim?: boolean }) {
   const width = Math.max(0, Math.min(100, pct));
+  // v-replaiy — subtle brand gradient fill: deep blue → Replaiy blue
+  // (#2F6BFF). Shared by conversation rows AND campaign rows so the two
+  // surfaces stay 1:1. `dim` (paused campaign) drops it back to neutral so a
+  // paused row reads quiet. Track stays neutral glass.
   return (
     <div className="h-[4px] w-full rounded-full bg-foreground/[0.06] dark:bg-white/[0.08] overflow-hidden">
       <div
-        className={`h-full rounded-full ${
-          dim ? 'bg-foreground/20 dark:bg-white/20' : 'bg-foreground/35 dark:bg-white/40'
-        }`}
-        style={{ width: `${width}%` }}
+        className="h-full rounded-full"
+        style={{
+          width: `${width}%`,
+          background: dim
+            ? 'hsl(var(--foreground) / 0.2)'
+            : 'linear-gradient(90deg, #1B3FA8 0%, #2F6BFF 100%)',
+          opacity: dim ? 1 : 0.92,
+        }}
       />
     </div>
   );
