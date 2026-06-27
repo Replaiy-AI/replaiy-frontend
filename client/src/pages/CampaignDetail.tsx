@@ -6,16 +6,19 @@
 //   • Mobile top-chrome registered via useMobileTopChromeSlot (priority 100):
 //     leftSlot = ArrowLeft ActionPill → navigate('/campaigns').
 //   • Surfaces are real design-system classes only (.stilt-card, .glass-pill,
-//     .glass-strong). ONE accent: var(--ai-accent). Delete is the single
-//     allowed exception using hsl(var(--destructive)).
+//     .glass-strong). Blue (var(--ai-accent)) is a RARE micro-accent only —
+//     not the fill of large controls. Delete is the single allowed exception
+//     using hsl(var(--destructive)).
 //
-// Route dispatch (matches App.tsx <Route path="/campaigns/:id"> and the bare
-// "/campaigns" route): when the id is 'new' we render the create view (goal
-// picker); when it is an existing campaign we render the detail; bare
-// /campaigns shows a calm empty state in the right pane (desktop only — on
-// mobile the list owns the screen for the overview).
+// The detail is ONLY about (1) how the campaign performs — the funnel + key
+// metrics, and (2) finetuning it — editable name + editable goal — and (3)
+// management (on/off + archive/delete). There is no conversations/messages
+// block here: threads live in the Inbox, not in Campaigns.
+//
+// Route dispatch: id 'new' → create view; existing id → detail; bare
+// /campaigns → calm empty state in the right pane (desktop only).
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -25,11 +28,16 @@ import {
   Archive,
   Trash2,
   Check,
-  Send,
-  UserCheck,
+  Pencil,
+  Plus,
+  X,
+  Users,
+  Workflow,
+  UserPlus,
+  ThumbsUp,
   MessageSquare,
-  MessagesSquare,
-  Trophy,
+  Send,
+  CornerUpRight,
   CalendarClock,
   BadgeCheck,
   CornerUpLeft,
@@ -39,14 +47,38 @@ import {
 import { useStilt } from '@/state/StiltContext';
 import {
   GOAL_META,
+  WORKSPACE_MEMBERS,
+  DEFAULT_FLOW,
+  FLOW_STEP_META,
   type Campaign,
   type CampaignGoalType,
+  type FlowStepKind,
 } from '@/data/mockCampaigns';
+import { StiltAvatar } from '@/components/Avatar';
 import { ActionPill } from '@/components/MailDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { CampaignToggle } from '@/components/CampaignToggle';
-import { conversionPct } from '@/components/CampaignsList';
+import { conversionPct, replyRatePct } from '@/components/CampaignsList';
 import { APPLE_SPRING } from '@/lib/motion';
+
+// Lucide icon per flow-step kind.
+const FLOW_ICONS: Record<FlowStepKind, typeof Send> = {
+  connect: UserPlus,
+  like: ThumbsUp,
+  comment: MessageSquare,
+  message: Send,
+  follow_up: CornerUpRight,
+};
+
+// Shared goal-picker config (used by create AND inline edit-in-detail).
+const GOAL_ORDER: CampaignGoalType[] = ['meeting', 'demo', 'qualified', 'reply', 'custom'];
+const GOAL_ICONS: Record<CampaignGoalType, typeof Target> = {
+  meeting: CalendarClock,
+  demo: PlayCircle,
+  qualified: BadgeCheck,
+  reply: CornerUpLeft,
+  custom: Sparkles,
+};
 
 // ════════════════════════════════════════════════════════════════════
 // Dispatcher — keep universal hooks at the top (rules-of-hooks safe),
@@ -192,149 +224,573 @@ function OverflowMenu({
   );
 }
 
-// ── Goal card — what Replaiy steers toward + the hint ───────────────
+// ── Inline goal picker — reused by the create view AND the editable
+//    goal card in the detail. Same treatment in both places. ─────────
+function GoalPicker({
+  goalType,
+  customLabel,
+  onPick,
+  onCustomLabel,
+}: {
+  goalType: CampaignGoalType;
+  customLabel: string;
+  onPick: (g: CampaignGoalType) => void;
+  onCustomLabel: (v: string) => void;
+}) {
+  // One glass cluster of rows (inbox / Settings language): hairline
+  // dividers, NO per-row boxed icon, NO coloured border. Selection is a
+  // subtle neutral fill + a small muted check — calm, not a loud frame.
+  return (
+    <div className="stilt-card rounded-3xl overflow-hidden">
+      {GOAL_ORDER.map((g, i) => {
+        const meta = GOAL_META[g];
+        const Icon = GOAL_ICONS[g];
+        const selected = goalType === g;
+        return (
+          <div key={g}>
+            {i > 0 && (
+              <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+            )}
+            <button
+              type="button"
+              data-testid={`goal-option-${g}`}
+              onClick={() => onPick(g)}
+              aria-pressed={selected}
+              className={`w-full text-left px-4 py-3.5 hover-elevate active-elevate-2 ${
+                selected ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {/* Small plain glyph, no background box. */}
+                <Icon
+                  size={16}
+                  strokeWidth={1.9}
+                  className={`shrink-0 ${selected ? 'text-foreground/70' : 'text-foreground/40'}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14.5px] font-semibold tracking-[-0.005em] text-foreground">
+                    {meta.label}
+                  </div>
+                  <div className="text-[12.5px] text-muted-foreground leading-snug mt-0.5">
+                    {meta.hint}
+                  </div>
+                </div>
+                {/* Quiet selection mark — small muted check, no filled circle. */}
+                {selected && (
+                  <Check
+                    size={17}
+                    strokeWidth={2.4}
+                    className="shrink-0 text-foreground/70"
+                  />
+                )}
+              </div>
+              {/* Custom → free-text field, revealed inline when selected. */}
+              {g === 'custom' && selected && (
+                <div className="mt-3 ml-7" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    data-testid="input-custom-goal"
+                    value={customLabel}
+                    onChange={(e) => onCustomLabel(e.target.value)}
+                    placeholder="Describe the outcome in your own words…"
+                    className="w-full bg-foreground/[0.04] dark:bg-white/[0.06] rounded-2xl px-3.5 py-2.5 outline-none text-[16px] text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+              )}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Goal card — what Replaiy steers toward, now editable in place ───
+// View mode shows the goal + hint with an Edit affordance. Editing reveals
+// the same goal picker the create view uses, and persists via updateCampaign.
 function GoalCard({ campaign }: { campaign: Campaign }) {
+  const { updateCampaign } = useStilt();
+  const [editing, setEditing] = useState(false);
+  const [goalType, setGoalType] = useState<CampaignGoalType>(campaign.goalType);
+  const [customLabel, setCustomLabel] = useState(campaign.goalLabel ?? '');
+
   const meta = GOAL_META[campaign.goalType];
   const label =
     campaign.goalType === 'custom' && campaign.goalLabel
       ? campaign.goalLabel
       : meta.label;
+
+  const beginEdit = () => {
+    setGoalType(campaign.goalType);
+    setCustomLabel(campaign.goalLabel ?? '');
+    setEditing(true);
+  };
+
+  const canSave = goalType !== 'custom' || customLabel.trim().length > 0;
+
+  const save = () => {
+    if (!canSave) return;
+    updateCampaign(campaign.id, {
+      goalType,
+      goalLabel: goalType === 'custom' ? customLabel.trim() : undefined,
+    });
+    setEditing(false);
+  };
+
   return (
     <section>
-      <div className="px-2 mb-1.5 flex items-center gap-2">
+      <div className="px-2 mb-1.5 flex items-center justify-between gap-2">
         <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Goal</span>
+        {!editing && (
+          <button
+            type="button"
+            data-testid="button-edit-goal"
+            onClick={beginEdit}
+            className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+          >
+            <Pencil size={12} strokeWidth={2} className="text-foreground/55" />
+            Edit
+          </button>
+        )}
       </div>
-      <div className="stilt-card rounded-3xl px-4 py-4 lg:px-5 lg:py-[18px]">
-        <div className="flex items-start gap-3">
-          <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-            <Target size={16} strokeWidth={1.9} style={{ color: 'var(--ai-accent)' }} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[15px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
-              {label}
+
+      <AnimatePresence mode="wait" initial={false}>
+        {editing ? (
+          <motion.div
+            key="edit"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="flex flex-col gap-3"
+          >
+            <GoalPicker
+              goalType={goalType}
+              customLabel={customLabel}
+              onPick={setGoalType}
+              onCustomLabel={setCustomLabel}
+            />
+            <div className="flex items-center gap-2 px-1">
+              <button
+                type="button"
+                data-testid="button-save-goal"
+                onClick={save}
+                disabled={!canSave}
+                className="glass-pill pill inline-flex items-center h-[34px] px-4 text-[13px] font-semibold text-foreground hover-elevate active-elevate-2 disabled:opacity-40 disabled:pointer-events-none"
+              >
+                Save goal
+              </button>
+              <button
+                type="button"
+                data-testid="button-cancel-goal"
+                onClick={() => setEditing(false)}
+                className="glass-pill pill inline-flex items-center h-[34px] px-4 text-[13px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+              >
+                Cancel
+              </button>
             </div>
-            <p className="mt-1 text-[13px] text-muted-foreground leading-snug">
-              {meta.hint}
-            </p>
-          </div>
-        </div>
-      </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="view"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="stilt-card rounded-3xl px-4 py-4 lg:px-5 lg:py-[18px]"
+          >
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+                {/* Goal icon — small, neutral. A single accent micro-detail. */}
+                <Target size={16} strokeWidth={1.9} style={{ color: 'var(--ai-accent)' }} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[15px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
+                  {label}
+                </div>
+                <p className="mt-1 text-[13px] text-muted-foreground leading-snug">
+                  {meta.hint}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
 
 // ── Funnel ──────────────────────────────────────────────────────────
-// Connection requests → Accepted (leads) → Replied → In conversation →
-// [goal]. Each stage shows count + % of the top stage. Non-final stages
-// use a neutral bar; only the goal stage uses the accent. An overall
-// conversion% sits in the header.
+// A single FLOWING funnel shape that narrows left-to-right (emulating the
+// clean dashboard reference — NOT rainbow bars). Each stage: name + count
+// on top, drop-off % shown BETWEEN consecutive stages, and one monochrome
+// fill that subtly DEEPENS toward the goal. Rendered as a layered SVG so
+// the band stays crisp at any width. Responsive: horizontally scrolls on
+// mobile rather than squishing.
 function FunnelCard({ campaign }: { campaign: Campaign }) {
   const meta = GOAL_META[campaign.goalType];
   const s = campaign.stats;
-  const top = Math.max(1, s.connectsSent);
+  const top = Math.max(1, s.found);
 
-  const stages: {
-    key: string;
-    label: string;
-    icon: typeof Send;
-    value: number;
-    accent?: boolean;
-  }[] = [
-    { key: 'sent', label: 'Connection requests', icon: Send, value: s.connectsSent },
-    { key: 'leads', label: 'Accepted · leads', icon: UserCheck, value: s.leads },
-    { key: 'replied', label: 'Replied', icon: MessageSquare, value: s.replies },
-    { key: 'inconv', label: 'In conversation', icon: MessagesSquare, value: s.inConversation },
-    {
-      key: 'goal',
-      label: meta.achieved,
-      icon: Trophy,
-      value: s.goalAchieved,
-      accent: true,
-    },
+  const stages = [
+    { key: 'found', label: 'Found', value: s.found },
+    { key: 'sent', label: 'Sent', value: s.sent },
+    { key: 'accepted', label: 'Accepted', value: s.accepted },
+    { key: 'messaged', label: 'Messaged', value: s.messaged },
+    { key: 'replied', label: 'Replied', value: s.replied },
+    { key: 'goal', label: meta.achievedShort, value: s.goalAchieved },
   ];
 
   const conv = conversionPct(campaign);
+  const reply = replyRatePct(campaign);
   const fmt = (n: number) => n.toLocaleString('en-US');
+
+  // SVG geometry. We draw one continuous band: at each stage boundary the
+  // band's half-height is proportional to value/top, symmetric around the
+  // vertical centre. A smooth path connects the boundaries.
+  const N = stages.length;
+  const W = 720;
+  const H = 150;
+  const padX = 6;
+  const midY = H / 2;
+  const maxHalf = H / 2 - 8;
+  const colW = (W - padX * 2) / N;
+
+  // x at the centre of each column (where the count sits) and at boundaries.
+  const colCenter = (i: number) => padX + colW * (i + 0.5);
+  const half = (v: number) => Math.max(2.5, (v / top) * maxHalf);
+
+  // Build a smooth top edge then mirror for the bottom. Sample points at the
+  // centre of each column so the wave reads as a funnel that pinches in.
+  const pts = stages.map((st, i) => ({ x: colCenter(i), h: half(st.value) }));
+
+  // Smooth path through the top edge (Catmull-Rom-ish via quadratic midpoints).
+  function topEdge(): string {
+    const first = pts[0];
+    let d = `M ${padX} ${midY - first.h} L ${first.x} ${midY - first.h}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      const mx = (a.x + b.x) / 2;
+      d += ` C ${mx} ${midY - a.h}, ${mx} ${midY - b.h}, ${b.x} ${midY - b.h}`;
+    }
+    d += ` L ${W - padX} ${midY - pts[pts.length - 1].h}`;
+    return d;
+  }
+  function bottomEdge(): string {
+    const last = pts[pts.length - 1];
+    let d = ` L ${W - padX} ${midY + last.h}`;
+    for (let i = pts.length - 1; i > 0; i--) {
+      const a = pts[i];
+      const b = pts[i - 1];
+      const mx = (a.x + b.x) / 2;
+      d += ` C ${mx} ${midY + a.h}, ${mx} ${midY + b.h}, ${b.x} ${midY + b.h}`;
+    }
+    d += ` L ${padX} ${midY + pts[0].h} Z`;
+    return d;
+  }
+  const bandPath = topEdge() + bottomEdge();
 
   return (
     <section>
       <div className="px-2 mb-1.5 flex items-center justify-between gap-2">
         <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Funnel</span>
-        <span className="text-[12px] text-muted-foreground">
-          <span className="font-semibold text-foreground tabular-nums">{conv}%</span>{' '}
-          conversion
-        </span>
+        <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
+          <span>
+            <span className="font-semibold text-foreground tabular-nums">{reply}%</span>{' '}
+            reply
+          </span>
+          <span className="h-3 w-px bg-foreground/15" aria-hidden="true" />
+          <span>
+            <span className="font-semibold text-foreground tabular-nums">{conv}%</span>{' '}
+            conversion
+          </span>
+        </div>
       </div>
-      <div className="stilt-card rounded-3xl overflow-hidden">
-        {stages.map((stage, i) => {
-          const pct = Math.round((stage.value / top) * 100);
-          const Icon = stage.icon;
-          return (
-            <div key={stage.key}>
-              {i > 0 && (
-                <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-              )}
-              <div className="px-4 py-3.5">
-                <div className="flex items-center gap-3">
-                  <div className="h-7 w-7 rounded-lg bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-                    <Icon
-                      size={14}
-                      strokeWidth={1.9}
-                      style={stage.accent ? { color: 'var(--ai-accent)' } : undefined}
-                      className={stage.accent ? '' : 'text-icon-muted'}
-                    />
+
+      <div className="stilt-card rounded-3xl px-3 py-4 lg:px-4 lg:py-5">
+        {/* Horizontal scroll on narrow screens; the SVG keeps a min width so
+            stages never crush together. */}
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <div className="min-w-[560px]">
+            {/* Stage headers — name + count, aligned to each column. */}
+            <div
+              className="grid"
+              style={{ gridTemplateColumns: `repeat(${N}, minmax(0, 1fr))` }}
+            >
+              {stages.map((st, i) => (
+                <div
+                  key={st.key}
+                  data-testid={`funnel-stage-${st.key}`}
+                  className={`px-1 ${i === 0 ? 'text-left' : 'text-left'}`}
+                >
+                  <div className="text-[11.5px] uppercase tracking-[0.04em] text-muted-foreground truncate">
+                    {st.label}
                   </div>
-                  <span className="text-[14px] font-medium text-foreground/90 truncate flex-1 min-w-0">
-                    {stage.label}
-                  </span>
-                  <span className="text-[14px] font-semibold tabular-nums text-foreground shrink-0">
-                    {fmt(stage.value)}
-                  </span>
-                  <span className="text-[12px] text-muted-foreground tabular-nums shrink-0 w-[42px] text-right">
-                    {pct}%
-                  </span>
+                  <div className="mt-0.5 text-[18px] font-semibold tracking-[-0.01em] tabular-nums text-foreground leading-none">
+                    {fmt(st.value)}
+                  </div>
                 </div>
-                <div className="mt-2.5 ml-10 h-[3px] rounded-full bg-foreground/[0.08] dark:bg-white/[0.10] overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, pct))}%`,
-                      background: stage.accent
-                        ? 'var(--ai-accent)'
-                        : 'hsl(var(--foreground) / 0.28)',
-                    }}
-                  />
-                </div>
+              ))}
+            </div>
+
+            {/* The flowing funnel band. */}
+            <div className="relative mt-3">
+              <svg
+                viewBox={`0 0 ${W} ${H}`}
+                width="100%"
+                height={H}
+                preserveAspectRatio="none"
+                role="img"
+                aria-label="Funnel from found to goal"
+              >
+                <defs>
+                  {/* ONE hue: a soft accent tint that deepens left→right.
+                      Built from --ai-accent at rising alpha — calm, not loud. */}
+                  <linearGradient id="funnel-fill" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="var(--ai-accent)" stopOpacity="0.10" />
+                    <stop offset="45%" stopColor="var(--ai-accent)" stopOpacity="0.22" />
+                    <stop offset="80%" stopColor="var(--ai-accent)" stopOpacity="0.42" />
+                    <stop offset="100%" stopColor="var(--ai-accent)" stopOpacity="0.62" />
+                  </linearGradient>
+                </defs>
+                {/* Column separators — faint, so eyes can map count→band. */}
+                {stages.map((_, i) =>
+                  i === 0 ? null : (
+                    <line
+                      key={i}
+                      x1={padX + colW * i}
+                      y1={6}
+                      x2={padX + colW * i}
+                      y2={H - 6}
+                      stroke="hsl(var(--foreground) / 0.05)"
+                      strokeWidth={1}
+                    />
+                  ),
+                )}
+                <path d={bandPath} fill="url(#funnel-fill)" />
+              </svg>
+
+              {/* Drop-off % chips, centred on each boundary between stages. */}
+              <div className="pointer-events-none absolute inset-0">
+                {stages.slice(0, -1).map((st, i) => {
+                  const next = stages[i + 1];
+                  const drop =
+                    st.value === 0
+                      ? 0
+                      : Math.round(((next.value - st.value) / st.value) * 100);
+                  const leftPct = ((i + 1) / N) * 100;
+                  return (
+                    <div
+                      key={st.key}
+                      data-testid={`funnel-drop-${st.key}`}
+                      className="absolute -translate-x-1/2 -translate-y-1/2"
+                      style={{ left: `${leftPct}%`, top: '50%' }}
+                    >
+                      <span className="glass-pill pill inline-flex items-center gap-1 h-[22px] px-2 text-[11px] font-medium tabular-nums text-foreground/75 whitespace-nowrap">
+                        {drop}% →
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          );
-        })}
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-// ── Conversations placeholder ───────────────────────────────────────
-function ConversationsCard({ campaign }: { campaign: Campaign }) {
-  const inConv = campaign.stats.inConversation;
+// ── Flow card — READ-ONLY action sequence Replaiy runs per lead ─────
+// A clean vertical sequence: icon + label + hint, with the delay on the
+// right. A connector line ties the steps together. Clearly read-only —
+// an "Editing soon" hint, no drag-and-drop.
+function FlowCard({ campaign }: { campaign: Campaign }) {
+  const flow = campaign.flow ?? DEFAULT_FLOW;
   return (
     <section>
-      <div className="px-2 mb-1.5 flex items-center gap-2">
-        <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Conversations</span>
-        {inConv > 0 && (
-          <span className="text-[12px] text-muted-foreground tabular-nums">{inConv}</span>
+      <div className="px-2 mb-1.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Flow</span>
+          <span className="text-[12px] text-muted-foreground">{flow.length} steps</span>
+        </div>
+        <span className="text-[11.5px] text-muted-foreground">Editing soon</span>
+      </div>
+      <div className="stilt-card rounded-3xl px-4 py-3 lg:px-5 lg:py-3.5">
+        <div className="flex flex-col">
+          {flow.map((step, i) => {
+            const meta = FLOW_STEP_META[step.kind];
+            const Icon = FLOW_ICONS[step.kind];
+            const last = i === flow.length - 1;
+            return (
+              <div
+                key={`${step.kind}-${i}`}
+                data-testid={`flow-step-${step.kind}-${i}`}
+                className="flex items-start gap-3 py-2.5"
+              >
+                {/* Icon rail + connector line. */}
+                <div className="relative flex flex-col items-center shrink-0">
+                  <div className="h-8 w-8 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center">
+                    <Icon size={15} strokeWidth={1.9} className="text-foreground/65" />
+                  </div>
+                  {!last && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute top-8 h-[calc(100%+4px)] w-px bg-foreground/[0.10] dark:bg-white/[0.12]"
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate">
+                      {meta.label}
+                    </span>
+                    {step.delay && (
+                      <span className="shrink-0 glass-pill pill inline-flex items-center h-[22px] px-2 text-[11px] font-medium tabular-nums text-foreground/70 whitespace-nowrap">
+                        {step.delay}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[12.5px] text-muted-foreground leading-snug">
+                    {meta.hint}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── Team card — which workspace seats run this campaign ─────────────
+// Shows assigned members as avatar + name/role rows. A small "+ Add"
+// opens an inline glass list of all workspace members to toggle on/off.
+// Persists via updateCampaign(id, { memberIds }).
+function TeamCard({ campaign }: { campaign: Campaign }) {
+  const { updateCampaign } = useStilt();
+  const [picking, setPicking] = useState(false);
+
+  const assigned = WORKSPACE_MEMBERS.filter((m) =>
+    campaign.memberIds.includes(m.id),
+  );
+
+  const toggleMember = (id: string) => {
+    const next = campaign.memberIds.includes(id)
+      ? campaign.memberIds.filter((x) => x !== id)
+      : [...campaign.memberIds, id];
+    updateCampaign(campaign.id, { memberIds: next });
+  };
+
+  return (
+    <section>
+      <div className="px-2 mb-1.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Running from</span>
+          <span className="text-[12px] text-muted-foreground">
+            {assigned.length} {assigned.length === 1 ? 'seat' : 'seats'}
+          </span>
+        </div>
+        <button
+          type="button"
+          data-testid="button-toggle-member-picker"
+          onClick={() => setPicking((v) => !v)}
+          aria-expanded={picking}
+          className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+        >
+          {picking ? (
+            <X size={12} strokeWidth={2.2} className="text-foreground/55" />
+          ) : (
+            <Plus size={12} strokeWidth={2.2} className="text-foreground/55" />
+          )}
+          {picking ? 'Done' : 'Add'}
+        </button>
+      </div>
+
+      <div className="stilt-card rounded-3xl px-2 py-1.5">
+        {assigned.length === 0 && !picking ? (
+          <div className="px-2 py-4 flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+              <Users size={16} strokeWidth={1.8} className="text-foreground/55" />
+            </div>
+            <p className="text-[13px] text-muted-foreground leading-snug">
+              No seats assigned yet — add a teammate to run this campaign.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {assigned.map((m, i) => (
+              <div key={m.id}>
+                {i > 0 && (
+                  <div className="ml-[52px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                )}
+                <div
+                  data-testid={`member-assigned-${m.id}`}
+                  className="flex items-center gap-3 px-2 py-2"
+                >
+                  <StiltAvatar name={m.name} src={m.avatar} size={36} className="shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13.5px] font-semibold tracking-[-0.005em] text-foreground truncate">
+                      {m.name}
+                    </div>
+                    <div className="text-[12px] text-muted-foreground truncate">{m.role}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
-      <div className="stilt-card rounded-3xl px-4 py-8 flex flex-col items-center text-center">
-        <div className="h-10 w-10 rounded-2xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center mb-3">
-          <MessagesSquare size={18} strokeWidth={1.7} className="text-icon-muted" />
-        </div>
-        <p className="text-[13.5px] text-muted-foreground leading-snug max-w-[280px]">
-          {inConv > 0
-            ? `${inConv} live thread${inConv === 1 ? '' : 's'} will appear here — every lead Replaiy is talking to, in one place.`
-            : 'Once leads start replying, their conversations will show up here.'}
-        </p>
-      </div>
+
+      {/* Inline picker — all workspace members, toggleable. */}
+      <AnimatePresence initial={false}>
+        {picking && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -4, height: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="mt-2 stilt-card rounded-3xl px-2 py-1.5">
+              <div className="flex flex-col">
+                {WORKSPACE_MEMBERS.map((m, i) => {
+                  const on = campaign.memberIds.includes(m.id);
+                  return (
+                    <div key={m.id}>
+                      {i > 0 && (
+                        <div className="ml-[52px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                      )}
+                      <button
+                        type="button"
+                        data-testid={`member-toggle-${m.id}`}
+                        onClick={() => toggleMember(m.id)}
+                        aria-pressed={on}
+                        className={`w-full flex items-center gap-3 px-2 py-2 rounded-2xl text-left hover-elevate active-elevate-2 ${
+                          on ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
+                        }`}
+                      >
+                        <StiltAvatar name={m.name} src={m.avatar} size={36} className="shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13.5px] font-semibold tracking-[-0.005em] text-foreground truncate">
+                            {m.name}
+                          </div>
+                          <div className="text-[12px] text-muted-foreground truncate">{m.role}</div>
+                        </div>
+                        {/* Quiet selection mark — small muted check, no filled circle. */}
+                        {on && (
+                          <Check size={16} strokeWidth={2.4} className="shrink-0 text-foreground/70" />
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
@@ -348,6 +804,34 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
 
   const toggle = (on: boolean) =>
     updateCampaign(campaign.id, { status: on ? 'active' : 'paused' });
+
+  // ── Inline editable name ──────────────────────────────────────────
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(campaign.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingName) {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }
+  }, [editingName]);
+
+  const beginNameEdit = () => {
+    setDraftName(campaign.name);
+    setEditingName(true);
+  };
+  const commitName = () => {
+    const next = draftName.trim();
+    if (next.length > 0 && next !== campaign.name) {
+      updateCampaign(campaign.id, { name: next });
+    }
+    setEditingName(false);
+  };
+  const cancelName = () => {
+    setDraftName(campaign.name);
+    setEditingName(false);
+  };
 
   // Mobile chrome — back arrow (left) + campaign name (center) + overflow.
   useMobileTopChromeSlot(
@@ -387,6 +871,47 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
     ),
   );
 
+  // Editable name field (shared by desktop header + mobile body heading).
+  // Plain render helper (NOT a nested component) so the <input> keeps its
+  // identity across keystroke re-renders and never loses focus.
+  const renderNameField = (size: 'lg' | 'md') =>
+    editingName ? (
+      <input
+        ref={nameInputRef}
+        data-testid="input-edit-name"
+        value={draftName}
+        onChange={(e) => setDraftName(e.target.value)}
+        onBlur={commitName}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commitName();
+          if (e.key === 'Escape') cancelName();
+        }}
+        className={`bg-transparent outline-none border-b border-foreground/20 focus:border-foreground/40 text-foreground font-semibold tracking-[-0.02em] ${
+          size === 'lg' ? 'text-[20px]' : 'text-[22px]'
+        } w-full max-w-full`}
+      />
+    ) : (
+      <button
+        type="button"
+        data-testid="button-edit-name"
+        onClick={beginNameEdit}
+        className="group inline-flex items-center gap-1.5 min-w-0 text-left rounded-lg hover-elevate active-elevate-2 px-1 -mx-1"
+      >
+        <span
+          className={`font-semibold tracking-[-0.02em] text-foreground truncate ${
+            size === 'lg' ? 'text-[20px]' : 'text-[22px]'
+          }`}
+        >
+          {campaign.name}
+        </span>
+        <Pencil
+          size={size === 'lg' ? 14 : 15}
+          strokeWidth={2}
+          className="shrink-0 text-foreground/35 group-hover:text-foreground/60 transition-colors"
+        />
+      </button>
+    );
+
   const body = (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -394,25 +919,28 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
       transition={{ duration: 0.25, ease: 'easeOut' }}
       className="max-w-2xl mx-auto w-full flex flex-col gap-5"
     >
-      <GoalCard campaign={campaign} />
+      {/* Mobile-only editable heading (desktop edits via the floating header). */}
+      <div className="lg:hidden px-1">
+        {renderNameField('md')}
+      </div>
       <FunnelCard campaign={campaign} />
-      <ConversationsCard campaign={campaign} />
+      <GoalCard campaign={campaign} />
+      <FlowCard campaign={campaign} />
+      <TeamCard campaign={campaign} />
     </motion.div>
   );
 
   return (
     <div className="flex flex-col h-full min-h-0 relative">
-      {/* DESKTOP floating top pill row — name (left) + switch + overflow
-          (right), on the same top:12 baseline as MailDetail. */}
+      {/* DESKTOP floating top pill row — editable name (left) + switch +
+          overflow (right), on the same top:12 baseline as MailDetail. */}
       <div
         data-testid="campaign-desktop-header"
         className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none"
       >
         <div className="flex items-center justify-between gap-3 px-4 lg:px-6">
           <div className="pointer-events-auto min-w-0 flex items-center h-[52px]">
-            <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-foreground truncate">
-              {campaign.name}
-            </h1>
+            {renderNameField('lg')}
           </div>
           <div className="pointer-events-auto flex items-center gap-3 shrink-0">
             <CampaignToggle
@@ -448,15 +976,6 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
 
 // ════════════════════════════════════════════════════════════════════
 // Create view — goal picker is the centrepiece.
-const GOAL_ORDER: CampaignGoalType[] = ['meeting', 'demo', 'qualified', 'reply', 'custom'];
-const GOAL_ICONS: Record<CampaignGoalType, typeof Target> = {
-  meeting: CalendarClock,
-  demo: PlayCircle,
-  qualified: BadgeCheck,
-  reply: CornerUpLeft,
-  custom: Sparkles,
-};
-
 function CampaignCreate() {
   const [, navigate] = useLocation();
   const { addCampaign } = useStilt();
@@ -477,7 +996,9 @@ function CampaignCreate() {
       goalType,
       goalLabel: goalType === 'custom' ? customLabel.trim() : undefined,
       status: 'draft',
-      stats: { connectsSent: 0, leads: 0, inConversation: 0, replies: 0, goalAchieved: 0 },
+      memberIds: [],
+      // flow omitted → falls back to DEFAULT_FLOW.
+      stats: { found: 0, sent: 0, accepted: 0, messaged: 0, replied: 0, goalAchieved: 0 },
       createdAt: new Date().toISOString(),
     };
     addCampaign(campaign);
@@ -543,74 +1064,17 @@ function CampaignCreate() {
         </div>
       </section>
 
-      {/* Goal picker — the centrepiece. */}
+      {/* Goal picker — the centrepiece (shared component). */}
       <section>
         <div className="px-2 mb-1.5">
           <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Goal</span>
         </div>
-        <div className="flex flex-col gap-2">
-          {GOAL_ORDER.map((g) => {
-            const meta = GOAL_META[g];
-            const Icon = GOAL_ICONS[g];
-            const selected = goalType === g;
-            return (
-              <button
-                key={g}
-                type="button"
-                data-testid={`goal-option-${g}`}
-                onClick={() => setGoalType(g)}
-                aria-pressed={selected}
-                className="stilt-card rounded-3xl px-4 py-3.5 text-left hover-elevate active-elevate-2 transition-shadow"
-                style={
-                  selected
-                    ? { boxShadow: 'inset 0 0 0 1.5px var(--ai-accent)' }
-                    : undefined
-                }
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-                    <Icon
-                      size={16}
-                      strokeWidth={1.9}
-                      style={selected ? { color: 'var(--ai-accent)' } : undefined}
-                      className={selected ? '' : 'text-icon-muted'}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[14.5px] font-semibold tracking-[-0.005em] text-foreground">
-                      {meta.label}
-                    </div>
-                    <div className="text-[12.5px] text-muted-foreground leading-snug mt-0.5">
-                      {meta.hint}
-                    </div>
-                  </div>
-                  <div
-                    className="h-[22px] w-[22px] rounded-full flex items-center justify-center shrink-0"
-                    style={
-                      selected
-                        ? { background: 'var(--ai-accent)' }
-                        : { boxShadow: 'inset 0 0 0 1.5px hsl(var(--foreground) / 0.20)' }
-                    }
-                  >
-                    {selected && <Check size={13} strokeWidth={3} className="text-white" />}
-                  </div>
-                </div>
-                {/* Custom → free-text field, revealed inline when selected. */}
-                {g === 'custom' && selected && (
-                  <div className="mt-3 ml-12">
-                    <input
-                      data-testid="input-custom-goal"
-                      value={customLabel}
-                      onChange={(e) => setCustomLabel(e.target.value)}
-                      placeholder="Describe the outcome in your own words…"
-                      className="w-full bg-foreground/[0.04] dark:bg-white/[0.06] rounded-2xl px-3.5 py-2.5 outline-none text-[16px] text-foreground placeholder:text-muted-foreground"
-                    />
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <GoalPicker
+          goalType={goalType}
+          customLabel={customLabel}
+          onPick={setGoalType}
+          onCustomLabel={setCustomLabel}
+        />
       </section>
 
       {/* Actions */}

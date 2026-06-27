@@ -10,8 +10,10 @@
 //                             a mail detail.
 //
 // Design language mirrors InboxList exactly: stilt-card clusters with hairline
-// dividers, px-4 py-3 hover-elevate active-elevate-2 rows, glass-pill goal
-// pills, one accent (var(--ai-accent)), tabular-nums for numbers.
+// dividers, px-4 py-3 hover-elevate active-elevate rows, glass-pill goal pills,
+// tabular-nums for numbers. BLUE (var(--ai-accent)) is reserved for rare micro
+// accents only — it is NOT used on switches or on the conversion bars. The
+// conversion read-out is calm: a neutral glass track + a muted % number.
 
 import { motion } from 'framer-motion';
 import { Target, Plus } from 'lucide-react';
@@ -27,14 +29,15 @@ import { CampaignToggle } from './CampaignToggle';
 import { useMobileTopChromeSlot } from './MobileTopChrome';
 
 // ── Derived metrics ────────────────────────────────────────────────
-// conversion% = goalAchieved / leads ; replyRate% = replies / leads.
+// conversion% = goalAchieved / found (the whole funnel); replyRate% =
+// replied / accepted (how well the conversation lands once they're in).
 export function conversionPct(c: Campaign): number {
-  if (c.stats.leads === 0) return 0;
-  return Math.round((c.stats.goalAchieved / c.stats.leads) * 100);
+  if (c.stats.found === 0) return 0;
+  return Math.round((c.stats.goalAchieved / c.stats.found) * 100);
 }
 export function replyRatePct(c: Campaign): number {
-  if (c.stats.leads === 0) return 0;
-  return Math.round((c.stats.replies / c.stats.leads) * 100);
+  if (c.stats.accepted === 0) return 0;
+  return Math.round((c.stats.replied / c.stats.accepted) * 100);
 }
 
 // Sort active first, then by created date (newest first). Matches the brief:
@@ -48,7 +51,9 @@ export function sortCampaigns(list: Campaign[]): Campaign[] {
   });
 }
 
-// ── Goal pill — neutral glass pill with Target icon + label ─────────
+// ── Goal pill — crisp neutral glass pill with Target icon + label ───
+// One neutral treatment (no blue tint). The icon sits at a readable
+// foreground opacity so it never looks washed-out / illegible.
 function GoalPill({ campaign }: { campaign: Campaign }) {
   const meta = GOAL_META[campaign.goalType];
   const label =
@@ -56,29 +61,35 @@ function GoalPill({ campaign }: { campaign: Campaign }) {
       ? campaign.goalLabel
       : meta.label;
   return (
-    <span className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 max-w-full">
-      <Target size={12.5} strokeWidth={2} className="text-icon-muted shrink-0" />
+    <span className="glass-pill pill inline-flex items-center gap-1.5 h-[24px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/80 max-w-full">
+      <Target size={12.5} strokeWidth={2.1} className="text-foreground/55 shrink-0" />
       <span className="truncate">{label}</span>
     </span>
   );
 }
 
-// ── Thin conversion bar — single accent, neutral track ──────────────
-function ConversionBar({ pct }: { pct: number }) {
+// ── Conversion read-out — calm neutral glass bar, muted % ───────────
+// NO accent fill. A quiet foreground-tinted track + fill, so the list
+// reads as a calm column rather than a row of coloured meters.
+function ConversionBar({ pct, dim }: { pct: number; dim?: boolean }) {
   const width = Math.max(0, Math.min(100, pct));
   return (
-    <div className="h-[3px] w-full rounded-full bg-foreground/[0.08] dark:bg-white/[0.10] overflow-hidden">
+    <div className="h-[4px] w-full rounded-full bg-foreground/[0.06] dark:bg-white/[0.08] overflow-hidden">
       <div
-        className="h-full rounded-full"
-        style={{ width: `${width}%`, background: 'var(--ai-accent)' }}
+        className={`h-full rounded-full ${
+          dim ? 'bg-foreground/20 dark:bg-white/20' : 'bg-foreground/35 dark:bg-white/40'
+        }`}
+        style={{ width: `${width}%` }}
       />
     </div>
   );
 }
 
-// ── Campaign row — calm, inbox-style ────────────────────────────────
-// name + goal pill on the first line; on/off switch + conversion% + thin
-// bar below. Clicking the row body navigates; the switch toggles in place.
+// ── Campaign row — calm, inbox-style, anchored by a leading dot ─────
+// A leading status dot gives the row weight (like SmartMailRow's avatar)
+// so rows don't float. Inactive (off) campaigns desaturate + dim. The
+// conversion % is integrated into the meta line — no repeated "Conversion"
+// label per row.
 export function CampaignRow({
   campaign,
   active,
@@ -99,44 +110,52 @@ export function CampaignRow({
     <div
       data-testid={`campaign-row-${campaign.id}`}
       onClick={() => navigate(`/campaigns/${campaign.id}`)}
-      className={`relative cursor-pointer select-none block px-4 py-3 hover-elevate active-elevate-2 ${
+      className={`relative cursor-pointer select-none block px-4 py-3.5 hover-elevate active-elevate-2 ${
         active ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
-      }`}
+      } ${isOn ? '' : 'opacity-[0.62]'}`}
     >
-      {/* Top line: name + goal pill (left), switch (right) */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="text-[14.5px] font-semibold tracking-[-0.005em] text-foreground truncate">
-            {campaign.name}
-          </div>
-          <div className="mt-1.5 flex items-center gap-2 min-w-0">
-            <GoalPill campaign={campaign} />
-          </div>
-        </div>
-        {/* Switch — stop propagation so toggling never opens the campaign. */}
-        <div
-          className="shrink-0 pt-0.5"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <CampaignToggle
-            on={isOn}
-            onChange={toggle}
-            testId={`campaign-toggle-${campaign.id}`}
-            ariaLabel={`${isOn ? 'Pause' : 'Activate'} ${campaign.name}`}
-          />
-        </div>
-      </div>
+      <div className="flex items-start gap-3">
+        {/* Leading anchor — small status dot. Active = a single tiny accent
+            micro-detail (the ONLY blue in the row); off = neutral, hollow. */}
+        <span
+          aria-hidden="true"
+          className="mt-[6px] shrink-0 h-[7px] w-[7px] rounded-full"
+          style={
+            isOn
+              ? { background: 'var(--ai-accent)' }
+              : { boxShadow: 'inset 0 0 0 1.5px hsl(var(--foreground) / 0.28)' }
+          }
+        />
 
-      {/* Bottom line: conversion% + thin bar */}
-      <div className="mt-3 flex items-center gap-3">
-        <span className="text-[12.5px] text-muted-foreground shrink-0">
-          Conversion
-        </span>
-        <span className="text-[12.5px] font-semibold tabular-nums text-foreground shrink-0">
-          {conv}%
-        </span>
-        <div className="flex-1 min-w-0">
-          <ConversionBar pct={conv} />
+        <div className="min-w-0 flex-1">
+          {/* Top line: name + switch */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-[14.5px] font-semibold tracking-[-0.005em] text-foreground truncate min-w-0">
+              {campaign.name}
+            </div>
+            {/* Switch — stop propagation so toggling never opens the campaign. */}
+            <div className="shrink-0 -mt-0.5" onClick={(e) => e.stopPropagation()}>
+              <CampaignToggle
+                on={isOn}
+                onChange={toggle}
+                testId={`campaign-toggle-${campaign.id}`}
+                ariaLabel={`${isOn ? 'Pause' : 'Activate'} ${campaign.name}`}
+              />
+            </div>
+          </div>
+
+          {/* Meta line: goal pill + integrated conversion %. */}
+          <div className="mt-2 flex items-center gap-2.5 min-w-0">
+            <GoalPill campaign={campaign} />
+            <span className="ml-auto shrink-0 text-[12px] text-muted-foreground tabular-nums whitespace-nowrap">
+              <span className="font-semibold text-foreground/85">{conv}%</span> conv.
+            </span>
+          </div>
+
+          {/* Quiet neutral conversion bar. */}
+          <div className="mt-2">
+            <ConversionBar pct={conv} dim={!isOn} />
+          </div>
         </div>
       </div>
     </div>
@@ -223,12 +242,12 @@ export function CampaignsList() {
 
   // Roll-up across ACTIVE campaigns only.
   const active = campaigns.filter((c) => c.status === 'active');
-  const totalConnects = active.reduce((s, c) => s + c.stats.connectsSent, 0);
-  const totalLeads = active.reduce((s, c) => s + c.stats.leads, 0);
-  const totalReplies = active.reduce((s, c) => s + c.stats.replies, 0);
+  const totalSent = active.reduce((s, c) => s + c.stats.sent, 0);
+  const totalAccepted = active.reduce((s, c) => s + c.stats.accepted, 0);
+  const totalReplied = active.reduce((s, c) => s + c.stats.replied, 0);
   const totalGoals = active.reduce((s, c) => s + c.stats.goalAchieved, 0);
   const weightedReplyRate =
-    totalLeads === 0 ? 0 : Math.round((totalReplies / totalLeads) * 100);
+    totalAccepted === 0 ? 0 : Math.round((totalReplied / totalAccepted) * 100);
 
   const fmt = (n: number) => n.toLocaleString('en-US');
 
@@ -307,7 +326,7 @@ export function CampaignsList() {
             <div className="stilt-card rounded-3xl overflow-hidden">
               <div className="flex items-stretch divide-x divide-foreground/[0.06] dark:divide-white/[0.06]">
                 <RollupStat
-                  value={fmt(totalConnects)}
+                  value={fmt(totalSent)}
                   label="Connection requests sent"
                 />
                 <RollupStat

@@ -1,10 +1,13 @@
-// Replaiy — Campaign on/off switch.
+// Replaiy — Campaign on/off switch (glass, NOT coloured).
 //
-// Identical in shape and motion to the Settings.tsx Toggle (h-[28px] w-[46px]
-// rounded-full track, h-[22px] w-[22px] spring knob), with one deliberate
-// difference: the "on" track uses var(--ai-accent) (Replaiy blue) instead of
-// the neutral foreground, so an active campaign reads as "live" without
-// introducing a second accent or status color anywhere else.
+// The user was explicit: "niet een aanwezige kleur... juist clean houden,
+// glass erin." So the track is the app's own glass material (.glass-pill) —
+// never a blue fill and never a flat grey block. On/off is communicated by:
+//   • thumb POSITION (right = on, left = off), with the spring-knob motion, and
+//   • a subtle state difference — the track reads as a brighter / filled glass
+//     when on (data-active, the same recipe the rail pills use) and dims
+//     slightly when off.
+// No loud colour. Calm and premium, consistent with the rail buttons / pills.
 
 import { motion } from 'framer-motion';
 
@@ -25,20 +28,24 @@ export function CampaignToggle({
       data-testid={testId}
       aria-label={ariaLabel}
       onClick={() => onChange(!on)}
-      className={`relative inline-flex h-[28px] w-[46px] items-center rounded-full transition-colors ${
-        on ? '' : 'bg-foreground/15'
-      }`}
-      style={on ? { background: 'var(--ai-accent)' } : undefined}
       role="switch"
       aria-checked={on}
+      // glass-pill = the app's glass material; data-active gives it the
+      // brighter "filled glass" the rail uses. Off → slightly dimmed.
+      data-active={on ? 'true' : undefined}
+      className={`glass-pill relative inline-flex h-[28px] w-[46px] items-center rounded-full transition-opacity ${
+        on ? '' : 'opacity-[0.78]'
+      }`}
     >
       <motion.span
         layout
         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-        className={`inline-block h-[22px] w-[22px] rounded-full bg-white ${
-          on ? 'ml-[21px]' : 'ml-[3px]'
-        }`}
-        style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.15)' }}
+        className={`inline-block h-[20px] w-[20px] rounded-full transition-colors ${
+          on
+            ? 'bg-foreground/90 dark:bg-white/90'
+            : 'bg-foreground/45 dark:bg-white/55'
+        } ${on ? 'ml-[23px]' : 'ml-[4px]'}`}
+        style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.10)' }}
       />
     </button>
   );
