@@ -229,50 +229,38 @@ function LayoutShell() {
       {/* MAIN AREA — desktop reserves left padding for the floating sidebar
           (rail is fixed-positioned and overlays this padding). */}
       <main className="flex-1 flex min-w-0 relative lg:pl-[88px]">
-        {/* My AI LANDING is a full-width HUB (not a list-detail column). It
-            occupies the whole main area on bare /ai and is replaced by the
-            full-screen detail pane once a part is opened (/ai/...). */}
-        {showingAi && !showingAiDetail && (
-          <div className="flex flex-1 flex-col w-full min-w-0 relative">
-            <AiList />
-          </div>
-        )}
-
-        {/* List column. Inbox shows InboxList; Campaigns shows CampaignsList
-            (same list+detail architecture).
-            Hidden on mobile when a detail pane is open (a conversation or a
-            specific campaign), shown again for bare /campaigns (empty state).
-            Not rendered at all for My AI, which uses the hub above. */}
-        {!showingAi && (
-          <div
-            className={`
-              ${
-                showingCalendar
-                  ? 'hidden'
-                  : showingConversation || showingBriefing || showingSettings || showingArchive || showingCampaignDetail
-                    ? 'hidden md:flex'
-                    : 'flex'
-              }
-              md:w-[360px] lg:w-[560px] xl:w-[600px] flex-col w-full md:shrink-0
-              relative lg:pr-2
-            `}
-          >
-            {showingCampaigns ? <CampaignsList /> : <InboxList />}
-          </div>
-        )}
-
-        {/* Right detail pane — list + detail just like the inbox. On desktop it
-            always shows (empty state on bare /campaigns); on mobile it only
-            appears once an item is actually opened, so bare /campaigns shows the
-            full-screen list underneath (matching the inbox). */}
+        {/* List column. Inbox shows InboxList; Campaigns shows CampaignsList;
+            My AI shows AiList (the three parts as rows) — all share ONE
+            list+detail architecture and the SAME fixed-width column.
+            Hidden on mobile when a detail pane is open (a conversation, a
+            specific campaign, or an /ai part), shown again for the bare list
+            routes (empty state on the right). */}
         <div
           className={`
             ${
-              showingAi && !showingAiDetail
+              showingCalendar
                 ? 'hidden'
-                : showingConversation || showingBriefing || showingSettings || showingArchive || showingCalendar || showingAiDetail || showingCampaignDetail
-                  ? 'flex'
-                  : 'hidden md:flex'
+                : showingConversation || showingBriefing || showingSettings || showingArchive || showingCampaignDetail || showingAiDetail
+                  ? 'hidden md:flex'
+                  : 'flex'
+            }
+            md:w-[360px] lg:w-[560px] xl:w-[600px] flex-col w-full md:shrink-0
+            relative lg:pr-2
+          `}
+        >
+          {showingAi ? <AiList /> : showingCampaigns ? <CampaignsList /> : <InboxList />}
+        </div>
+
+        {/* Right detail pane — list + detail just like the inbox. On desktop it
+            always shows (empty state on bare /campaigns and bare /ai); on mobile
+            it only appears once an item is actually opened, so the bare list
+            routes show the full-screen list underneath (matching the inbox). */}
+        <div
+          className={`
+            ${
+              showingConversation || showingBriefing || showingSettings || showingArchive || showingCalendar || showingAiDetail || showingCampaignDetail
+                ? 'flex'
+                : 'hidden md:flex'
             }
             flex-col flex-1 min-w-0 fixed md:relative inset-0 md:inset-auto z-10 md:z-0
             bg-transparent
@@ -294,10 +282,10 @@ function LayoutShell() {
             <Route path="/calendar">
               <ComingSoon title="Calendar" />
             </Route>
-            {/* My AI: the bare /ai landing renders the full-width hub (above,
-                outside this detail pane). Detail routes (persona / knowledge)
-                render here in the detail pane. MijnAi is router-aware and picks
-                its own sub-view. */}
+            {/* My AI: bare /ai shows the empty-state here (beside the list
+                column on desktop); /ai/persona | knowledge-* render the matching
+                detail here. MijnAi is router-aware and picks its own sub-view
+                (including the empty-state) — exactly like the campaign detail. */}
             <Route path="/ai" component={MijnAi} />
             <Route path="/ai/:rest*" component={MijnAi} />
             <Route path="/archive">
