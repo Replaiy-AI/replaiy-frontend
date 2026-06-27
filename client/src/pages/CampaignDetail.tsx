@@ -12,20 +12,19 @@
 //
 // The detail is ONLY about (1) how the campaign performs — the funnel + key
 // metrics, and (2) finetuning it — editable name + editable goal — and (3)
-// management (on/off + archive/delete). There is no conversations/messages
+// management (on/off + delete). There is no conversations/messages
 // block here: threads live in the Inbox, not in Campaigns.
 //
 // Route dispatch: id 'new' → create view; existing id → detail; bare
 // /campaigns → calm empty state in the right pane (desktop only).
 
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect, useId } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   Target,
   MoreHorizontal,
-  Archive,
   Trash2,
   Check,
   Pencil,
@@ -57,8 +56,9 @@ import {
 import { StiltAvatar } from '@/components/Avatar';
 import { ActionPill } from '@/components/MailDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
-import { CampaignToggle } from '@/components/CampaignToggle';
+import { GlassToggle } from '@/components/GlassToggle';
 import { conversionPct, replyRatePct } from '@/components/CampaignsList';
+import { StiltLogo } from '@/components/Logo';
 import { APPLE_SPRING } from '@/lib/motion';
 
 // Lucide icon per flow-step kind.
@@ -96,10 +96,19 @@ export default function CampaignDetail() {
 
   if (!id) {
     // Bare /campaigns in the right pane (desktop). The list/overview owns the
-    // screen; this is just the calm placeholder behind it.
+    // screen; this is the calm placeholder behind it — given the SAME polished
+    // treatment as the inbox EmptyDetail (Replaiy mark + h2 + one helper line)
+    // so Campaigns and Inbox feel identical. Same classNames / typography.
     return (
-      <div className="hidden lg:flex flex-1 flex-col items-center justify-center text-center text-muted-foreground p-8">
-        <p className="text-[14px]">Select a campaign to see its funnel</p>
+      <div className="hidden lg:flex flex-1 flex-col items-center justify-center text-center px-8">
+        <div className="mb-4">
+          <StiltLogo size={56} />
+        </div>
+        <h2 className="text-[20px] font-semibold tracking-[-0.02em]">Select a campaign</h2>
+        <p className="text-[14px] text-muted-foreground mt-1.5 max-w-xs">
+          Choose a campaign to see its funnel, flow and results. You can
+          fine-tune its goal and team from here too.
+        </p>
       </div>
     );
   }
@@ -138,24 +147,24 @@ function CampaignMissing() {
   );
 }
 
-// ── Overflow (... ) menu — glass-strong dropdown, Archive + Delete ──
+// ── Overflow (... ) menu — glass-strong dropdown, Rename + Delete ───
+// The switch (active/paused) owns enable/disable; this menu only renames or
+// removes. Archive was redundant alongside Paused, so it's gone entirely.
 function OverflowMenu({
   campaign,
   align = 'desktop',
+  onRename,
 }: {
   campaign: Campaign;
   align?: 'desktop' | 'mobile';
+  onRename?: () => void;
 }) {
   const [, navigate] = useLocation();
   const { updateCampaign } = useStilt();
   const [open, setOpen] = useState(false);
 
-  const archive = () => {
-    setOpen(false);
-    updateCampaign(campaign.id, { status: 'archived' });
-    navigate('/campaigns');
-  };
-  // Mock data has no remove; archiving + leaving is the closest honest action.
+  // Mock data has no hard remove; marking the campaign archived + leaving the
+  // detail is the closest honest "delete" action against the mock store.
   const del = () => {
     setOpen(false);
     updateCampaign(campaign.id, { status: 'archived' });
@@ -196,15 +205,20 @@ function OverflowMenu({
               } w-[200px] glass-strong rounded-3xl p-2 shadow-2xl`}
             >
               <div className="flex flex-col gap-0.5">
-                <button
-                  role="menuitem"
-                  data-testid="action-archive"
-                  onClick={archive}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[14px] font-medium hover-elevate active-elevate-2 text-left text-foreground"
-                >
-                  <Archive size={17} strokeWidth={1.6} className="shrink-0 text-icon" />
-                  <span>Archive</span>
-                </button>
+                {onRename && (
+                  <button
+                    role="menuitem"
+                    data-testid="action-rename"
+                    onClick={() => {
+                      setOpen(false);
+                      onRename();
+                    }}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[14px] font-medium hover-elevate active-elevate-2 text-left text-foreground"
+                  >
+                    <Pencil size={17} strokeWidth={1.6} className="shrink-0 text-icon" />
+                    <span>Rename</span>
+                  </button>
+                )}
                 <button
                   role="menuitem"
                   data-testid="action-delete"
@@ -444,20 +458,34 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
   const reply = replyRatePct(campaign);
   const fmt = (n: number) => n.toLocaleString('en-US');
 
-  // SVG geometry. We draw one continuous band: at each stage boundary the
-  // band's half-height is proportional to value/top, symmetric around the
-  // vertical centre. A smooth path connects the boundaries.
+  // Unique gradient id per instance — the detail renders a desktop AND a
+  // mobile copy of this card; a shared id would let the mobile path point at
+  // the desktop gradient, which lives in a display:none subtree and never
+  // paints. useId keeps each band filled on its own screen.
+  const gradId = useId().replace(/:/g, '') + '-funnel';
+
+  // SVG geometry. One continuous band that starts at FULL height (the first
+  // stage fills the band, like the reference) and pinches in toward the goal.
+  // We map each stage's share-of-top through a gentle curve with a visible
+  // floor so later (small) stages never collapse into an empty strip.
   const N = stages.length;
   const W = 720;
-  const H = 150;
+  const H = 96; // shorter, denser band — no tall empty box on mobile
   const padX = 6;
   const midY = H / 2;
-  const maxHalf = H / 2 - 8;
+  const maxHalf = H / 2 - 6;
+  const minHalf = maxHalf * 0.16; // floor so the tail stays substantial
   const colW = (W - padX * 2) / N;
 
   // x at the centre of each column (where the count sits) and at boundaries.
   const colCenter = (i: number) => padX + colW * (i + 0.5);
-  const half = (v: number) => Math.max(2.5, (v / top) * maxHalf);
+  // First stage = full height; others scale by share-of-top through a sqrt
+  // ease (softer than linear) and are clamped to [minHalf, maxHalf].
+  const half = (v: number) => {
+    const share = v / top; // 0..1
+    const eased = Math.sqrt(share); // gentle: small values stay readable
+    return Math.max(minHalf, Math.min(maxHalf, eased * maxHalf));
+  };
 
   // Build a smooth top edge then mirror for the bottom. Sample points at the
   // centre of each column so the wave reads as a funnel that pinches in.
@@ -508,10 +536,11 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
       </div>
 
       <div className="stilt-card rounded-3xl px-3 py-4 lg:px-4 lg:py-5">
-        {/* Horizontal scroll on narrow screens; the SVG keeps a min width so
-            stages never crush together. */}
-        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
-          <div className="min-w-[560px]">
+        {/* Funnel fits the card width on every screen — no horizontal scroll.
+            Stage typography scales down on mobile so all stages read at once,
+            exactly like the reference dashboard. */}
+        <div>
+          <div>
             {/* Stage headers — name + count, aligned to each column. */}
             <div
               className="grid"
@@ -521,12 +550,12 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
                 <div
                   key={st.key}
                   data-testid={`funnel-stage-${st.key}`}
-                  className={`px-1 ${i === 0 ? 'text-left' : 'text-left'}`}
+                  className="px-0.5 lg:px-1 text-left"
                 >
-                  <div className="text-[11.5px] uppercase tracking-[0.04em] text-muted-foreground truncate">
+                  <div className="text-[8.5px] lg:text-[11.5px] uppercase tracking-[0.02em] lg:tracking-[0.04em] text-muted-foreground truncate">
                     {st.label}
                   </div>
-                  <div className="mt-0.5 text-[18px] font-semibold tracking-[-0.01em] tabular-nums text-foreground leading-none">
+                  <div className="mt-0.5 text-[13px] lg:text-[18px] font-semibold tracking-[-0.01em] tabular-nums text-foreground leading-none">
                     {fmt(st.value)}
                   </div>
                 </div>
@@ -546,11 +575,11 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
                 <defs>
                   {/* ONE hue: a soft accent tint that deepens left→right.
                       Built from --ai-accent at rising alpha — calm, not loud. */}
-                  <linearGradient id="funnel-fill" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="var(--ai-accent)" stopOpacity="0.10" />
-                    <stop offset="45%" stopColor="var(--ai-accent)" stopOpacity="0.22" />
-                    <stop offset="80%" stopColor="var(--ai-accent)" stopOpacity="0.42" />
-                    <stop offset="100%" stopColor="var(--ai-accent)" stopOpacity="0.62" />
+                  <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#2F6BFF" stopOpacity="0.14" />
+                    <stop offset="45%" stopColor="#2F6BFF" stopOpacity="0.30" />
+                    <stop offset="80%" stopColor="#2F6BFF" stopOpacity="0.52" />
+                    <stop offset="100%" stopColor="#2F6BFF" stopOpacity="0.78" />
                   </linearGradient>
                 </defs>
                 {/* Column separators — faint, so eyes can map count→band. */}
@@ -567,7 +596,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
                     />
                   ),
                 )}
-                <path d={bandPath} fill="url(#funnel-fill)" />
+                <path d={bandPath} fill={`url(#${gradId})`} />
               </svg>
 
               {/* Drop-off % chips, centred on each boundary between stages. */}
@@ -848,33 +877,48 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
           </ActionPill>
         ),
         togglePill: (
-          <div className="inline-flex items-center gap-2 px-1 h-[52px] max-w-[200px]">
-            <span className="text-[14px] font-semibold tracking-[-0.005em] truncate text-foreground">
-              {campaign.name}
-            </span>
+          <div className="inline-flex items-center gap-2 px-1 h-[52px] max-w-[210px]">
+            {editingName ? (
+              <input
+                ref={nameInputRef}
+                data-testid="input-edit-name-mobile"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onBlur={commitName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitName();
+                  if (e.key === 'Escape') cancelName();
+                }}
+                className="bg-transparent outline-none border-b border-foreground/20 focus:border-foreground/40 text-foreground text-[14px] font-semibold tracking-[-0.005em] w-full max-w-full"
+              />
+            ) : (
+              <span className="text-[14px] font-semibold tracking-[-0.005em] truncate text-foreground">
+                {campaign.name}
+              </span>
+            )}
           </div>
         ),
         rightSlot: (
           <div className="flex items-center gap-2">
-            <CampaignToggle
+            <GlassToggle
               on={isOn}
               onChange={toggle}
               testId="campaign-toggle-detail-mobile"
               ariaLabel={`${isOn ? 'Pause' : 'Activate'} ${campaign.name}`}
             />
-            <OverflowMenu campaign={campaign} align="mobile" />
+            <OverflowMenu campaign={campaign} align="mobile" onRename={beginNameEdit} />
           </div>
         ),
       }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [campaign.id, campaign.name, isOn],
+      [campaign.id, campaign.name, isOn, editingName, draftName],
     ),
   );
 
   // Editable name field (shared by desktop header + mobile body heading).
   // Plain render helper (NOT a nested component) so the <input> keeps its
   // identity across keystroke re-renders and never loses focus.
-  const renderNameField = (size: 'lg' | 'md') =>
+  const renderNameField = (size: 'lg') =>
     editingName ? (
       <input
         ref={nameInputRef}
@@ -919,10 +963,9 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
       transition={{ duration: 0.25, ease: 'easeOut' }}
       className="max-w-2xl mx-auto w-full flex flex-col gap-5"
     >
-      {/* Mobile-only editable heading (desktop edits via the floating header). */}
-      <div className="lg:hidden px-1">
-        {renderNameField('md')}
-      </div>
+      {/* Name lives ONLY in the top chrome (mobile) / floating header
+          (desktop) — never duplicated in the body, exactly like the inbox
+          conversation. Rename on mobile is reached via the ··· menu. */}
       <FunnelCard campaign={campaign} />
       <GoalCard campaign={campaign} />
       <FlowCard campaign={campaign} />
@@ -943,7 +986,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
             {renderNameField('lg')}
           </div>
           <div className="pointer-events-auto flex items-center gap-3 shrink-0">
-            <CampaignToggle
+            <GlassToggle
               on={isOn}
               onChange={toggle}
               testId="campaign-toggle-detail"
@@ -965,7 +1008,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
 
       {/* MOBILE scroll container — content sits under the floating chrome. */}
       <div
-        className="flex lg:hidden flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 pb-28"
+        className="flex lg:hidden flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 pb-32"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
       >
         {body}
@@ -1114,7 +1157,7 @@ function CampaignCreate() {
 
       {/* MOBILE scroll container. */}
       <div
-        className="flex lg:hidden flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 pb-28"
+        className="flex lg:hidden flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 pb-32"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
       >
         {body}

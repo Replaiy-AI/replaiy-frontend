@@ -77,7 +77,7 @@ export function MobileBottomNav() {
   const fabHref = loc.startsWith('/calendar')
     ? '/calendar/new'
     : loc.startsWith('/campaigns')
-      ? '/campaigns'
+      ? '/campaigns/new'
       : '/compose';
   const fabLabel = loc.startsWith('/calendar')
     ? 'New event'

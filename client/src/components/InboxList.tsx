@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStilt } from '@/state/StiltContext';
 import { useParams, useLocation, Link } from 'wouter';
 import { MailRow } from './MailRow';
+import { ListRow } from './ListRow';
 import { StiltAvatar } from './Avatar';
 import remiMascot from '@/assets/replaiy-mascot.png';
 import VadikGlass from './VadikGlass';
@@ -231,13 +232,13 @@ function SmartMailRow({
   const [, navigate] = useLocation();
 
   return (
-    <div
-      data-testid={`smart-row-${mail.id}`}
+    <ListRow
+      testId={`smart-row-${mail.id}`}
       onClick={() => navigate(`/mail/${mail.id}`)}
-      className={`relative cursor-pointer select-none block px-4 py-3 hover-elevate active-elevate-2 ${active ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''}`}
+      active={active}
     >
       <SmartMailContent mail={mail} showReasoning={showReasoning} reasoningText={reasoningText} />
-    </div>
+    </ListRow>
   );
 }
 
@@ -288,7 +289,7 @@ function SmartInboxView({ mails, setMailStatus, params }: { mails: Mail[]; setMa
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="px-2 pt-1 flex flex-row items-center gap-3 sm:gap-4"
+        className="px-2 pt-1 flex flex-row items-start gap-3 sm:gap-4"
       >
         {/* Remi — Replaiy AI-mascotte. Vriendelijk begroetend element naast de
            greeting. Zachte float-animatie, ingetogen; breekt de premium look niet. */}

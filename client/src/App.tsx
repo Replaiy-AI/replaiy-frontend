@@ -42,10 +42,10 @@ function EmptyDetail() {
       <div className="mb-4">
         <StiltLogo size={56} />
       </div>
-      <h2 className="text-[20px] font-semibold tracking-[-0.02em]">Select a draft</h2>
+      <h2 className="text-[20px] font-semibold tracking-[-0.02em]">Select a conversation</h2>
       <p className="text-[14px] text-muted-foreground mt-1.5 max-w-xs">
-        Choose a conversation on the left, or hit{' '}
-        <kbd className="glass pill px-2 py-0.5 text-[11px] font-semibold mx-0.5">c</kbd> to start new outreach.
+        Choose a conversation to review the draft and reply. Your approved
+        replies are sent straight to the lead.
       </p>
     </div>
   );
@@ -201,15 +201,11 @@ function LayoutShell() {
   const showingArchive = loc.startsWith('/archive');
   const showingCalendar = loc.startsWith('/calendar');
   const showingCampaigns = loc.startsWith('/campaigns');
-  // Campaigns has TWO screens (see campaigns_design_brief.md §A/B):
-  //   • bare /campaigns        → FULL-WIDTH overview (roll-up dashboard +
-  //                              campaign list). The list column owns the
-  //                              whole area; the right detail pane is hidden,
-  //                              the same way Calendar takes the full width.
-  //   • /campaigns/:id | /new   → SPLIT view exactly like /mail/:id: list
-  //                              column (left) + detail/create pane (right).
+  // Campaigns behaves EXACTLY like the inbox: a fixed-width list column on the
+  // left (with the briefing + roll-up + campaign list) that never changes when
+  // you open a campaign, plus a detail/empty-state pane on the right. Opening a
+  // campaign just highlights its row and fills the right pane — same as /mail.
   const showingCampaignDetail = /^\/campaigns\/.+/.test(loc);
-  const showingCampaignsOverview = showingCampaigns && !showingCampaignDetail;
 
   // Mobile: only show one column at a time
   // Tablet: list + detail
@@ -235,23 +231,33 @@ function LayoutShell() {
           (rail is fixed-positioned and overlays this padding). */}
       <main className="flex-1 flex min-w-0 relative lg:pl-[88px]">
         {/* List column. Inbox shows InboxList; Campaigns shows CampaignsList
-            (same list+detail architecture). Calendar still owns full width.
+            (same list+detail architecture). Calendar is a full-screen
+            "Coming soon" — it has no list column at all, so the list is hidden
+            entirely on /calendar (previously it leaked the inbox list).
             Hidden on mobile when a detail pane is open (mail or a specific
             campaign), shown again for bare /campaigns (empty state). */}
         <div
           className={`
-            ${showingMail || showingCompose || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaignDetail ? 'hidden md:flex' : 'flex'}
-            ${showingCalendar || showingCampaignsOverview ? 'md:flex md:w-full lg:w-full' : 'md:flex md:w-[360px] lg:w-[520px] xl:w-[560px]'} flex-col w-full md:shrink-0
-            relative ${showingCampaignsOverview ? '' : 'lg:pr-2'}
+            ${
+              showingCalendar
+                ? 'hidden'
+                : showingMail || showingCompose || showingBriefing || showingSettings || showingArchive || showingCampaignDetail
+                  ? 'hidden md:flex'
+                  : 'flex'
+            }
+            md:w-[360px] lg:w-[560px] xl:w-[600px] flex-col w-full md:shrink-0
+            relative lg:pr-2
           `}
         >
           {showingCampaigns ? <CampaignsList /> : <InboxList />}
         </div>
 
-        {/* Right detail pane — hidden for the full-width campaigns overview. */}
+        {/* Right detail pane — list + detail just like the inbox. On desktop it
+            always shows (empty state on bare /campaigns); on mobile it only
+            appears once an item is actually opened, so bare /campaigns shows the
+            full-screen list underneath (matching the inbox). */}
         <div
           className={`
-            ${showingCampaignsOverview ? 'hidden' : ''}
             ${showingMail || showingCompose || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaignDetail ? 'flex' : 'hidden md:flex'}
             flex-col flex-1 min-w-0 fixed md:relative inset-0 md:inset-auto z-10 md:z-0
             bg-transparent
