@@ -153,10 +153,10 @@ function LivePreview({
   return (
     <div className="stilt-card rounded-3xl p-5" data-testid="persona-preview">
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold text-foreground/55">
-          Live preview
+        <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
+          Example message
         </span>
-        <span className="text-[12px] text-foreground/40">· first message to a lead</span>
+        <span className="text-[12px] text-foreground/40">· to give you a feel</span>
       </div>
 
       {/* Lead identity row — mirrors the inbox conversation header. */}
@@ -202,7 +202,7 @@ function LivePreview({
             </motion.div>
           </AnimatePresence>
           <div className="mt-1.5 text-[11px] text-foreground/40">
-            This is how your AI would open. Tweak the settings below to reshape it.
+            Just an example of the vibe. Your AI adapts every message to the lead and context.
           </div>
         </div>
       </div>
@@ -248,8 +248,8 @@ export function PersonaExperience({
     <div className="flex flex-col gap-5">
       {/* Presets — horizontally scrollable row of personality cards. */}
       <section>
-        <div className="flex items-baseline justify-between mb-3">
-          <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold text-foreground/70">
+        <div className="flex items-baseline justify-between mb-3 px-2">
+          <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
             Choose a personality
           </span>
           <span className="text-[12px] text-foreground/45">Pick one, or fine-tune below</span>
