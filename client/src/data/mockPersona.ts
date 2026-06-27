@@ -94,12 +94,15 @@ export interface PreviewLead {
   name: string;
   headline: string;
   initials: string;
+  avatar: string;
 }
 
 export const previewLead: PreviewLead = {
   name: 'Emma Chen',
   headline: 'VP Sales · Series-B SaaS',
   initials: 'EC',
+  // Same photo as Emma in the inbox, so the preview feels like the real thing.
+  avatar: 'https://i.pravatar.cc/120?img=47',
 };
 
 export const mockPersona: Persona = {

@@ -147,21 +147,23 @@ function LivePreview({
   /** The opener to show — rewrites with a fade/slide when it changes. */
   sample: string;
 }) {
-  const color = preset?.color ?? '#2F6BFF';
   const mascotSrc = MASCOT[preset?.mascot ?? 'warm'];
 
   return (
     <div className="stilt-card rounded-3xl p-5" data-testid="persona-preview">
-      <div className="flex items-center gap-2 mb-4">
+      {/* Header — one calm line, no trailing fragment. */}
+      <div className="mb-1">
         <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
           Example message
         </span>
-        <span className="text-[12px] text-foreground/40">· to give you a feel</span>
       </div>
+      <p className="text-[11.5px] leading-[1.45] text-foreground/45 mb-4">
+        Just to give you a feel. Your AI adapts every message to the lead and context.
+      </p>
 
-      {/* Lead identity row — mirrors the inbox conversation header. */}
+      {/* Lead identity row — mirrors the inbox conversation header (with photo). */}
       <div className="flex items-center gap-2.5 mb-4">
-        <StiltAvatar name={previewLead.name} size={32} />
+        <StiltAvatar name={previewLead.name} src={previewLead.avatar} size={32} />
         <div className="min-w-0">
           <div className="text-[13.5px] font-semibold text-foreground leading-tight">
             {previewLead.name}
@@ -170,20 +172,21 @@ function LivePreview({
         </div>
       </div>
 
-      {/* The AI's message — mascot + bubble. Rewrites on change. */}
+      {/* The AI's message — mascot + bubble, styled exactly like the inbox
+          conversation (.stilt-bubble, same radius/type/tail + timestamp). */}
       <div className="flex items-end gap-2.5">
         <motion.img
           src={mascotSrc}
           alt=""
           aria-hidden
           draggable={false}
-          className="w-9 h-9 object-contain shrink-0 select-none pointer-events-none mb-0.5"
+          className="w-8 h-8 object-contain shrink-0 select-none pointer-events-none mb-5"
           key={`m-${preset?.id ?? 'warm'}`}
           initial={{ scale: 0.6, opacity: 0, y: 6 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           transition={APPLE_SPRING}
         />
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={sample}
@@ -191,18 +194,15 @@ function LivePreview({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-              className="inline-block rounded-2xl rounded-bl-md px-3.5 py-2.5 text-[14px] leading-[1.5] text-foreground/90"
-              style={{
-                background: 'var(--message-in, rgba(120,120,130,0.10))',
-                boxShadow: `inset 0 0 0 1px ${color}22`,
-              }}
+              className="stilt-bubble rounded-[20px] px-3.5 py-2.5 text-[14.5px] leading-[1.5] text-foreground inline-block"
+              style={{ borderBottomLeftRadius: 6 }}
               data-testid="persona-preview-bubble"
             >
               {sample}
             </motion.div>
           </AnimatePresence>
-          <div className="mt-1.5 text-[11px] text-foreground/40">
-            Just an example of the vibe. Your AI adapts every message to the lead and context.
+          <div className="text-[10.5px] mt-1 ml-1 tabular-nums text-foreground/45">
+            Just now
           </div>
         </div>
       </div>
