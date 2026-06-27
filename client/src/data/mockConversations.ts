@@ -1,6 +1,35 @@
+import type { CampaignGoalType } from './mockCampaigns';
+
 export type ConversationStatus = 'open' | 'waiting' | 'snoozed' | 'done';
 export type ConversationCategory = 'primary' | 'newsletter' | 'fyi' | 'promo';
 export type ConversationPriority = 'high' | 'normal' | 'low';
+
+// ─── Phase 3 — campaign-style conversation rows ────────────────────
+// Each conversation carries the SAME goal type the campaign uses (so the
+// inbox row shows an identical "Meeting" / "Demo" / "Reply" goal pill) plus
+// a discrete AI stage describing how far this thread has progressed toward
+// that goal. The stage drives the neutral progress bar fill — exactly the
+// campaign-row treatment (neutral glass, plain-text label, no sentiment
+// colour).
+export type ConversationGoalStage =
+  | 'no_reply'
+  | 'replied'
+  | 'in_conversation'
+  | 'interested'
+  | 'ready';
+
+// Plain-text label + progress% per AI stage. Labels are EXACT and ordered:
+// No reply → Replied → In conversation → Interested → Ready.
+export const STAGE_META: Record<
+  ConversationGoalStage,
+  { label: string; progress: number }
+> = {
+  no_reply: { label: 'No reply', progress: 8 },
+  replied: { label: 'Replied', progress: 30 },
+  in_conversation: { label: 'In conversation', progress: 55 },
+  interested: { label: 'Interested', progress: 80 },
+  ready: { label: 'Ready', progress: 100 },
+};
 
 // Replaiy — LinkedIn outbound draft types. These are the kinds of
 // LinkedIn messages Replaiy drafts on the user's behalf.
@@ -43,6 +72,15 @@ export interface Conversation {
   hasThread?: number; // count
   snoozeUntil?: string;
   aiReasoning?: string; // shown in Smart Inbox "Today for you"
+
+  // ─── Phase 3 — campaign-style row fields ─────────────────────────
+  /** The conversion goal this thread is being steered toward — reuses the
+   *  campaign goal type so the inbox goal pill matches campaigns 1:1.
+   *  Falls back to 'meeting' when absent. */
+  goalType?: CampaignGoalType;
+  /** How far the AI judges this thread has progressed toward the goal.
+   *  Drives the neutral progress bar fill + the plain-text stage label. */
+  goalStage?: ConversationGoalStage;
 
   // ─── Replaiy LinkedIn-draft fields ───────────────────────────────
   /** Draft kind (opener / reply / objection / follow-up / meeting-ask). */
@@ -139,6 +177,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Berlin',
     summary: "Strong buying signal — Replaiy proposes a 20-min meeting ask anchored to her reply-quality pain.",
     aiReasoning: 'Strong buying signal — ready for the meeting ask',
+    goalType: 'meeting',
+    goalStage: 'interested',
     smartReplies: [
       "Love that — reply quality is exactly where we move the needle. Worth a 20-min look at how it'd fit your current SDR motion? I can walk you through a live thread from a team your size. Tue or Wed afternoon work on your end?",
       "Happy to share a couple of live examples from a similar SDR team first if that's easier?",
@@ -165,6 +205,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Amsterdam',
     summary: 'Eerdere spam-ervaring; Replaiy reframet naar human-in-the-loop en biedt social proof aan.',
     aiReasoning: 'Eerdere spam-zorg — ik reframe naar human-in-the-loop',
+    goalType: 'meeting',
+    goalStage: 'in_conversation',
     smartReplies: [
       'Snap ik helemaal, Jan — de meeste tools blazen hetzelfde sjabloon naar 500 mensen. Wij draaien het om: elke reply wordt geschreven op basis van de context van dít gesprek, en jouw team keurt alles goed vóór het de deur uitgaat. Niks gaat automatisch tenzij je dat zelf aanzet. Zal ik je een paar échte voorbeelden uit een vergelijkbaar dev-team sturen?',
       'Eerlijk: de eerste lichting outbound-tools wás spam. Wij zijn human-in-the-loop — jij keurt elke reply goed. Zal ik laten zien hoe dat eruitziet?',
@@ -191,6 +233,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Vienna',
     summary: 'Explicit intent to start — Replaiy goes straight to onboarding with two concrete slots.',
     aiReasoning: 'Asked how to start — going straight to onboarding',
+    goalType: 'meeting',
+    goalStage: 'ready',
     smartReplies: [
       "Great to hear, Hannah! Easiest first step is a quick 25-min onboarding call — we connect your inbox, set your tone, and you'll have your first reviewed drafts the same day. Does Thursday morning or Friday around lunch suit you better?",
       "Awesome — want me to send over a short getting-started guide first, or jump straight to a call?",
@@ -217,6 +261,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Rotterdam',
     summary: 'HubSpot is een deal-breaker — Replaiy bevestigt native sync en biedt gerichte demo aan.',
     aiReasoning: 'HubSpot is een deal-breaker — ik bevestig native sync',
+    goalType: 'demo',
+    goalStage: 'in_conversation',
     smartReplies: [
       'Ja, native HubSpot-sync zit erin — contacten, threads en replies loggen automatisch terug, dus je RevOps-rapportage blijft kloppen. Geen losse export-rompslomp. Wil je dat ik je laat zien hoe een reply binnen één thread in HubSpot landt? Dan zie je meteen of het in jullie setup past.',
       'Zeker — HubSpot is een van onze native integraties. Zal ik je de docs sturen of liever even live laten zien?',
@@ -243,6 +289,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Utrecht',
     summary: 'Prijsbezwaar bij klein team — Replaiy reframet naar ROI en kwalificeert met een vraag.',
     aiReasoning: 'Pushback op prijs — ROI-reframe nodig',
+    goalType: 'meeting',
+    goalStage: 'in_conversation',
     smartReplies: [
       'Eerlijk antwoord, Lars: als het je geen extra meetings oplevert, is het te duur — punt. De meeste teams van jouw grootte halen er 6-10 gekwalificeerde gesprekken per maand uit die ze anders waren misgelopen. Eén gesloten deal verdient het ruim terug. Zullen we het even tegen jullie gemiddelde dealwaarde aanleggen, dan zie je het meteen?',
       'Snap de zorg. Zal ik een korte ROI-rekensom maken op basis van jullie gemiddelde dealwaarde?',
@@ -269,6 +317,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'London',
     summary: 'Cold opener getriggerd door hiring-signaal (SDR-rollen). Lage-druk introductie.',
     aiReasoning: 'Cold opener on a hiring signal — low-pressure intro',
+    goalType: 'reply',
+    goalStage: 'no_reply',
     smartReplies: [
       "Hi Priya — saw Loopfield just opened a couple of SDR roles, so outbound is clearly heating up for you. Most founders I talk to at that stage are drowning in follow-ups that sound robotic. We help teams keep replies personal at volume without the copy-paste feel. Open to a quick idea or two, even if you don't end up needing us?",
       "Hi Priya — noticed Loopfield is hiring SDRs. Happy to share what's working for teams at your stage, no pitch. Worth a quick exchange?",
@@ -295,6 +345,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Milan',
     summary: "4-day stall after 'will discuss internally' — Replaiy re-engages with value and an easy-out.",
     aiReasoning: '4-day stall — re-engaging with an easy-out',
+    goalType: 'meeting',
+    goalStage: 'replied',
     smartReplies: [
       "Hey Marco — no rush at all, just keeping this on your radar. If it helps the internal chat, I put together a one-pager on how a team like Velco's would roll this out in week one. Want me to send it over? Happy to also just close the loop if the timing's off for now.",
       "Hi Marco — checking in gently. Want me to send a short rollout one-pager for the internal discussion?",
@@ -321,6 +373,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Dublin',
     summary: 'Brand-risk objection rooted in distrust of AI tone — skeptical, worth a human eye.',
     aiReasoning: 'Brand-risk objection — skeptical, worth a human eye',
+    goalType: 'demo',
+    goalStage: 'replied',
     smartReplies: [
       "That instinct is right, David — a tool that sounds 'off' is worse than no tool. That's the whole reason approval is on by default: nothing sends until a human signs off, and the AI matches your tone, not a generic template. Plenty of our customers actually use it to enforce brand voice, not dilute it. Want to see a side-by-side of raw vs. on-brand output?",
       "Fair concern. Approval-by-default means nothing goes out without you. Want a side-by-side so you can judge the tone yourself?",
@@ -349,6 +403,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'The Hague',
     summary: 'Reeds goedgekeurd en verstuurd; wacht nu op interne terugkoppeling van de lead.',
     aiReasoning: 'Verstuurd — wacht op interne terugkoppeling',
+    goalType: 'meeting',
+    goalStage: 'interested',
     smartReplies: [
       'Top, Femke! Ik stuur je zo de samenvatting + een rollout-schets voor jullie talent-team. Laat maar weten als er vanuit het team vragen komen — ik haak graag even aan.',
       'Geen haast — ik hoor het graag zodra jullie intern hebben afgestemd.',
@@ -375,6 +431,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Madrid',
     summary: 'Approved meeting-ask; lead is checking availability, awaiting their slot pick.',
     aiReasoning: 'Sent — awaiting their slot pick',
+    goalType: 'meeting',
+    goalStage: 'ready',
     smartReplies: [
       "Perfect — I'll hold Thursday 3pm and Friday 11am loosely on my side. Just reply with whichever lands and I'll send the invite over.",
       'No rush — whenever your calendar is clear, just ping me a slot.',
@@ -405,6 +463,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Stockholm',
     summary: 'High-confidence opener on an enabled autopilot type — sent automatically overnight.',
     aiReasoning: 'Auto-sent overnight',
+    goalType: 'reply',
+    goalStage: 'no_reply',
     smartReplies: [
       "Hi Nora — saw Frost & Park is ramping SDR hiring. We help teams keep outbound replies personal at volume. Open to a quick idea or two?",
       'Hi Nora — congrats on the SDR ramp. One idea that might help your new hires?',
@@ -433,6 +493,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Austin',
     summary: 'Straightforward pricing reply, high confidence, autopilot enabled for replies.',
     aiReasoning: 'Auto-sent overnight',
+    goalType: 'demo',
+    goalStage: 'replied',
     smartReplies: [
       "Sure thing, Ben — plans start at €600/mo for up to 5 seats with native CRM sync. Sending the full breakdown your way now.",
       "Happy to — sending pricing now. Want a quick walkthrough too?",
@@ -461,6 +523,8 @@ export const mockConversations: Conversation[] = [
     leadLocation: 'Singapore',
     summary: 'Polite defer; low-pressure nurture follow-up auto-sent on schedule.',
     aiReasoning: 'Auto-sent overnight',
+    goalType: 'reply',
+    goalStage: 'replied',
     smartReplies: [
       "Totally fair, Aisha — I'll check back early next quarter. In the meantime I'll keep an eye out and send anything genuinely useful, nothing salesy.",
       'No problem — I’ll circle back next quarter. Anything specific you’d want me to prep?',

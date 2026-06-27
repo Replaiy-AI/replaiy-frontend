@@ -30,6 +30,8 @@ import { timeBucket, timeAgo, stateTag, formatInboxTime } from '@/lib/avatar';
 import { useInboxSettings } from '@/lib/inboxSettings';
 import { APPLE_SPRING } from '@/lib/motion';
 import type { Conversation } from '@/data/mockConversations';
+import { STAGE_META } from '@/data/mockConversations';
+import { GoalPill, ConversionBar } from './CampaignsList';
 import { SECONDARY_NAV, SETTINGS_NAV } from '@/lib/nav';
 import { GlassSegmentedToggle } from './GlassSegmentedToggle';
 import { useMobileTopChromeSlot } from './MobileTopChrome';
@@ -152,12 +154,39 @@ function InboxModeList({ items, params }: { items: Conversation[]; params: { id?
 // ─────────────────────────────────────────────────────────────────
 // Smart Inbox mode
 // ─────────────────────────────────────────────────────────────────
+// LEGACY — the old italic AI-reasoning line. No longer the default tier-2
+// (Phase 3 replaced it with the campaign-style goal pill + progress bar +
+// stage label). Kept defined for any future opt-in / search-result use.
 function SmartReasoningChip({ text }: { text: string }) {
   // v19 — italic body in dark muted gray; only the leading sparkle stays purple.
   return (
     <div className="flex items-start gap-1.5 mt-1.5">
       <Sparkles size={11} strokeWidth={2} className="mt-[3px] shrink-0" style={{ color: 'var(--ai-accent)' }} />
       <span className="text-[12px] text-foreground/70 italic leading-snug">{text}</span>
+    </div>
+  );
+}
+
+// ── Conversation progress line — campaign-row parity ────────────────
+// The tier-2 line of every conversation row, mirroring CampaignRow's tier-2
+// 1:1: the SAME goal pill (left), the SAME quiet neutral ConversionBar
+// (middle), and a plain-text AI stage read-out (right). Bar fill is driven
+// purely by the stage's progress% — neutral glass, no sentiment colour.
+function ConversationProgressLine({ mail }: { mail: Conversation }) {
+  const goalType = mail.goalType ?? 'meeting';
+  const stage = mail.goalStage ?? 'no_reply';
+  const meta = STAGE_META[stage];
+  return (
+    <div className="mt-2 flex items-center gap-2.5 min-w-0">
+      <span className="shrink-0 max-w-[48%] min-w-0">
+        <GoalPill goalType={goalType} />
+      </span>
+      <span className="flex-1 min-w-0 flex items-center">
+        <ConversionBar pct={meta.progress} />
+      </span>
+      <span className="shrink-0 text-[12px] text-muted-foreground whitespace-nowrap">
+        <span className="font-semibold text-foreground/85">{meta.label}</span>
+      </span>
     </div>
   );
 }
@@ -175,10 +204,11 @@ function SmartConversationContent({
   reasoningText?: string;
 }) {
   const [{ showTimestamps }] = useInboxSettings();
-  // v-replaiy — de italic regel toont bij ≥90%-drafts de holdReason
-  // (waarom Replaiy 'm niet automatisch verstuurde), anders de strategie-
-  // reden (aiReasoning).
-  const reason = reasoningText ?? mail.aiReasoning;
+  // Phase 3 — the tier-2 line is now the campaign-style goal pill + neutral
+  // progress bar + AI stage label (ConversationProgressLine). `showReasoning`
+  // / `reasoningText` are retained on the signature for compatibility but the
+  // default row no longer renders the old italic reasoning chip.
+  void reasoningText; void showReasoning;
   return (
     <div className="flex items-start gap-3">
       <StiltAvatar name={mail.from.name} src={mail.from.avatar} size={36} className="shrink-0" />
@@ -209,9 +239,9 @@ function SmartConversationContent({
         <div className="text-[13.5px] text-foreground/80 truncate leading-snug">
           {mail.subject}
         </div>
-        {showReasoning && reason && (
-          <SmartReasoningChip text={reason} />
-        )}
+        {/* Phase 3 — campaign-row-style progress line (goal pill + neutral
+            bar + AI stage). Replaces the old italic SmartReasoningChip. */}
+        <ConversationProgressLine mail={mail} />
       </div>
     </div>
   );

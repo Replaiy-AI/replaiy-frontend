@@ -23,6 +23,7 @@ import { useStilt } from '@/state/StiltContext';
 import {
   GOAL_META,
   type Campaign,
+  type CampaignGoalType,
 } from '@/data/mockCampaigns';
 import { APPLE_SPRING_LAYOUT } from '@/lib/motion';
 import remiMascot from '@/assets/replaiy-mascot.png';
@@ -74,12 +75,20 @@ export function sortCampaigns(list: Campaign[]): Campaign[] {
 // ── Goal pill — crisp neutral glass pill with Target icon + label ───
 // One neutral treatment (no blue tint). The icon sits at a readable
 // foreground opacity so it never looks washed-out / illegible.
-function GoalPill({ campaign }: { campaign: Campaign }) {
-  const meta = GOAL_META[campaign.goalType];
+//
+// EXPORTED + goalType-driven (not Campaign-driven) so the SAME pill renders
+// in both the campaigns list AND the inbox conversation rows (Phase 3). A
+// "Meeting" pill is therefore byte-identical in both surfaces.
+export function GoalPill({
+  goalType,
+  goalLabel,
+}: {
+  goalType: CampaignGoalType;
+  goalLabel?: string;
+}) {
+  const meta = GOAL_META[goalType];
   const label =
-    campaign.goalType === 'custom' && campaign.goalLabel
-      ? campaign.goalLabel
-      : meta.label;
+    goalType === 'custom' && goalLabel ? goalLabel : meta.label;
   return (
     <span className="glass-pill pill inline-flex items-center gap-1.5 h-[24px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/80 max-w-full">
       <Target size={12.5} strokeWidth={2.1} className="text-foreground/55 shrink-0" />
@@ -91,7 +100,10 @@ function GoalPill({ campaign }: { campaign: Campaign }) {
 // ── Conversion read-out — calm neutral glass bar, muted % ───────────
 // NO accent fill. A quiet foreground-tinted track + fill, so the list
 // reads as a calm column rather than a row of coloured meters.
-function ConversionBar({ pct, dim }: { pct: number; dim?: boolean }) {
+//
+// EXPORTED so the inbox conversation rows (Phase 3) reuse the exact same
+// neutral progress-bar treatment as the campaign rows.
+export function ConversionBar({ pct, dim }: { pct: number; dim?: boolean }) {
   const width = Math.max(0, Math.min(100, pct));
   return (
     <div className="h-[4px] w-full rounded-full bg-foreground/[0.06] dark:bg-white/[0.08] overflow-hidden">
@@ -168,7 +180,7 @@ export function CampaignRow({
           {/* shrink-0 so the pill keeps its size for normal labels; capped so a
               long custom label truncates instead of crowding out the bar. */}
           <span className="shrink-0 max-w-[48%] min-w-0">
-            <GoalPill campaign={campaign} />
+            <GoalPill goalType={campaign.goalType} goalLabel={campaign.goalLabel} />
           </span>
           <span className="flex-1 min-w-0 flex items-center">
             <ConversionBar pct={conv} dim={!isOn} />
