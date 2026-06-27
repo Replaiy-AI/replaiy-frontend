@@ -34,31 +34,36 @@ export interface Campaign {
 // what "goal_achieved" means for that goal.
 export const GOAL_META: Record<
   CampaignGoalType,
-  { label: string; achieved: string; hint: string }
+  { label: string; achieved: string; achievedShort: string; hint: string }
 > = {
   meeting: {
     label: 'Meeting',
     achieved: 'Meetings booked',
+    achievedShort: 'Booked',
     hint: 'Steer subtly toward a short call.',
   },
   qualified: {
     label: 'Qualified lead',
     achieved: 'Leads qualified',
+    achievedShort: 'Qualified',
     hint: 'Qualify the lead — surface fit and intent.',
   },
   reply: {
     label: 'Reply',
     achieved: 'Replies',
+    achievedShort: 'Replies',
     hint: 'Earn a genuine reply; keep the bar low.',
   },
   demo: {
     label: 'Demo',
     achieved: 'Demos requested',
+    achievedShort: 'Demos',
     hint: 'Steer toward a demo or trial.',
   },
   custom: {
     label: 'Custom',
     achieved: 'Goal achieved',
+    achievedShort: 'Achieved',
     hint: 'Your own defined outcome.',
   },
 };

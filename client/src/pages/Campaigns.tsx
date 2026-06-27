@@ -6,17 +6,19 @@
 // the draft tone (persona), the funnel endpoint (goal_achieved) and the RL
 // learning signal. So the create flow makes the goal the centrepiece.
 //
-// Design language matches the inbox: stilt-card clusters, one blue accent
-// (--ai-accent), glass pills, Remi-free functional header. Mock-data backed
-// (like the rest of the preview); wiring to the live RPCs is a later step.
+// Design language matches the inbox: living header with Remi, stilt-card
+// clusters, one blue accent (--ai-accent), glass pills. Each campaign card
+// shows its funnel (Leads -> In conversation -> Goal achieved) + a conversion
+// bar so good vs stalled reads at a glance. Mock-data backed (like the rest of
+// the preview); wiring to the live RPCs is a later step.
 
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, Target, Check, X, ChevronRight } from 'lucide-react';
-import { APPLE_SPRING } from '@/lib/motion';
+import { Plus, Target, Check, X, Users, MessagesSquare } from 'lucide-react';
 import { ResponsiveSheet } from '@/components/ResponsiveSheet';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { useIsMobile } from '@/hooks/use-mobile';
+import remiMascot from '@/assets/replaiy-mascot.png';
 import {
   MOCK_CAMPAIGNS,
   GOAL_META,
@@ -34,26 +36,35 @@ const GOAL_ORDER: CampaignGoalType[] = [
   'custom',
 ];
 
-// ── Status dot colour. Only "active" uses the blue accent (it's the live,
-//    positive state); the rest stay neutral so we never introduce a 2nd hue.
-function StatusDot({ status }: { status: CampaignStatus }) {
+// ── Status pill — text + dot in one calm chip. Only "active" uses the blue
+//    accent (live, positive); the rest stay neutral (no 2nd hue).
+function StatusPill({ status }: { status: CampaignStatus }) {
   const isActive = status === 'active';
+  const dot = isActive
+    ? 'var(--ai-accent, #2F6BFF)'
+    : status === 'paused'
+      ? 'color-mix(in srgb, var(--foreground) 40%, transparent)'
+      : 'color-mix(in srgb, var(--foreground) 22%, transparent)';
   return (
     <span
-      className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+      className="inline-flex items-center gap-1.5 h-6 pl-1.5 pr-2.5 rounded-full text-[11.5px] font-medium text-foreground/60 shrink-0"
       style={{
-        background: isActive
-          ? 'var(--ai-accent, #2F6BFF)'
-          : status === 'paused'
-            ? 'color-mix(in srgb, var(--foreground) 35%, transparent)'
-            : 'color-mix(in srgb, var(--foreground) 20%, transparent)',
+        background: 'color-mix(in srgb, var(--foreground) 4%, transparent)',
+        boxShadow:
+          'inset 0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent)',
       }}
-    />
+    >
+      <span
+        className="inline-block w-1.5 h-1.5 rounded-full"
+        style={{ background: dot }}
+      />
+      {STATUS_META[status].label}
+    </span>
   );
 }
 
-// ── Goal pill — neutral glass, with a small target glyph. The goal LABEL is
-//    the meaningful bit; we keep it tonally calm (no rainbow per goal type).
+// ── Goal pill — neutral glass, small target glyph. The goal LABEL is the
+//    meaningful bit; tonally calm (no rainbow per goal type).
 function GoalPill({ campaign }: { campaign: Campaign }) {
   const meta = GOAL_META[campaign.goalType];
   const text =
@@ -62,9 +73,10 @@ function GoalPill({ campaign }: { campaign: Campaign }) {
       : meta.label;
   return (
     <span
-      className="inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[12.5px] font-medium text-foreground/80 max-w-full"
+      className="inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[12.5px] font-medium text-foreground/80 min-w-0"
       style={{
-        background: 'color-mix(in srgb, var(--ai-accent, #2F6BFF) 8%, transparent)',
+        background:
+          'color-mix(in srgb, var(--ai-accent, #2F6BFF) 8%, transparent)',
         boxShadow:
           'inset 0 0 0 1px color-mix(in srgb, var(--ai-accent, #2F6BFF) 16%, transparent)',
       }}
@@ -80,7 +92,46 @@ function GoalPill({ campaign }: { campaign: Campaign }) {
   );
 }
 
-function CampaignRow({ campaign }: { campaign: Campaign }) {
+// ── One funnel metric (icon + label + number).
+function Metric({
+  icon,
+  value,
+  label,
+  accent,
+}: {
+  icon: React.ReactNode;
+  value: number;
+  label: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1 min-w-0">
+      <div className="flex items-center gap-1.5 text-foreground/45">
+        {icon}
+        <span className="text-[10.5px] font-medium uppercase tracking-[0.04em] truncate">
+          {label}
+        </span>
+      </div>
+      <span
+        className="text-[19px] font-semibold tabular-nums tracking-[-0.01em] leading-none"
+        style={accent ? { color: 'var(--ai-accent, #2F6BFF)' } : undefined}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ── Campaign card — header (name + status + goal), a three-stage funnel
+//    (Leads -> In conversation -> Goal achieved), and a thin accent
+//    conversion bar that reads good/stalled at a glance.
+function CampaignCard({
+  campaign,
+  isCompact,
+}: {
+  campaign: Campaign;
+  isCompact: boolean;
+}) {
   const meta = GOAL_META[campaign.goalType];
   const conversion =
     campaign.stats.leads > 0
@@ -90,40 +141,86 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
     <button
       type="button"
       data-testid={`campaign-row-${campaign.id}`}
-      className="w-full text-left px-4 py-4 flex items-center gap-4 hover-elevate active-elevate-2"
+      className="w-full text-left px-5 py-4 hover-elevate active-elevate-2"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 mb-1.5">
-          <StatusDot status={campaign.status} />
-          <span className="text-[15px] font-semibold tracking-[-0.01em] truncate">
-            {campaign.name}
-          </span>
-          <span className="text-[12px] text-muted-foreground shrink-0">
-            {STATUS_META[campaign.status].label}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* Header */}
+      <div className="flex items-center gap-2.5 mb-3.5">
+        <span className="text-[15.5px] font-semibold tracking-[-0.01em] truncate min-w-0">
+          {campaign.name}
+        </span>
+        <StatusPill status={campaign.status} />
+        <div className="ml-auto shrink-0 max-w-[42%] flex justify-end">
           <GoalPill campaign={campaign} />
-          <span className="text-[12.5px] text-foreground/55">
-            {campaign.stats.leads} leads · {campaign.stats.inConversation} in
-            conversation
-          </span>
         </div>
       </div>
-      <div className="shrink-0 text-right hidden sm:block">
-        <div className="text-[17px] font-semibold tabular-nums leading-none">
-          {campaign.stats.goalAchieved}
-        </div>
-        <div className="text-[11px] text-muted-foreground mt-1">
-          {meta.achieved.toLowerCase()}
-          {campaign.stats.leads > 0 ? ` · ${conversion}%` : ''}
+
+      {/* Funnel metrics. On mobile the three metrics get the full row width
+          (conversion % moves down beside the bar) so labels never truncate.
+          On desktop conversion sits inline on the right. */}
+      <div className="flex items-end gap-5 sm:gap-6">
+        <Metric
+          icon={<Users size={12} strokeWidth={2} />}
+          value={campaign.stats.leads}
+          label="Leads"
+        />
+        <Metric
+          icon={<MessagesSquare size={12} strokeWidth={2} />}
+          value={campaign.stats.inConversation}
+          label={isCompact ? 'In conv.' : 'In conversation'}
+        />
+        <Metric
+          icon={
+            <Target
+              size={12}
+              strokeWidth={2}
+              style={{ color: 'var(--ai-accent, #2F6BFF)' }}
+            />
+          }
+          value={campaign.stats.goalAchieved}
+          label={isCompact ? meta.achievedShort : meta.achieved}
+          accent
+        />
+        {/* Desktop-only inline conversion */}
+        <div className="ml-auto text-right shrink-0 hidden sm:block">
+          <div
+            className="text-[19px] font-semibold tabular-nums leading-none"
+            style={{ color: 'var(--ai-accent, #2F6BFF)' }}
+          >
+            {conversion}%
+          </div>
+          <div className="text-[10px] text-foreground/45 mt-1 uppercase tracking-[0.04em]">
+            conversion
+          </div>
         </div>
       </div>
-      <ChevronRight
-        size={18}
-        strokeWidth={2}
-        className="shrink-0 text-icon-muted"
-      />
+
+      {/* Conversion progress bar — instant good/stalled read. On mobile the
+          % label rides on the right of the bar row. */}
+      <div className="mt-3.5 flex items-center gap-3">
+        <div
+          className="flex-1 h-1.5 rounded-full overflow-hidden"
+          style={{
+            background: 'color-mix(in srgb, var(--foreground) 7%, transparent)',
+          }}
+        >
+          <motion.div
+            className="h-full rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.min(100, conversion)}%` }}
+            transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
+            style={{
+              background: 'var(--ai-accent, #2F6BFF)',
+              opacity: campaign.status === 'active' ? 1 : 0.45,
+            }}
+          />
+        </div>
+        <span
+          className="sm:hidden shrink-0 text-[13px] font-semibold tabular-nums"
+          style={{ color: 'var(--ai-accent, #2F6BFF)' }}
+        >
+          {conversion}%
+        </span>
+      </div>
     </button>
   );
 }
@@ -323,6 +420,18 @@ function CreateCampaignSheet({
   );
 }
 
+// ── A compact stat for the header summary strip.
+function HeaderStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[20px] font-semibold tabular-nums tracking-[-0.02em] leading-none">
+        {value}
+      </span>
+      <span className="text-[12px] text-foreground/55 mt-1.5">{label}</span>
+    </div>
+  );
+}
+
 export default function Campaigns() {
   const isMobile = useIsMobile();
   const [campaigns, setCampaigns] = useState<Campaign[]>(MOCK_CAMPAIGNS);
@@ -330,6 +439,11 @@ export default function Campaigns() {
 
   const active = campaigns.filter((c) => c.status === 'active');
   const others = campaigns.filter((c) => c.status !== 'active');
+
+  // Roll-up numbers for the living header.
+  const totalLeads = campaigns.reduce((s, c) => s + c.stats.leads, 0);
+  const totalInConv = campaigns.reduce((s, c) => s + c.stats.inConversation, 0);
+  const totalGoals = campaigns.reduce((s, c) => s + c.stats.goalAchieved, 0);
 
   // Mobile top chrome: title pill + a New (+) action on the right.
   const slot = useMemo(
@@ -372,14 +486,9 @@ export default function Campaigns() {
           </span>
           <span className="text-[12px] text-muted-foreground">{count}</span>
         </div>
-        <div className="stilt-card rounded-3xl overflow-hidden">
-          {items.map((c, i) => (
-            <div key={c.id}>
-              {i > 0 && (
-                <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-              )}
-              <CampaignRow campaign={c} />
-            </div>
+        <div className="stilt-card rounded-3xl overflow-hidden divide-y divide-foreground/[0.06] dark:divide-white/[0.06]">
+          {items.map((c) => (
+            <CampaignCard key={c.id} campaign={c} isCompact={isMobile} />
           ))}
         </div>
       </section>
@@ -393,40 +502,83 @@ export default function Campaigns() {
         } pb-44 lg:pb-10`}
       >
         <div className="max-w-3xl mx-auto w-full flex flex-col gap-5 md:gap-6">
-          {/* Header — functional (no mascot here; campaigns is a workspace) */}
+          {/* Living header — Remi + roll-up, mirrors the inbox briefing. */}
           {!isMobile && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="px-2 pt-1 flex items-end justify-between gap-4"
+              className="px-2 pt-1"
             >
-              <div className="min-w-0">
-                <h2 className="text-[24px] font-semibold tracking-[-0.02em] leading-tight">
-                  Campaigns
-                </h2>
-                <p className="text-[15px] text-foreground/70 mt-2 leading-snug">
-                  <span className="font-semibold text-foreground">
-                    {active.length} active
-                  </span>{' '}
-                  · each campaign has a goal Replaiy steers toward.
-                </p>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4 min-w-0">
+                  <motion.img
+                    src={remiMascot}
+                    alt="Remi, the Replaiy assistant"
+                    aria-hidden="true"
+                    draggable={false}
+                    initial={{ opacity: 0, scale: 0.85, y: 6 }}
+                    animate={{ opacity: 1, scale: 1, y: [0, -4, 0] }}
+                    transition={{
+                      opacity: { duration: 0.4, delay: 0.1 },
+                      scale: { duration: 0.4, delay: 0.1 },
+                      y: {
+                        duration: 4,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                        delay: 0.5,
+                      },
+                    }}
+                    className="shrink-0 w-[72px] h-[72px] object-contain select-none pointer-events-none"
+                  />
+                  <div className="min-w-0">
+                    <h2 className="text-[24px] font-semibold tracking-[-0.02em] leading-tight">
+                      Campaigns
+                    </h2>
+                    <p className="text-[15px] text-foreground/70 mt-2 leading-snug">
+                      <span className="font-semibold text-foreground">
+                        {active.length} active
+                      </span>{' '}
+                      · Replaiy is steering every conversation toward its goal.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="button-new-campaign"
+                  onClick={() => setCreateOpen(true)}
+                  className="shrink-0 h-10 pl-3.5 pr-4 rounded-full flex items-center gap-1.5 text-[13.5px] font-semibold transition-all"
+                  style={{
+                    color: '#fff',
+                    background: 'var(--ai-accent, #2F6BFF)',
+                    boxShadow:
+                      '0 6px 18px 0 color-mix(in srgb, var(--ai-accent, #2F6BFF) 30%, transparent), inset 0 1px 0 0 rgba(255,255,255,0.22)',
+                  }}
+                >
+                  <Plus size={16} strokeWidth={2.4} />
+                  New campaign
+                </button>
               </div>
-              <button
-                type="button"
-                data-testid="button-new-campaign"
-                onClick={() => setCreateOpen(true)}
-                className="shrink-0 h-10 pl-3.5 pr-4 rounded-full flex items-center gap-1.5 text-[13.5px] font-semibold transition-all"
+
+              {/* Roll-up strip */}
+              <div
+                className="mt-5 flex items-center gap-8 rounded-2xl px-5 py-4"
                 style={{
-                  color: '#fff',
-                  background: 'var(--ai-accent, #2F6BFF)',
+                  background:
+                    'color-mix(in srgb, var(--foreground) 3%, transparent)',
                   boxShadow:
-                    '0 6px 18px 0 color-mix(in srgb, var(--ai-accent, #2F6BFF) 30%, transparent), inset 0 1px 0 0 rgba(255,255,255,0.22)',
+                    'inset 0 0 0 1px color-mix(in srgb, var(--foreground) 6%, transparent)',
                 }}
               >
-                <Plus size={16} strokeWidth={2.4} />
-                New campaign
-              </button>
+                <HeaderStat value={String(totalLeads)} label="Leads in flight" />
+                <div className="w-px h-9 bg-foreground/[0.08]" />
+                <HeaderStat
+                  value={String(totalInConv)}
+                  label="In conversation"
+                />
+                <div className="w-px h-9 bg-foreground/[0.08]" />
+                <HeaderStat value={String(totalGoals)} label="Goals achieved" />
+              </div>
             </motion.div>
           )}
 
