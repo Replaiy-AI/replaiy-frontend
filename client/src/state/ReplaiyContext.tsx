@@ -87,7 +87,7 @@ function detectSystemDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-export function StiltProvider({ children }: { children: React.ReactNode }) {
+export function ReplaiyProvider({ children }: { children: React.ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
   const [campaigns, setCampaigns] = useState<Campaign[]>(MOCK_CAMPAIGNS);
   const [persona, setPersona] = useState<Persona>(mockPersona);
@@ -243,8 +243,8 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export function useStilt() {
+export function useReplaiy() {
   const v = useContext(Ctx);
-  if (!v) throw new Error('useStilt must be used inside StiltProvider');
+  if (!v) throw new Error('useReplaiy must be used inside ReplaiyProvider');
   return v;
 }

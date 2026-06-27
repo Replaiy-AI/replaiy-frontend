@@ -10,8 +10,8 @@ import {
   CornerUpRight,
 } from 'lucide-react';
 import { useLocation } from 'wouter';
-import { useStilt } from '@/state/StiltContext';
-import { StiltAvatar } from './Avatar';
+import { useReplaiy } from '@/state/ReplaiyContext';
+import { ReplaiyAvatar } from './Avatar';
 import { APPLE_SPRING, APPLE_SPRING_TIGHT } from '@/lib/motion';
 import type { Conversation, ThreadMessage, Attachment } from '@/data/mockConversations';
 import { useMobileTopChromeSlot } from './MobileTopChrome';
@@ -102,7 +102,7 @@ function BubbleAttachment({ a, mine }: { a: Attachment; mine: boolean }) {
 // ─────────────────────────────────────────────────────────────────
 // Bubble styles (light + dark via CSS class hooks)
 // ─────────────────────────────────────────────────────────────────
-// v30.31 — BubbleStyles is verwijderd. .stilt-bubble styling staat nu
+// v30.31 — BubbleStyles is verwijderd. .rp-bubble styling staat nu
 // globaal in index.css (single source of truth via --surface-bubble*
 // tokens). Geen <style> tag meer in deze component nodig.
 function BubbleStyles() {
@@ -133,7 +133,7 @@ function BubbleV2({
 
   const bubble = isLong ? (
     <div
-      className="stilt-bubble rounded-[20px] text-[15px] leading-[1.5] text-foreground overflow-hidden"
+      className="rp-bubble rounded-[20px] text-[15px] leading-[1.5] text-foreground overflow-hidden"
       style={{
         [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: isLastInRun ? 6 : 20,
       }}
@@ -195,7 +195,7 @@ function BubbleV2({
     </div>
   ) : (
     <div
-      className="stilt-bubble rounded-[20px] px-3.5 py-2.5 text-[15px] leading-[1.4] text-foreground"
+      className="rp-bubble rounded-[20px] px-3.5 py-2.5 text-[15px] leading-[1.4] text-foreground"
       style={{
         [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: isLastInRun ? 6 : 20,
       }}
@@ -223,7 +223,7 @@ function BubbleV2({
         initial={{ opacity: 0, y: 8, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={APPLE_SPRING}
-        className="stilt-thread-mine flex justify-end"
+        className="rp-thread-mine flex justify-end"
       >
         <div className="max-w-[78%] flex flex-col items-end">{bubble}</div>
       </motion.div>
@@ -236,10 +236,10 @@ function BubbleV2({
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={APPLE_SPRING}
-      className="stilt-thread-other flex items-end gap-2"
+      className="rp-thread-other flex items-end gap-2"
     >
       <div className="w-8 shrink-0">
-        {showAvatar && <StiltAvatar name={msg.authorName} src={avatarSrc} size={32} />}
+        {showAvatar && <ReplaiyAvatar name={msg.authorName} src={avatarSrc} size={32} />}
       </div>
       <div className="max-w-[78%] flex flex-col items-start">
         {showName && (
@@ -427,7 +427,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
     summaryPanelOpen,
     toggleSummaryPanel,
     setSummaryPanelOpen,
-  } = useStilt();
+  } = useReplaiy();
   // v30.32 — ConversationTimeline rendert nu ALLE conversations (single + thread).
   // Voorheen had SingleConversationDetail een eigen render-tree, wat tot subtiele
   // styling-verschillen leidde tussen "Elena's mail" en "Nora's thread".
@@ -590,7 +590,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
     attachments: File[];
   }) => {
     // eslint-disable-next-line no-console
-    console.log('[Stilt] thread inline send', { thread: mail.id, ...payload });
+    console.log('[Replaiy] thread inline send', { thread: mail.id, ...payload });
     if (payload.kind === 'forward') {
       // Forward voltooid: forward-state resetten, mail blijft 'open'
       // (forward is geen reply naar de afzender, dus geen 'waiting').
@@ -655,7 +655,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
     );
     // v30.30 — Fallback voor 'me' messages die geen authorEmail hebben:
     // gebruik de eigen mock-email zodat de forward-quote consistent is.
-    const MY_EMAIL = 'simon@stilt.app';
+    const MY_EMAIL = 'simon@replaiy.ai';
     const emailFor = (m: typeof sorted[number]) =>
       m.authorEmail || (m.from === 'me' ? MY_EMAIL : undefined);
     const first = sorted[0];
@@ -1361,13 +1361,13 @@ function ThreadChromeSlot({
       ),
       togglePill: (
         // v-replaiy — iMessage style: avatar + naam plain (geen capsule).
-        // The Stilt contact info panel was removed, so this is now a plain
+        // The legacy contact info panel was removed, so this is now a plain
         // non-interactive identity (avatar + naam + thread count).
         <div
           data-testid="contact-pill"
           className="inline-flex items-center gap-2 px-1 h-[52px]"
         >
-          <StiltAvatar name={name} src={avatar} size={32} />
+          <ReplaiyAvatar name={name} src={avatar} size={32} />
           <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[140px] text-foreground leading-tight">
             {name}
           </span>

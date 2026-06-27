@@ -5,7 +5,7 @@
 //   • Separate desktop / mobile scroll containers (max-w-2xl mx-auto content).
 //   • Mobile top-chrome registered via useMobileTopChromeSlot (priority 100):
 //     leftSlot = ArrowLeft ActionPill → navigate('/campaigns').
-//   • Surfaces are real design-system classes only (.stilt-card, .glass-pill,
+//   • Surfaces are real design-system classes only (.rp-card, .glass-pill,
 //     .glass-strong). Blue (var(--ai-accent)) is a RARE micro-accent only —
 //     not the fill of large controls. Delete is the single allowed exception
 //     using hsl(var(--destructive)).
@@ -43,7 +43,7 @@ import {
   PlayCircle,
   Sparkles,
 } from 'lucide-react';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 import {
   GOAL_META,
   WORKSPACE_MEMBERS,
@@ -53,12 +53,12 @@ import {
   type CampaignGoalType,
   type FlowStepKind,
 } from '@/data/mockCampaigns';
-import { StiltAvatar } from '@/components/Avatar';
+import { ReplaiyAvatar } from '@/components/Avatar';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { GlassToggle } from '@/components/GlassToggle';
 import { conversionPct, replyRatePct } from '@/components/CampaignsList';
-import { StiltLogo } from '@/components/Logo';
+import { ReplaiyLogo } from '@/components/Logo';
 import { APPLE_SPRING } from '@/lib/motion';
 
 // Lucide icon per flow-step kind.
@@ -85,7 +85,7 @@ const GOAL_ICONS: Record<CampaignGoalType, typeof Target> = {
 // then delegate to the create view or the detail view, or an empty state.
 export default function CampaignDetail() {
   const params = useParams<{ id?: string }>();
-  const { campaigns } = useStilt();
+  const { campaigns } = useReplaiy();
   const id = params.id;
 
   if (id === 'new') {
@@ -102,7 +102,7 @@ export default function CampaignDetail() {
     return (
       <div className="hidden lg:flex flex-1 flex-col items-center justify-center text-center px-8">
         <div className="mb-4">
-          <StiltLogo size={56} />
+          <ReplaiyLogo size={56} />
         </div>
         <h2 className="text-[20px] font-semibold tracking-[-0.02em]">Select a campaign</h2>
         <p className="text-[14px] text-muted-foreground mt-1.5 max-w-xs">
@@ -160,7 +160,7 @@ function OverflowMenu({
   onRename?: () => void;
 }) {
   const [, navigate] = useLocation();
-  const { updateCampaign } = useStilt();
+  const { updateCampaign } = useReplaiy();
   const [open, setOpen] = useState(false);
 
   // Mock data has no hard remove; marking the campaign archived + leaving the
@@ -255,7 +255,7 @@ function GoalPicker({
   // dividers, NO per-row boxed icon, NO coloured border. Selection is a
   // subtle neutral fill + a small muted check — calm, not a loud frame.
   return (
-    <div className="stilt-card rounded-3xl overflow-hidden">
+    <div className="rp-card rounded-3xl overflow-hidden">
       {GOAL_ORDER.map((g, i) => {
         const meta = GOAL_META[g];
         const Icon = GOAL_ICONS[g];
@@ -322,7 +322,7 @@ function GoalPicker({
 // View mode shows the goal + hint with an Edit affordance. Editing reveals
 // the same goal picker the create view uses, and persists via updateCampaign.
 function GoalCard({ campaign }: { campaign: Campaign }) {
-  const { updateCampaign } = useStilt();
+  const { updateCampaign } = useReplaiy();
   const [editing, setEditing] = useState(false);
   const [goalType, setGoalType] = useState<CampaignGoalType>(campaign.goalType);
   const [customLabel, setCustomLabel] = useState(campaign.goalLabel ?? '');
@@ -390,7 +390,7 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
               onCustomLabel={setCustomLabel}
             />
             {/* Editable goal description — same field shown on the row. */}
-            <div className="stilt-card rounded-3xl px-4 py-3">
+            <div className="rp-card rounded-3xl px-4 py-3">
               <input
                 data-testid="input-edit-goal-description"
                 value={goalDescription}
@@ -426,7 +426,7 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="stilt-card rounded-3xl px-4 py-4 lg:px-5 lg:py-[18px]"
+            className="rp-card rounded-3xl px-4 py-4 lg:px-5 lg:py-[18px]"
           >
             <div className="flex items-start gap-3">
               <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
@@ -551,7 +551,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
         </div>
       </div>
 
-      <div className="stilt-card rounded-3xl px-3 py-4 lg:px-4 lg:py-5">
+      <div className="rp-card rounded-3xl px-3 py-4 lg:px-4 lg:py-5">
         {/* Funnel fits the card width on every screen — no horizontal scroll.
             Stage typography scales down on mobile so all stages read at once,
             exactly like the reference dashboard. */}
@@ -661,7 +661,7 @@ function FlowCard({ campaign }: { campaign: Campaign }) {
         </div>
         <span className="text-[11.5px] text-muted-foreground">Editing soon</span>
       </div>
-      <div className="stilt-card rounded-3xl px-4 py-3 lg:px-5 lg:py-3.5">
+      <div className="rp-card rounded-3xl px-4 py-3 lg:px-5 lg:py-3.5">
         <div className="flex flex-col">
           {flow.map((step, i) => {
             const meta = FLOW_STEP_META[step.kind];
@@ -714,7 +714,7 @@ function FlowCard({ campaign }: { campaign: Campaign }) {
 // opens an inline glass list of all workspace members to toggle on/off.
 // Persists via updateCampaign(id, { memberIds }).
 function TeamCard({ campaign }: { campaign: Campaign }) {
-  const { updateCampaign } = useStilt();
+  const { updateCampaign } = useReplaiy();
   const [picking, setPicking] = useState(false);
 
   const assigned = WORKSPACE_MEMBERS.filter((m) =>
@@ -753,7 +753,7 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
         </button>
       </div>
 
-      <div className="stilt-card rounded-3xl px-2 py-1.5">
+      <div className="rp-card rounded-3xl px-2 py-1.5">
         {assigned.length === 0 && !picking ? (
           <div className="px-2 py-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
@@ -774,7 +774,7 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
                   data-testid={`member-assigned-${m.id}`}
                   className="flex items-center gap-3 px-2 py-2"
                 >
-                  <StiltAvatar name={m.name} src={m.avatar} size={36} className="shrink-0" />
+                  <ReplaiyAvatar name={m.name} src={m.avatar} size={36} className="shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-[13.5px] font-semibold tracking-[-0.005em] text-foreground truncate">
                       {m.name}
@@ -798,7 +798,7 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className="overflow-hidden"
           >
-            <div className="mt-2 stilt-card rounded-3xl px-2 py-1.5">
+            <div className="mt-2 rp-card rounded-3xl px-2 py-1.5">
               <div className="flex flex-col">
                 {WORKSPACE_MEMBERS.map((m, i) => {
                   const on = campaign.memberIds.includes(m.id);
@@ -816,7 +816,7 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
                           on ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
                         }`}
                       >
-                        <StiltAvatar name={m.name} src={m.avatar} size={36} className="shrink-0" />
+                        <ReplaiyAvatar name={m.name} src={m.avatar} size={36} className="shrink-0" />
                         <div className="min-w-0 flex-1">
                           <div className="text-[13.5px] font-semibold tracking-[-0.005em] text-foreground truncate">
                             {m.name}
@@ -844,7 +844,7 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
 // Detail view
 function CampaignDetailView({ campaign }: { campaign: Campaign }) {
   const [, navigate] = useLocation();
-  const { updateCampaign } = useStilt();
+  const { updateCampaign } = useReplaiy();
   const isOn = campaign.status === 'active';
 
   const toggle = (on: boolean) =>
@@ -1037,7 +1037,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
 // Create view — goal picker is the centrepiece.
 function CampaignCreate() {
   const [, navigate] = useLocation();
-  const { addCampaign } = useStilt();
+  const { addCampaign } = useReplaiy();
   const [name, setName] = useState('');
   const [goalType, setGoalType] = useState<CampaignGoalType>('meeting');
   const [customLabel, setCustomLabel] = useState('');
@@ -1114,7 +1114,7 @@ function CampaignCreate() {
         <div className="px-2 mb-1.5">
           <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Name</span>
         </div>
-        <div className="stilt-card rounded-3xl px-4 py-3">
+        <div className="rp-card rounded-3xl px-4 py-3">
           <input
             data-testid="input-campaign-name"
             value={name}
@@ -1144,7 +1144,7 @@ function CampaignCreate() {
           <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Description</span>
           <span className="text-[11.5px] text-muted-foreground">Optional</span>
         </div>
-        <div className="stilt-card rounded-3xl px-4 py-3">
+        <div className="rp-card rounded-3xl px-4 py-3">
           <input
             data-testid="input-campaign-description"
             value={goalDescription}

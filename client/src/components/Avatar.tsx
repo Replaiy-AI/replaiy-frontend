@@ -9,7 +9,7 @@ interface AvatarProps {
   className?: string;
 }
 
-export function StiltAvatar({ name, src, size = 40, className = '' }: AvatarProps) {
+export function ReplaiyAvatar({ name, src, size = 40, className = '' }: AvatarProps) {
   const photo = src;
 
   if (photo) {

@@ -17,14 +17,14 @@ import {
   Send,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 import { useParams, useLocation, Link } from 'wouter';
 import { ConversationRow } from './ConversationRow';
 import { ListRow } from './ListRow';
-import { StiltAvatar } from './Avatar';
+import { ReplaiyAvatar } from './Avatar';
 import remiMascot from '@/assets/replaiy-mascot.png';
 import VadikGlass from './VadikGlass';
-import { StiltLogo } from '@/components/Logo';
+import { ReplaiyLogo } from '@/components/Logo';
 import { GlassCircleButton, ProfileInitials } from './GlassCircleButton';
 import { timeBucket, timeAgo, stateTag, formatInboxTime } from '@/lib/avatar';
 import { useInboxSettings } from '@/lib/inboxSettings';
@@ -127,7 +127,7 @@ function InboxModeList({ items, params }: { items: Conversation[]; params: { id?
                 cause of swipe stutter (FLIP-style reflows of siblings
                 fighting the drag transform). Row removal still animates
                 via AnimatePresence height/opacity exit. */}
-            <div className="stilt-card rounded-3xl overflow-hidden">
+            <div className="rp-card rounded-3xl overflow-hidden">
               <AnimatePresence initial={false}>
                 {list.map((m, i) => (
                   <motion.div
@@ -211,7 +211,7 @@ function SmartConversationContent({
   void reasoningText; void showReasoning;
   return (
     <div className="flex items-start gap-3">
-      <StiltAvatar name={mail.from.name} src={mail.from.avatar} size={36} className="shrink-0" />
+      <ReplaiyAvatar name={mail.from.name} src={mail.from.avatar} size={36} className="shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -372,7 +372,7 @@ function SmartInboxView({ conversations, setConversationStatus, params }: { conv
             <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Needs your approval</span>
             <span className="text-[12px] text-muted-foreground">{needsApproval.length}</span>
           </div>
-          <div className="stilt-card rounded-3xl overflow-hidden">
+          <div className="rp-card rounded-3xl overflow-hidden">
             {needsApproval.map((m, i) => {
               // ≥90% confidence: laat zien WAAROM Replaiy 'm niet automatisch
               // verstuurde (holdReason). Anders de strategie-reden.
@@ -400,7 +400,7 @@ function SmartInboxView({ conversations, setConversationStatus, params }: { conv
             <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Waiting on reply</span>
             <span className="text-[12px] text-muted-foreground">{waiting.length}</span>
           </div>
-          <div className="stilt-card rounded-3xl overflow-hidden">
+          <div className="rp-card rounded-3xl overflow-hidden">
             {waiting.map((m, i) => (
               <div key={m.id}>
                 {i > 0 && <div className="ml-[64px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />}
@@ -438,7 +438,7 @@ function SmartInboxView({ conversations, setConversationStatus, params }: { conv
                 transition={{ duration: 0.22 }}
                 className="overflow-hidden"
               >
-                <div className="stilt-card rounded-3xl overflow-hidden mt-2">
+                <div className="rp-card rounded-3xl overflow-hidden mt-2">
                   {autoSent.map((m, i) => (
                     <div key={m.id}>
                       {i > 0 && <div className="ml-[64px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />}
@@ -597,7 +597,7 @@ function MobileCarousel({
 // v30.9 — Vervangen door VadikGlass shape="circle" (zelfde recipe als de
 // werkende mobile +/Search/Done/Snooze/Forward en desktop sidebar circles).
 // `overflow:hidden` op de wrapperStyle zodat de avatar binnen de cirkel blijft.
-// v-replaiy — the Stilt profile menu was removed (all fake template UI),
+// v-replaiy — the Replaiy profile menu was removed (all fake template UI),
 // but the SB avatar button stays as the mobile top-chrome left slot so we
 // can wire it to something later (saves rebuilding). onClick is a no-op
 // for now. Kept consistent with CampaignsList.
@@ -622,7 +622,7 @@ export function InboxList() {
     setConversationView,
     query,
     setConversationStatus,
-  } = useStilt();
+  } = useReplaiy();
   // Map global smartMode → viewMode-style flag for the existing carousel.
   const viewMode: 'inbox' | 'smart' = smartMode ? 'smart' : 'inbox';
   const setViewMode = (m: 'inbox' | 'smart') => setSmartMode(m === 'smart');
@@ -784,7 +784,7 @@ export function InboxList() {
 // ─────────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _LegacyDotsMenuSheet() {
-  const { dotsMenuOpen, setDotsMenuOpen, setSheetOpen } = useStilt();
+  const { dotsMenuOpen, setDotsMenuOpen, setSheetOpen } = useReplaiy();
   const [, navigate] = useLocation();
 
   // Drive global sheetOpen so bottom nav + FAB hide while menu is up

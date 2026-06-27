@@ -9,7 +9,7 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { MoreHorizontal, Search as SearchIcon, X } from 'lucide-react';
 import { APPLE_SPRING } from '@/lib/motion';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 import VadikGlass from './VadikGlass';
 import { VadikGlassSurface } from './VadikGlassSurface';
 
@@ -119,7 +119,7 @@ export function MobileTopChromeShell() {
     query: globalQuery,
     setQuery: setGlobalQuery,
     sheetOpen,
-  } = useStilt();
+  } = useReplaiy();
   const [searchOpen, setSearchOpen] = useState(false);
 
   const searchQuery = active?.searchQuery ?? globalQuery;
@@ -236,7 +236,7 @@ export function MobileTopChromeShell() {
             shape="circle"
             data-testid="button-search-toggle"
             aria-label="Search"
-            onClick={() => window.dispatchEvent(new CustomEvent('stilt:open-search'))}
+            onClick={() => window.dispatchEvent(new CustomEvent('replaiy:open-search'))}
           >
               <SearchIcon size={19} strokeWidth={1.75} className="text-icon" />
           </VadikGlass>

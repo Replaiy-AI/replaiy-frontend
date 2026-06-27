@@ -9,7 +9,7 @@
 //                             rows (same row component), like InboxList beside
 //                             a mail detail.
 //
-// Design language mirrors InboxList exactly: stilt-card clusters with hairline
+// Design language mirrors InboxList exactly: rp-card clusters with hairline
 // dividers, px-4 py-3 hover-elevate active-elevate rows, glass-pill goal pills,
 // tabular-nums for numbers. BLUE (var(--ai-accent)) is reserved for rare micro
 // accents only — it is NOT used on switches or on the conversion bars. The
@@ -19,7 +19,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Target } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 import {
   GOAL_META,
   type Campaign,
@@ -30,7 +30,7 @@ import remiMascot from '@/assets/replaiy-mascot.png';
 import { GlassToggle } from './GlassToggle';
 import { ListRow } from './ListRow';
 import { useMobileTopChromeSlot } from './MobileTopChrome';
-import { StiltLogo } from '@/components/Logo';
+import { ReplaiyLogo } from '@/components/Logo';
 import { GlassCircleButton, ProfileInitials } from './GlassCircleButton';
 
 // v-replaiy — top-left of the mobile chrome. The Stilt profile menu was
@@ -140,7 +140,7 @@ export function CampaignRow({
   active?: boolean;
 }) {
   const [, navigate] = useLocation();
-  const { updateCampaign } = useStilt();
+  const { updateCampaign } = useReplaiy();
   const conv = conversionPct(campaign);
   const statusOn = campaign.status === 'active';
 
@@ -234,7 +234,7 @@ function RollupStat({
 
 // ── A labelled campaign section — one inbox-style bucket ────────────
 // Mirrors the inbox buckets ("Needs your approval" / "Waiting on reply"):
-// a small section header (label + count) above its own stilt-card cluster.
+// a small section header (label + count) above its own rp-card cluster.
 // Rows are wrapped in motion `layout` items inside an AnimatePresence so that
 // when a campaign is toggled Active↔Paused it GLIDES/cross-fades to the other
 // section instead of teleporting. Empty sections render nothing (inbox parity).
@@ -254,7 +254,7 @@ function CampaignSection({
         <span className="text-[12.5px] font-semibold tracking-[-0.005em]">{label}</span>
         <span className="text-[12px] text-muted-foreground">{list.length}</span>
       </div>
-      <div className="stilt-card rounded-3xl overflow-hidden">
+      <div className="rp-card rounded-3xl overflow-hidden">
         <AnimatePresence initial={false}>
           {list.map((c, i) => (
             <motion.div
@@ -284,7 +284,7 @@ function CampaignSection({
 
 // ════════════════════════════════════════════════════════════════════
 export function CampaignsList() {
-  const { campaigns } = useStilt();
+  const { campaigns } = useReplaiy();
   const [loc] = useLocation();
 
   // The list column NEVER changes shape when you open a campaign — exactly
@@ -398,7 +398,7 @@ export function CampaignsList() {
           </motion.div>
 
           {/* Roll-up stat strip — the four numbers that matter, summed across
-              active campaigns. One stilt-card, hairline dividers. Four across
+              active campaigns. One rp-card, hairline dividers. Four across
               on desktop; on a phone they wrap to a clean 2x2 grid using the
               same hairline dividers and the same RollupStat cells. */}
           <section>
@@ -407,7 +407,7 @@ export function CampaignsList() {
                 Active overview
               </span>
             </div>
-            <div className="stilt-card rounded-3xl overflow-hidden">
+            <div className="rp-card rounded-3xl overflow-hidden">
               {/* grid: 2 cols on phone (2x2), 4 cols from sm up (one row).
                   Hairlines via per-cell borders (the same hairline colour as
                   the original divide-x strip). On phone: left border on the

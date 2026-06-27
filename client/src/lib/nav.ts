@@ -2,7 +2,7 @@
 // Single source of truth for nav items.
 //
 // Replaiy has three primary surfaces in the chrome switcher — Inbox
-// (conversations), Campaigns, and Calendar. The old Stilt Docs context
+// (conversations), Campaigns, and Calendar. The old Replaiy Docs context
 // and the working Calendar implementation have been removed; the Calendar
 // tab now points to a "Coming soon" placeholder.
 //

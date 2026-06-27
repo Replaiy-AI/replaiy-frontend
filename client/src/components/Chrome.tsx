@@ -61,7 +61,7 @@ const ICON_TINT: Record<string, string> = {
 
 export function MobileBottomNav() {
   const [loc, setLoc] = useLocation();
-  const { sheetOpen } = useStilt();
+  const { sheetOpen } = useReplaiy();
 
   if (loc.startsWith('/conversation/')) {
     return null;
@@ -149,7 +149,7 @@ export function MobileBottomNav() {
   );
 }
 
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 
 // v15.4 — Tablet rail: keep the bottom nav (mobile pattern) since tablets
 // are still touch-first. TabletLeftRail therefore renders nothing; both
@@ -194,7 +194,7 @@ export function TopBar({
           <GlassCircleButton
             label="Search"
             testId="button-search"
-            onClick={() => window.dispatchEvent(new CustomEvent('stilt:open-search'))}
+            onClick={() => window.dispatchEvent(new CustomEvent('replaiy:open-search'))}
             showTooltip={false}
             size={44}
           >

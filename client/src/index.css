@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Stilt — iOS Liquid Glass Email — Design Tokens */
+/* Replaiy — iOS Liquid Glass — Design Tokens */
 :root {
   /* SF Pro / system font stack */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Helvetica Neue", Arial, sans-serif;
@@ -52,7 +52,7 @@
      used for AI-cues (Draft generated label, draft tint, sparkles). */
   /* Replaiy — the single AI accent. Was Stilt turquoise #13A89E; Replaiy
      uses its own blue. This one token drives every AI cue (sparkle, draft
-     label). Everything else stays neutral, exactly like Stilt. */
+     label). Everything else stays neutral, exactly like Replaiy. */
   --ai-accent: #2F6BFF;
   /* v30.31 — strength van de AI gradient tint op collapsed reply bar.
      Light = 9%, Dark = 15% (anders valt 'ie weg op donker oppervlak). */
@@ -464,7 +464,7 @@
 
      Mobile keeps the flat fill since glass over a busy background
      can read noisy on small screens. */
-  .stilt-canvas {
+  .rp-canvas {
     position: fixed;
     inset: 0;
     z-index: -1;
@@ -472,7 +472,7 @@
        om gradient-banding op kleine schermen te voorkomen. */
     background: var(--canvas-warm);
   }
-  .dark .stilt-canvas {
+  .dark .rp-canvas {
     /* v30.31 — mobile dark flat ook, anders gebruikt mobile per ongeluk
        de light-mode blobs op donkere achtergrond (= lichte strepen). */
     background: var(--canvas-warm);
@@ -480,7 +480,7 @@
   /* v20 Liquid Glass v2 canvas — cool-neutral diagonal + faint purple
      radial tint + SVG noise overlay. The noise gives feDisplacementMap
      and saturate() real per-pixel variance to operate on. */
-  .stilt-canvas::after {
+  .rp-canvas::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -492,7 +492,7 @@
     mix-blend-mode: overlay;
   }
   @media (min-width: 768px) {
-    .stilt-canvas {
+    .rp-canvas {
       /* v30.31 — Perplexity off-white. Heel subtiele luminance shift. */
       background:
         radial-gradient(45% 60% at 6% 12%, hsla(30, 6%, 97%, 0.45) 0%, transparent 65%),
@@ -503,7 +503,7 @@
           var(--canvas-cool) 100%
         );
     }
-    .dark .stilt-canvas {
+    .dark .rp-canvas {
       /* v30.31 — Perplexity dark = flat neutral, geen ambient blobs.
          Alleen een hele subtiele diagonal luminance shift. */
       background: linear-gradient(
@@ -513,30 +513,30 @@
       );
     }
   }
-  .dark .stilt-canvas::after {
+  .dark .rp-canvas::after {
     mix-blend-mode: soft-light;
   }
 }
 
 @layer components {
-  /* v30.31 — .stilt-bubble: globale chat/message body styling.
+  /* v30.31 — .rp-bubble: globale chat/message body styling.
      Used by:
      • ConversationTimeline chat bubbles (mine + other)
      • MailDetail single-message body container
      Source-of-truth: --surface-bubble* tokens in :root + .dark.
      Geen ad-hoc rgba/box-shadow in componenten meer. */
-  .stilt-bubble {
+  .rp-bubble {
     background: var(--surface-bubble);
     border: 1px solid var(--surface-bubble-border);
     box-shadow:
       var(--surface-bubble-shadow-inset),
       var(--surface-bubble-shadow-drop);
   }
-  .dark .stilt-bubble {
+  .dark .rp-bubble {
     color: hsl(var(--foreground) / 0.95);
   }
 
-  /* v30.32 — .stilt-card: inbox/list card-cluster surface.
+  /* v30.32 — .rp-card: inbox/list card-cluster surface.
      Gebruikt door:
      • InboxList "Today for you" / "Quick to clear" / "Waiting on others"
        blokken
@@ -546,7 +546,7 @@
      zoals .glass, MAAR geen outer aura (::after halo). Stacked cards
      in een lijst hoeven niet elk een eigen "gloeiende" bubble te
      hebben — dat geeft visuele soep. Dropshadow ook subtieler. */
-  .stilt-card {
+  .rp-card {
     position: relative;
     isolation: isolate;
     background:
@@ -569,7 +569,7 @@
       inset 0 -1px 0 var(--lg2-rim-bottom),
       0 4px 12px rgba(0, 0, 0, 0.04);
   }
-  .dark .stilt-card {
+  .dark .rp-card {
     color: hsl(var(--foreground) / 0.95);
     box-shadow:
       inset 0 1px 0 var(--lg2-rim-top),
@@ -579,7 +579,7 @@
       0 4px 12px rgba(0, 0, 0, 0.20);
   }
   /* Child content boven backdrop-filter pseudo */
-  .stilt-card > * { position: relative; z-index: 1; }
+  .rp-card > * { position: relative; z-index: 1; }
 
   /* ═══════════════════════════════════════════════════════════════════
      Liquid Glass v2 (lg2) — the production multi-layer recipe.
@@ -1362,9 +1362,9 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Stilt prose / Tiptap editor styling (v14 Docs)
+   Replaiy prose / Tiptap editor styling (v14 Docs)
    ───────────────────────────────────────────────────────────────── */
-.stilt-prose {
+.rp-prose {
   font-size: 16px;
   line-height: 1.55;
   letter-spacing: -0.003em;
@@ -1375,16 +1375,16 @@
   min-height: 60vh;
   caret-color: hsl(var(--foreground));
 }
-.stilt-prose ::selection {
+.rp-prose ::selection {
   background: rgba(167, 139, 250, 0.22);
 }
-.dark .stilt-prose ::selection {
+.dark .rp-prose ::selection {
   background: rgba(167, 139, 250, 0.32);
 }
-.stilt-prose > * + * {
+.rp-prose > * + * {
   margin-top: 0.55em;
 }
-.stilt-prose h1 {
+.rp-prose h1 {
   font-size: 28px;
   line-height: 1.2;
   letter-spacing: -0.022em;
@@ -1392,7 +1392,7 @@
   margin-top: 1.1em;
   margin-bottom: 0.25em;
 }
-.stilt-prose h2 {
+.rp-prose h2 {
   font-size: 22px;
   line-height: 1.25;
   letter-spacing: -0.018em;
@@ -1400,7 +1400,7 @@
   margin-top: 1em;
   margin-bottom: 0.2em;
 }
-.stilt-prose h3 {
+.rp-prose h3 {
   font-size: 17px;
   line-height: 1.3;
   letter-spacing: -0.012em;
@@ -1408,52 +1408,52 @@
   margin-top: 0.9em;
   margin-bottom: 0.15em;
 }
-.stilt-prose h1:first-child,
-.stilt-prose h2:first-child,
-.stilt-prose h3:first-child {
+.rp-prose h1:first-child,
+.rp-prose h2:first-child,
+.rp-prose h3:first-child {
   margin-top: 0;
 }
-.stilt-prose p {
+.rp-prose p {
   margin: 0;
 }
-.stilt-prose ul,
-.stilt-prose ol {
+.rp-prose ul,
+.rp-prose ol {
   padding-left: 1.4em;
   margin: 0.2em 0;
 }
-.stilt-prose ul li,
-.stilt-prose ol li {
+.rp-prose ul li,
+.rp-prose ol li {
   margin: 0.1em 0;
 }
-.stilt-prose ul {
+.rp-prose ul {
   list-style-type: disc;
 }
-.stilt-prose ol {
+.rp-prose ol {
   list-style-type: decimal;
 }
-.stilt-prose ul li::marker,
-.stilt-prose ol li::marker {
+.rp-prose ul li::marker,
+.rp-prose ol li::marker {
   color: rgba(0, 0, 0, 0.42);
 }
-.dark .stilt-prose ul li::marker,
-.dark .stilt-prose ol li::marker {
+.dark .rp-prose ul li::marker,
+.dark .rp-prose ol li::marker {
   color: rgba(255, 255, 255, 0.4);
 }
-.stilt-prose blockquote.stilt-quote {
+.rp-prose blockquote.rp-quote {
   border-left: 2px solid rgba(0, 0, 0, 0.18);
   padding-left: 0.95em;
   margin: 0.45em 0;
   font-style: italic;
   color: rgba(0, 0, 0, 0.72);
 }
-.dark .stilt-prose blockquote.stilt-quote {
+.dark .rp-prose blockquote.rp-quote {
   border-left-color: rgba(255, 255, 255, 0.22);
   color: rgba(255, 255, 255, 0.78);
 }
-.stilt-prose blockquote.stilt-quote p {
+.rp-prose blockquote.rp-quote p {
   margin: 0;
 }
-.stilt-prose pre.stilt-codeblock {
+.rp-prose pre.rp-codeblock {
   font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;
   font-size: 13.5px;
   line-height: 1.5;
@@ -1464,53 +1464,53 @@
   overflow-x: auto;
   color: var(--foreground);
 }
-.dark .stilt-prose pre.stilt-codeblock {
+.dark .rp-prose pre.rp-codeblock {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.06);
 }
-.stilt-prose pre.stilt-codeblock code {
+.rp-prose pre.rp-codeblock code {
   font-family: inherit;
   background: transparent;
   padding: 0;
 }
-.stilt-prose code {
+.rp-prose code {
   font-family: 'SF Mono', ui-monospace, monospace;
   font-size: 0.92em;
   background: rgba(0, 0, 0, 0.06);
   padding: 1px 5px;
   border-radius: 5px;
 }
-.dark .stilt-prose code {
+.dark .rp-prose code {
   background: rgba(255, 255, 255, 0.07);
 }
-.stilt-prose hr.stilt-hr {
+.rp-prose hr.rp-hr {
   border: 0;
   height: 1px;
   background: rgba(0, 0, 0, 0.08);
   margin: 1.2em 0;
 }
-.dark .stilt-prose hr.stilt-hr {
+.dark .rp-prose hr.rp-hr {
   background: rgba(255, 255, 255, 0.08);
 }
 
 /* Task list (todos) */
-.stilt-prose ul.stilt-tasklist {
+.rp-prose ul.rp-tasklist {
   list-style: none;
   padding-left: 0;
 }
-.stilt-prose ul.stilt-tasklist li.stilt-taskitem {
+.rp-prose ul.rp-tasklist li.rp-taskitem {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   margin: 0.15em 0;
 }
-.stilt-prose ul.stilt-tasklist li.stilt-taskitem > label {
+.rp-prose ul.rp-tasklist li.rp-taskitem > label {
   display: inline-flex;
   align-items: center;
   margin-top: 0.32em;
   flex-shrink: 0;
 }
-.stilt-prose ul.stilt-tasklist li.stilt-taskitem > label > input[type='checkbox'] {
+.rp-prose ul.rp-tasklist li.rp-taskitem > label > input[type='checkbox'] {
   appearance: none;
   width: 16px;
   height: 16px;
@@ -1521,14 +1521,14 @@
   position: relative;
   transition: background 160ms ease, border-color 160ms ease;
 }
-.dark .stilt-prose ul.stilt-tasklist li.stilt-taskitem > label > input[type='checkbox'] {
+.dark .rp-prose ul.rp-tasklist li.rp-taskitem > label > input[type='checkbox'] {
   border-color: rgba(255, 255, 255, 0.28);
 }
-.stilt-prose ul.stilt-tasklist li.stilt-taskitem > label > input[type='checkbox']:checked {
+.rp-prose ul.rp-tasklist li.rp-taskitem > label > input[type='checkbox']:checked {
   background: hsl(var(--foreground));
   border-color: hsl(var(--foreground));
 }
-.stilt-prose ul.stilt-tasklist li.stilt-taskitem > label > input[type='checkbox']:checked::after {
+.rp-prose ul.rp-tasklist li.rp-taskitem > label > input[type='checkbox']:checked::after {
   content: '';
   position: absolute;
   left: 4px;
@@ -1539,40 +1539,40 @@
   border-width: 0 1.8px 1.8px 0;
   transform: rotate(45deg);
 }
-.stilt-prose ul.stilt-tasklist li.stilt-taskitem > div {
+.rp-prose ul.rp-tasklist li.rp-taskitem > div {
   flex: 1;
   min-width: 0;
 }
-.stilt-prose ul.stilt-tasklist li.stilt-taskitem[data-checked='true'] > div {
+.rp-prose ul.rp-tasklist li.rp-taskitem[data-checked='true'] > div {
   color: rgba(0, 0, 0, 0.45);
   text-decoration: line-through;
 }
-.dark .stilt-prose ul.stilt-tasklist li.stilt-taskitem[data-checked='true'] > div {
+.dark .rp-prose ul.rp-tasklist li.rp-taskitem[data-checked='true'] > div {
   color: rgba(255, 255, 255, 0.4);
 }
 
 /* Empty placeholder (Tiptap) */
-.stilt-prose p.is-editor-empty:first-child::before,
-.stilt-prose h1.is-empty::before,
-.stilt-prose h2.is-empty::before,
-.stilt-prose h3.is-empty::before {
+.rp-prose p.is-editor-empty:first-child::before,
+.rp-prose h1.is-empty::before,
+.rp-prose h2.is-empty::before,
+.rp-prose h3.is-empty::before {
   content: attr(data-placeholder);
   float: left;
   color: rgba(0, 0, 0, 0.32);
   pointer-events: none;
   height: 0;
 }
-.dark .stilt-prose p.is-editor-empty:first-child::before,
-.dark .stilt-prose h1.is-empty::before,
-.dark .stilt-prose h2.is-empty::before,
-.dark .stilt-prose h3.is-empty::before {
+.dark .rp-prose p.is-editor-empty:first-child::before,
+.dark .rp-prose h1.is-empty::before,
+.dark .rp-prose h2.is-empty::before,
+.dark .rp-prose h3.is-empty::before {
   color: rgba(255, 255, 255, 0.32);
 }
 
-/* Stilt doc surface — subtle off-white in light, near-black in dark */
-.stilt-doc-surface {
+/* Replaiy doc surface — subtle off-white in light, near-black in dark */
+.rp-doc-surface {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(248, 248, 250, 0.6));
 }
-.dark .stilt-doc-surface {
+.dark .rp-doc-surface {
   background: linear-gradient(180deg, rgba(20, 20, 22, 0.6), rgba(14, 14, 16, 0.6));
 }

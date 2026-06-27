@@ -3,7 +3,7 @@
 // exactly the interaction surface that must stay identical across the app:
 //   • padding (px-4 py-3)
 //   • hover-elevate + active-elevate-2 (the full-bleed glass highlight that
-//     clips to the parent .stilt-card's rounded corners via overflow-hidden)
+//     clips to the parent .rp-card's rounded corners via overflow-hidden)
 //   • the selected/active neutral fill (bg-foreground/[0.05])
 //   • click-to-open
 // The row CONTENT (mail vs campaign) is passed as children, so each screen

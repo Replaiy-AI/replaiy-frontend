@@ -5,9 +5,9 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useEffect, useState } from 'react';
-import { StiltAvatar } from '@/components/Avatar';
+import { ReplaiyAvatar } from '@/components/Avatar';
 import { timeAgo } from '@/lib/avatar';
-import { StiltProvider, useStilt } from '@/state/StiltContext';
+import { ReplaiyProvider, useReplaiy } from '@/state/ReplaiyContext';
 import { DesktopRail, MobileBottomNav, TabletLeftRail } from '@/components/Chrome';
 import { MobileTopChromeProvider, MobileTopChromeShell } from '@/components/MobileTopChrome';
 import { DotsMenuSheet } from '@/components/DotsMenuSheet';
@@ -18,7 +18,7 @@ import { MijnAi } from '@/pages/MijnAi';
 import { CampaignsList } from '@/components/CampaignsList';
 import { AiList } from '@/components/AiList';
 import CampaignDetail from '@/pages/CampaignDetail';
-import { StiltLogo } from '@/components/Logo';
+import { ReplaiyLogo } from '@/components/Logo';
 import { UniversalSearch } from '@/components/UniversalSearch';
 import { LiquidGlassFilters } from '@/components/LiquidGlassFilters';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -34,15 +34,15 @@ function SettingsRedirect() {
   return null;
 }
 
-// v-replaiy — clean "Coming soon" placeholder in Stilt's empty-state style.
+// v-replaiy — clean "Coming soon" placeholder in Replaiy's empty-state style.
 // Used for Calendar (content-only; same typography/layout as EmptyDetail,
 // no new styles). The old working calendar implementation + its data were
-// removed in the Stilt cleanup; the Calendar tab now points here.
+// removed in the Replaiy cleanup; the Calendar tab now points here.
 function ComingSoon({ title }: { title: string }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
       <div className="mb-4">
-        <StiltLogo size={56} />
+        <ReplaiyLogo size={56} />
       </div>
       <h2 className="text-[20px] font-semibold tracking-[-0.02em]">{title}</h2>
       <p className="text-[14px] text-muted-foreground mt-1.5 max-w-xs">Coming soon.</p>
@@ -54,7 +54,7 @@ function EmptyDetail() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
       <div className="mb-4">
-        <StiltLogo size={56} />
+        <ReplaiyLogo size={56} />
       </div>
       <h2 className="text-[20px] font-semibold tracking-[-0.02em]">Select a conversation</h2>
       <p className="text-[14px] text-muted-foreground mt-1.5 max-w-xs">
@@ -66,7 +66,7 @@ function EmptyDetail() {
 }
 
 function Shortcuts() {
-  const { showShortcuts, setShowShortcuts } = useStilt();
+  const { showShortcuts, setShowShortcuts } = useReplaiy();
   return (
     <AnimatePresence>
       {showShortcuts && (
@@ -111,7 +111,7 @@ function Shortcuts() {
 
 function KeyboardShortcuts() {
   const [loc, navigate] = useLocation();
-  const { conversations, category, setConversationStatus, setShowShortcuts, toggleContextPanel } = useStilt();
+  const { conversations, category, setConversationStatus, setShowShortcuts, toggleContextPanel } = useReplaiy();
   const params = useParams<{ id?: string }>();
 
   useEffect(() => {
@@ -134,7 +134,7 @@ function KeyboardShortcuts() {
       }
       if (key === '/') {
         e.preventDefault();
-        window.dispatchEvent(new CustomEvent('stilt:open-search'));
+        window.dispatchEvent(new CustomEvent('replaiy:open-search'));
         return;
       }
       // mail-specific
@@ -213,7 +213,7 @@ function LayoutShell() {
   return (
     <div className="h-screen w-full flex relative">
       <LiquidGlassFilters />
-      <div className="stilt-canvas" />
+      <div className="rp-canvas" />
       <KeyboardShortcuts />
       <Shortcuts />
       <UniversalSearch />
@@ -275,7 +275,7 @@ function LayoutShell() {
             <Route path="/campaigns" component={CampaignDetail} />
             {/* v-replaiy — Calendar tab retained as a "Coming soon" placeholder.
                 The old working calendar implementation + its data were deleted
-                in the Stilt cleanup; only this placeholder remains. */}
+                in the Replaiy cleanup; only this placeholder remains. */}
             <Route path="/calendar/new">
               <ComingSoon title="Calendar" />
             </Route>
@@ -312,7 +312,7 @@ function LayoutShell() {
 }
 
 function ArchiveView() {
-  const { conversations } = useStilt();
+  const { conversations } = useReplaiy();
   const [q, setQ] = useState('');
   const items = conversations
     .filter((m) => m.status === 'done')
@@ -371,7 +371,7 @@ function ConversationRowLite({ mail }: { mail: any }) {
       href={`/conversation/${mail.id}`}
       className="px-4 py-3 flex items-start gap-3 hover-elevate active-elevate-2"
     >
-      <StiltAvatar name={mail.from.name} src={mail.from.avatar} size={36} />
+      <ReplaiyAvatar name={mail.from.name} src={mail.from.avatar} size={36} />
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between">
           <span className="font-semibold text-[14.5px] truncate">{mail.from.name}</span>
@@ -415,14 +415,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <StiltProvider>
+        <ReplaiyProvider>
           <MobileTopChromeProvider>
             <Toaster />
             <Router hook={useHashLocation}>
               <LayoutShell />
             </Router>
           </MobileTopChromeProvider>
-        </StiltProvider>
+        </ReplaiyProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

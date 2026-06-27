@@ -20,7 +20,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { APPLE_SPRING } from '@/lib/motion';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 
 export type ResponsiveSheetWidth = 'sm' | 'md' | 'lg'; // 340 / 380 / 480
 
@@ -82,7 +82,7 @@ export function ResponsiveSheet({
   zIndex = 50,
 }: ResponsiveSheetProps) {
   const isDesktop = useIsDesktop();
-  const { setSheetOpen } = useStilt();
+  const { setSheetOpen } = useReplaiy();
 
   useEffect(() => {
     if (!manageGlobalSheetOpen) return;

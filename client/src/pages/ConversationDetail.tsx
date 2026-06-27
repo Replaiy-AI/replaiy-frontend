@@ -1,8 +1,8 @@
 import { ArrowLeft, CornerDownLeft, CornerUpRight, FileText, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { useLocation, useParams } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useStilt } from '@/state/StiltContext';
-import { StiltAvatar } from '@/components/Avatar';
+import { useReplaiy } from '@/state/ReplaiyContext';
+import { ReplaiyAvatar } from '@/components/Avatar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { APPLE_SPRING } from '@/lib/motion';
 import { ConversationTimeline } from '@/components/ConversationTimeline';
@@ -47,12 +47,12 @@ function AttachmentChip({ name, size, kind }: { name: string; size: string; kind
 }
 
 // v30.30 — ConversationDetail outer dispatcher: ALLEEN universal hooks hier
-// (useParams + useStilt + useMemo). Daarna delegeert naar SingleConversationDetail
+// (useParams + useReplaiy + useMemo). Daarna delegeert naar SingleConversationDetail
 // of ConversationTimeline. Voorkomt rules-of-hooks crash bij switchen
 // tussen single → thread (verschillende hook counts).
 export function ConversationDetail() {
   const params = useParams<{ id: string }>();
-  const { conversations } = useStilt();
+  const { conversations } = useReplaiy();
   const mail = useMemo(
     () => conversations.find((m) => m.id === params.id),
     [conversations, params.id],
@@ -83,7 +83,7 @@ function SingleConversationDetail({ mailId }: { mailId: string }) {
     summaryPanelOpen,
     toggleSummaryPanel,
     setSummaryPanelOpen,
-  } = useStilt();
+  } = useReplaiy();
   const mail = conversations.find((m) => m.id === mailId)!;
 
   // v30.30 — Forward state. Wanneer gezet opent InlineReplyBar in
@@ -104,7 +104,7 @@ function SingleConversationDetail({ mailId }: { mailId: string }) {
     attachments: File[];
   }) => {
     // eslint-disable-next-line no-console
-    console.log('[Stilt] inline send', { mailId: mail.id, ...payload });
+    console.log('[Replaiy] inline send', { mailId: mail.id, ...payload });
     if (payload.kind === 'forward') {
       // Forward voltooid: forward-state resetten, mail blijft 'open'.
       setForwardContext(null);
@@ -409,13 +409,13 @@ function SingleConversationDetail({ mailId }: { mailId: string }) {
             </div>
           </div>
 
-          {/* v30.31 — single-message body gebruikt stilt-bubble (zelfde
+          {/* v30.31 — single-message body gebruikt rp-bubble (zelfde
              surface-token als chat-bubbles in ConversationTimeline).
              Was eerder lg-card — dat is een complexere liquid-glass
              recipe die visueel donkerder/lichter rendert dan een
              chat-bubble in dezelfde mode, waardoor Nora's thread en
              Elena's single message verschillende tints kregen. */}
-          <div className="stilt-bubble rounded-[20px] mb-3 px-4 py-4">
+          <div className="rp-bubble rounded-[20px] mb-3 px-4 py-4">
             {ai.summary && mail.summary && (
               <p className="text-[13px] italic text-muted-foreground mb-3 flex items-start gap-1.5">
                 <Sparkles size={12} className="text-icon-muted shrink-0 mt-1" strokeWidth={1.7} />
@@ -519,13 +519,13 @@ function ConversationDetailChromeSlot({
       ),
       togglePill: (
         // v-replaiy — iMessage style: avatar + naam plain (geen capsule).
-        // The Stilt contact info panel was removed, so this is now a plain
+        // The legacy contact info panel was removed, so this is now a plain
         // non-interactive identity.
         <div
           data-testid="contact-pill"
           className="inline-flex items-center gap-2 px-1 h-[52px]"
         >
-          <StiltAvatar name={name} src={avatar} size={32} />
+          <ReplaiyAvatar name={name} src={avatar} size={32} />
           <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[160px] text-foreground">
             {name}
           </span>

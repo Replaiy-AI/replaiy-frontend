@@ -1,5 +1,5 @@
 import { useLocation } from 'wouter';
-import { StiltAvatar } from './Avatar';
+import { ReplaiyAvatar } from './Avatar';
 import { formatInboxTime } from '@/lib/avatar';
 import { useInboxSettings } from '@/lib/inboxSettings';
 import type { Conversation } from '@/data/mockConversations';
@@ -20,7 +20,7 @@ export function ConversationRow({ mail, active }: { mail: Conversation; active?:
       onClick={() => navigate(`/conversation/${mail.id}`)}
       className={`relative cursor-pointer select-none rounded-2xl px-4 py-3 flex items-center gap-3 ${active ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''}`}
     >
-      <StiltAvatar name={mail.from.name} src={mail.from.avatar} size={36} className="shrink-0" />
+      <ReplaiyAvatar name={mail.from.name} src={mail.from.avatar} size={36} className="shrink-0" />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">

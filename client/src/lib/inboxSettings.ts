@@ -15,7 +15,7 @@ export interface InboxSettings {
   showTimestamps: boolean;
 }
 
-const STORAGE_KEY = 'stilt:inbox-settings:v1';
+const STORAGE_KEY = 'replaiy:inbox-settings:v1';
 const DEFAULTS: InboxSettings = {
   showTimestamps: true,
 };
@@ -38,7 +38,7 @@ function writeToStorage(next: InboxSettings) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     // Cross-component sync (storage event vuurt niet in dezelfde tab,
     // dus dispatch handmatig een custom event).
-    window.dispatchEvent(new CustomEvent('stilt:inbox-settings'));
+    window.dispatchEvent(new CustomEvent('replaiy:inbox-settings'));
   } catch {
     /* ignore */
   }
@@ -52,10 +52,10 @@ export function useInboxSettings(): [
 
   useEffect(() => {
     const handler = () => setSettings(readFromStorage());
-    window.addEventListener('stilt:inbox-settings', handler);
+    window.addEventListener('replaiy:inbox-settings', handler);
     window.addEventListener('storage', handler);
     return () => {
-      window.removeEventListener('stilt:inbox-settings', handler);
+      window.removeEventListener('replaiy:inbox-settings', handler);
       window.removeEventListener('storage', handler);
     };
   }, []);

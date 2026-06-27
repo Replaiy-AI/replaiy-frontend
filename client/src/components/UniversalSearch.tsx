@@ -7,8 +7,8 @@ import {
   CheckCircle2,
   Paperclip,
 } from 'lucide-react';
-import { useStilt } from '@/state/StiltContext';
-import { StiltAvatar } from './Avatar';
+import { useReplaiy } from '@/state/ReplaiyContext';
+import { ReplaiyAvatar } from './Avatar';
 import { timeAgo } from '@/lib/avatar';
 import { APPLE_SPRING } from '@/lib/motion';
 import { VadikGlassSurface } from './VadikGlassSurface';
@@ -21,7 +21,7 @@ import VadikGlass from './VadikGlass';
 //
 // Trigger:  52×52 glass circle in the desktop sidebar header between
 //           the tab pill and the + circle, OR keyboard shortcut ⌘K
-//           anywhere. Listens to a global CustomEvent('stilt:open-search')
+//           anywhere. Listens to a global CustomEvent('replaiy:open-search')
 //           so any code path can pop it open.
 //
 // Modal:    Centered glass card ~640px wide. Spring entrance (scale 0.96
@@ -70,7 +70,7 @@ export function UniversalSearch() {
   // user expliciet op een chip klikt. Bij open van modal reset altijd
   // naar null (= alles zoeken across all sources).
   const [activeChip, setActiveChip] = useState<string | null>(null);
-  const { conversations } = useStilt();
+  const { conversations } = useReplaiy();
   const [, navigate] = useLocation();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -101,10 +101,10 @@ export function UniversalSearch() {
       if (typeof pre === 'string') setQ(pre);
     };
     document.addEventListener('keydown', handler);
-    window.addEventListener('stilt:open-search', openEv as EventListener);
+    window.addEventListener('replaiy:open-search', openEv as EventListener);
     return () => {
       document.removeEventListener('keydown', handler);
-      window.removeEventListener('stilt:open-search', openEv as EventListener);
+      window.removeEventListener('replaiy:open-search', openEv as EventListener);
     };
   }, [open]);
 
@@ -359,7 +359,7 @@ export function UniversalSearch() {
                             onMouseEnter={() => setSelectedIdx(idx)}
                             onClick={() => openResult(r)}
                             testId={`search-result-mail-${r.id}`}
-                            leading={<StiltAvatar name={r.fromName} src={r.avatar} size={28} />}
+                            leading={<ReplaiyAvatar name={r.fromName} src={r.avatar} size={28} />}
                             title={r.title}
                             subtitle={r.subtitle}
                             meta={r.meta}
@@ -390,7 +390,7 @@ export function UniversalSearch() {
                             onMouseEnter={() => setSelectedIdx(idx)}
                             onClick={() => openResult(r)}
                             testId={`search-result-contact-${i}`}
-                            leading={<StiltAvatar name={r.title} src={r.avatar} size={28} />}
+                            leading={<ReplaiyAvatar name={r.title} src={r.avatar} size={28} />}
                             title={r.title}
                             subtitle={r.subtitle}
                             meta={r.meta}
@@ -497,7 +497,7 @@ export function UniversalSearchTrigger({ size = 52 }: { size?: number }) {
       data-testid="button-universal-search"
       aria-label="Search everything (⌘K)"
       title="Search everything · ⌘K"
-      onClick={() => window.dispatchEvent(new CustomEvent('stilt:open-search'))}
+      onClick={() => window.dispatchEvent(new CustomEvent('replaiy:open-search'))}
       className="rounded-full glass-pill flex items-center justify-center shrink-0 hover-elevate active-elevate-2"
       style={{ height: size, width: size }}
     >

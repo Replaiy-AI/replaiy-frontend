@@ -23,7 +23,7 @@ import { motion } from 'framer-motion';
 import { useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { Lock, ChevronRight } from 'lucide-react';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 import { useMobileTopChromeSlot } from './MobileTopChrome';
 import { GlassCircleButton, ProfileInitials } from './GlassCircleButton';
 import { ConversionBar } from './CampaignsList';
@@ -83,7 +83,7 @@ function PartCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...APPLE_SPRING, delay: 0.05 + index * 0.05 }}
-      className={`stilt-card rounded-3xl p-5 text-left flex flex-col w-full hover-elevate active-elevate-2 ${
+      className={`rp-card rounded-3xl p-5 text-left flex flex-col w-full hover-elevate active-elevate-2 ${
         active ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
       }`}
     >
@@ -129,7 +129,7 @@ function PartCard({
 }
 
 export function AiList() {
-  const { persona, workspace } = useStilt();
+  const { persona, workspace } = useReplaiy();
   const [loc] = useLocation();
 
   // The list column NEVER changes shape when a part is open — exactly like the

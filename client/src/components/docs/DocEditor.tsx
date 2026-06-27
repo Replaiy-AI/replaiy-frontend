@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────
-// DocEditor — Tiptap-based block editor for Stilt Docs.
+// DocEditor — Tiptap-based block editor for Replaiy Docs.
 //
 // Wraps EditorContent with:
 //   • StarterKit (paragraph, headings 1–3, lists, blockquote, code, hr)
@@ -8,7 +8,7 @@
 //   • SlashMenu (typing "/" at line/word start opens block-picker)
 //   • AI selection popover (✨ floating button → glass menu)
 //
-// All editor styling lives in index.css under .stilt-prose.
+// All editor styling lives in index.css under .rp-prose.
 // ─────────────────────────────────────────────────────────────────
 import {
   useEditor,
@@ -135,13 +135,13 @@ export function DocEditor({ initialContent, onChange, editorRef }: DocEditorProp
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        codeBlock: { HTMLAttributes: { class: 'stilt-codeblock' } },
-        blockquote: { HTMLAttributes: { class: 'stilt-quote' } },
-        horizontalRule: { HTMLAttributes: { class: 'stilt-hr' } },
+        codeBlock: { HTMLAttributes: { class: 'rp-codeblock' } },
+        blockquote: { HTMLAttributes: { class: 'rp-quote' } },
+        horizontalRule: { HTMLAttributes: { class: 'rp-hr' } },
       }),
-      TaskList.configure({ HTMLAttributes: { class: 'stilt-tasklist' } }),
+      TaskList.configure({ HTMLAttributes: { class: 'rp-tasklist' } }),
       TaskItem.configure({
-        HTMLAttributes: { class: 'stilt-taskitem' },
+        HTMLAttributes: { class: 'rp-taskitem' },
         nested: true,
       }),
       Placeholder.configure({
@@ -156,7 +156,7 @@ export function DocEditor({ initialContent, onChange, editorRef }: DocEditorProp
     content: initialContent,
     editorProps: {
       attributes: {
-        class: 'stilt-prose focus:outline-none',
+        class: 'rp-prose focus:outline-none',
         'data-testid': 'doc-editor-content',
       },
     },

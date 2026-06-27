@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CircleCheck, Clock, CornerUpRight, MoreHorizontal } from 'lucide-react';
 import { APPLE_SPRING } from '@/lib/motion';
-import { StiltAvatar } from './Avatar';
+import { ReplaiyAvatar } from './Avatar';
 import type { SnoozeKey } from './ConversationActionCluster';
 import VadikGlass from './VadikGlass';
 
@@ -61,7 +61,7 @@ export function IdentityPill({
       className="inline-flex items-center gap-2.5 px-1 h-[52px] hover:opacity-80 transition-opacity"
       aria-label={`Open contact details for ${name}`}
     >
-      <StiltAvatar name={name} src={avatar} size={36} />
+      <ReplaiyAvatar name={name} src={avatar} size={36} />
       <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate max-w-[180px]">
         {name}
       </span>
@@ -108,14 +108,14 @@ export function SubjectIdentityPill({
       wrapperStyle={{ flex: 1, maxWidth: 640, minWidth: 0 }}
     >
       <div className="flex items-center w-full h-full pl-1.5 pr-1.5">
-        {/* Identity zone — plain (non-interactive). The Stilt contact
+        {/* Identity zone — plain (non-interactive). The legacy contact
            info panel was removed; the sender name/avatar no longer opens
            anything. */}
         <div
           data-testid="toolbar-identity"
           className="inline-flex items-center gap-2.5 h-[42px] px-2.5 rounded-full shrink-0"
         >
-          <StiltAvatar name={name} src={avatar} size={32} />
+          <ReplaiyAvatar name={name} src={avatar} size={32} />
           <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate max-w-[160px]">
             {name}
           </span>

@@ -7,7 +7,7 @@
 // Variants:
 //   • "icon" (default) — voor +/Search/Done/Snooze/Forward etc.
 //   • "profile"        — toont initials letters direct in de pill,
-//                        geen StiltAvatar-inner-circle.
+//                        geen ReplaiyAvatar-inner-circle.
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import VadikGlass from './VadikGlass';
@@ -109,7 +109,7 @@ export function GlassCircleButton({
 }
 
 // v30.32 — Profile-pill content: initials letters direct in de glass.
-// Was eerder een StiltAvatar fallback (eigen background + inset-shadow)
+// Was eerder een ReplaiyAvatar fallback (eigen background + inset-shadow)
 // die binnen GlassCircleButton een pill-in-pill effect gaf. Gebruik dit
 // als child van GlassCircleButton voor de profile knop.
 export function ProfileInitials({ initials }: { initials: string }) {

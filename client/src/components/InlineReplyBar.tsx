@@ -47,7 +47,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useLocation } from 'wouter';
 import { DiscardDraftPopover } from './DiscardDraftPopover';
 import { activePersona } from '@/data/mockPersona';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 
 /** v30.30 — Forward state: leeg To-veld, pre-filled editor met forward-block.
  *  Wanneer aanwezig openen we de bar in forward-mode (expanded + leeg To). */
@@ -101,7 +101,7 @@ interface InlineReplyBarProps {
   onExpandedChange?: (expanded: boolean) => void;
   /** v31 — Wanneer true: bar opent direct expanded met een Subject row
    *  bovenop. Geen collapsed state, geen forward banner, geen thread
-   *  context. Autosave-key wordt `stilt:draft:compose`. Editor placeholder
+   *  context. Autosave-key wordt `replaiy:draft:compose`. Editor placeholder
    *  past zich aan. Gebruikt door pages/Compose.tsx. */
   composeMode?: boolean;
   /** v31 — Optioneel: pre-fill Subject veld (toekomstige forward-to-compose
@@ -171,7 +171,7 @@ interface InlineReplyBarProps {
   /** v38 — Fires after the user dismisses the AI draft (either via
    *  Skip-X in the collapsed preview card, or via Discard in the
    *  expanded editor's discard popover). The dismissal is also
-   *  persisted in localStorage (`stilt:ai-draft-dismissed:<mailId>`)
+   *  persisted in localStorage (`replaiy:ai-draft-dismissed:<mailId>`)
    *  so re-opening the bar after a remount doesn't re-inject the
    *  same AI draft. Parents can use this to force-rerender any
    *  sibling UI that derives from the AI draft preview. */
@@ -197,7 +197,7 @@ interface InlineReplyBarProps {
 // sheet (rare but observed), the marker still works within the same
 // session.
 const AI_DISMISS_KEY = (id?: string, composeMode?: boolean) =>
-  composeMode ? 'stilt:ai-draft-dismissed:compose' : `stilt:ai-draft-dismissed:${id ?? 'unknown'}`;
+  composeMode ? 'replaiy:ai-draft-dismissed:compose' : `replaiy:ai-draft-dismissed:${id ?? 'unknown'}`;
 
 // v39 — Module-level in-memory backup. Survives component remount
 // (which is what we need: a placeholder bar remounts when the sheet
@@ -214,18 +214,18 @@ function isAiDraftDismissed(mailId?: string, composeMode?: boolean): boolean {
   // of localStorage. (Cheaper and dodges localStorage quirks.)
   if (aiDismissMemory.has(key)) {
     // eslint-disable-next-line no-console
-    console.log('[STILT isAiDraftDismissed] hit memory', { key });
+    console.log('[Replaiy isAiDraftDismissed] hit memory', { key });
     return true;
   }
   try {
     const value = window.localStorage.getItem(key);
     const dismissed = value === '1';
     // eslint-disable-next-line no-console
-    console.log('[STILT isAiDraftDismissed] ls read', { key, value, dismissed });
+    console.log('[Replaiy isAiDraftDismissed] ls read', { key, value, dismissed });
     return dismissed;
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.log('[STILT isAiDraftDismissed] ls threw', { key, err });
+    console.log('[Replaiy isAiDraftDismissed] ls threw', { key, err });
     return false;
   }
 }
@@ -247,16 +247,16 @@ function dismissAiDraft(mailId?: string, composeMode?: boolean): void {
     // covers that, but logging surfaces the issue if we ever hit it.
     const verify = window.localStorage.getItem(key);
     // eslint-disable-next-line no-console
-    console.log('[STILT dismissAiDraft] set+verify', { key, verify, memorySize: aiDismissMemory.size });
+    console.log('[Replaiy dismissAiDraft] set+verify', { key, verify, memorySize: aiDismissMemory.size });
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.log('[STILT dismissAiDraft] ls threw', { key, err, memorySize: aiDismissMemory.size });
+    console.log('[Replaiy dismissAiDraft] ls threw', { key, err, memorySize: aiDismissMemory.size });
     /* ignore quota / private mode errors — in-memory backup still active */
   }
 }
 
 const DRAFT_KEY = (id?: string, composeMode?: boolean) =>
-  composeMode ? 'stilt:draft:compose' : `stilt:draft:${id ?? 'unknown'}`;
+  composeMode ? 'replaiy:draft:compose' : `replaiy:draft:${id ?? 'unknown'}`;
 
 export function InlineReplyBar({
   aiDraft,
@@ -290,7 +290,7 @@ export function InlineReplyBar({
   const [, navigate] = useLocation();
   // Live persona from shared state, so the AI-draft avatar + glow update the
   // moment the user changes the persona (preset or fine-tune) in My AI.
-  const { persona: livePersona } = useStilt();
+  const { persona: livePersona } = useReplaiy();
   const persona = activePersona(livePersona);
   // v36.3 — sheetMode unifies composeMode and initialExpanded for the
   // "this bar runs as the body of a 92vh bottom sheet" use case. Both
@@ -360,7 +360,7 @@ export function InlineReplyBar({
   const [storedDraft, setStoredDraft] = useState<string | null>(null);
 
   // v38 — Local dismissed state. Mirrors the persistent localStorage
-  // marker (`stilt:ai-draft-dismissed:<mailId>`) but keeps the
+  // marker (`replaiy:ai-draft-dismissed:<mailId>`) but keeps the
   // collapsed-preview hidden the moment Skip is clicked without
   // needing a parent rerender. Reset on mailId change so a different
   // thread isn't accidentally hidden by an old click.
@@ -425,7 +425,7 @@ export function InlineReplyBar({
         ? forwardContext.body
         : (stored ?? (aiDraftDismissed ? '' : aiDraft) ?? '');
       // eslint-disable-next-line no-console
-      console.log('[STILT mount inject]', {
+      console.log('[Replaiy mount inject]', {
         mailId,
         composeMode,
         aiDraftDismissed,
@@ -445,11 +445,11 @@ export function InlineReplyBar({
   }, [mailId, aiDraft, recipientEmail, forwardContext, composeMode, defaultSubject]);
 
   // v30.32 — Externe trigger: bv. "Draft reply" button in summary panel
-  // dispatcht `stilt:open-reply`, en deze bar opent dan in expanded mode.
+  // dispatcht `replaiy:open-reply`, en deze bar opent dan in expanded mode.
   useEffect(() => {
     const onExternalOpen = () => setExpanded(true);
-    window.addEventListener('stilt:open-reply', onExternalOpen);
-    return () => window.removeEventListener('stilt:open-reply', onExternalOpen);
+    window.addEventListener('replaiy:open-reply', onExternalOpen);
+    return () => window.removeEventListener('replaiy:open-reply', onExternalOpen);
   }, []);
 
   // Wanneer editor expand opent, vul editor met:
@@ -511,7 +511,7 @@ export function InlineReplyBar({
           const html = editorRef.current?.innerHTML ?? '';
           const visible = stripHtml(html).replace(/\u00A0/g, '').trim();
           // eslint-disable-next-line no-console
-          console.log('[STILT click-outside]', { mailId, html, visible, hasAiDraft: !!aiDraft, dismissed: isAiDraftDismissed(mailId, composeMode) });
+          console.log('[Replaiy click-outside]', { mailId, html, visible, hasAiDraft: !!aiDraft, dismissed: isAiDraftDismissed(mailId, composeMode) });
           if (visible && html !== (aiDraft ?? '')) {
             window.localStorage.setItem(DRAFT_KEY(mailId), html);
           } else if (!visible) {
@@ -538,14 +538,14 @@ export function InlineReplyBar({
           // dismisses on collapse, regardless of editor emptiness.
           if (userTouched && !isAiDraftDismissed(mailId, composeMode)) {
             // eslint-disable-next-line no-console
-            console.log('[STILT click-outside dismiss]', { mailId, html });
+            console.log('[Replaiy click-outside dismiss]', { mailId, html });
             dismissAiDraft(mailId, composeMode);
             setLocalDismissed(true);
           }
         }
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.log('[STILT click-outside threw]', { err });
+        console.log('[Replaiy click-outside threw]', { err });
       }
       setExpanded(false);
       setFullscreen(false);
@@ -588,7 +588,7 @@ export function InlineReplyBar({
       const html = editorRef.current?.innerHTML ?? '';
       const visible = stripHtml(html).replace(/\u00A0/g, '').trim();
       // eslint-disable-next-line no-console
-      console.log('[STILT saveDraft]', {
+      console.log('[Replaiy saveDraft]', {
         html,
         visible,
         hasAiDraft: !!aiDraft,
@@ -603,7 +603,7 @@ export function InlineReplyBar({
       // broke v38's dismiss path on iOS Safari's mobile sheet.
       if (!isAiDraftDismissed(mailId, composeMode)) {
         // eslint-disable-next-line no-console
-        console.log('[STILT dismissing AI draft on touch]', { mailId, composeMode });
+        console.log('[Replaiy dismissing AI draft on touch]', { mailId, composeMode });
         dismissAiDraft(mailId, composeMode);
         setLocalDismissed(true);
       }
@@ -614,7 +614,7 @@ export function InlineReplyBar({
       }
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.log('[STILT saveDraft] threw', { err });
+      console.log('[Replaiy saveDraft] threw', { err });
     }
   }, [mailId, aiDraft, forwardMode, composeMode]);
 
@@ -1079,7 +1079,7 @@ export function InlineReplyBar({
         const dirty =
           stripHtml(html).trim() || subject.trim() || toRecipients.length > 0;
         // eslint-disable-next-line no-console
-        console.log('[STILT handleSaveDraft]', {
+        console.log('[Replaiy handleSaveDraft]', {
           mailId,
           composeMode,
           dirty,
@@ -1090,18 +1090,18 @@ export function InlineReplyBar({
         if (composeMode && dirty) {
           window.localStorage.setItem(DRAFT_KEY(undefined, true), html);
           // eslint-disable-next-line no-console
-          console.log('[STILT handleSaveDraft wrote compose]', html.slice(0, 60));
+          console.log('[Replaiy handleSaveDraft wrote compose]', html.slice(0, 60));
         } else if (!composeMode && mailId && stripHtml(html).trim()) {
           // v36 — Reply mode also persists a per-mail draft so the user
           // can reopen the sheet and continue. Forward mode skips this
           // (its body is auto-generated from the thread).
           window.localStorage.setItem(DRAFT_KEY(mailId), html);
           // eslint-disable-next-line no-console
-          console.log('[STILT handleSaveDraft wrote reply]', { mailId, len: html.length });
+          console.log('[Replaiy handleSaveDraft wrote reply]', { mailId, len: html.length });
           // Verify read-back
           const readBack = window.localStorage.getItem(DRAFT_KEY(mailId));
           // eslint-disable-next-line no-console
-          console.log('[STILT handleSaveDraft readback]', { match: readBack === html, len: readBack?.length });
+          console.log('[Replaiy handleSaveDraft readback]', { match: readBack === html, len: readBack?.length });
         } else if (!composeMode && mailId && !stripHtml(html).trim()) {
           // v39 — Reply mode + empty body: previously this branch was a
           // silent no-op, which meant the AI-dismiss marker never got
@@ -1658,7 +1658,7 @@ export function InlineReplyBar({
         />
 
         {/* v30.30 — Attachment chips boven editor area. LinkedIn supports
-           attachments, so the feature stays exactly as in Stilt. */}
+           attachments, so the feature stays exactly as in Replaiy. */}
         {attachments.length > 0 && (
           <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-foreground/[0.06] flex-wrap">
             {attachments.map((file, i) => (

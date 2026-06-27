@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 import {
   X,
   Send,
@@ -170,7 +170,7 @@ export function ComposeSheetMobile({
   // for the duration of the compose flow. Without this, the SG avatar
   // and search circle floated visually above/behind the sheet's top
   // chrome and looked like leftover UI debris on shorter devices.
-  const { setSheetOpen } = useStilt();
+  const { setSheetOpen } = useReplaiy();
   useEffect(() => {
     setSheetOpen(true);
     return () => setSheetOpen(false);

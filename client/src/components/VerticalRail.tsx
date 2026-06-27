@@ -135,7 +135,7 @@ export function VerticalRail() {
         <GlassCircleButton
           label="Search"
           testId="rail-search"
-          onClick={() => window.dispatchEvent(new CustomEvent('stilt:open-search'))}
+          onClick={() => window.dispatchEvent(new CustomEvent('replaiy:open-search'))}
         >
           <Search size={19} strokeWidth={1.75} />
         </GlassCircleButton>
@@ -155,12 +155,12 @@ export function VerticalRail() {
       )}
 
       {/* v19 — Smart-toggle removed from chrome. Lives in Settings (AI section) only.
-         The smartMode boolean in StiltContext continues to drive behavior. */}
+         The smartMode boolean in ReplaiyContext continues to drive behavior. */}
 
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* 5. Profile pill at bottom — v-replaiy: the Stilt profile menu was
+      {/* 5. Profile pill at bottom — v-replaiy: the Replaiy profile menu was
          removed (fake template UI), but the SB avatar pill stays so we can
          wire it to something later. onClick is a no-op for now. */}
       <div className="pointer-events-auto" style={{ marginBottom: 0 }}>

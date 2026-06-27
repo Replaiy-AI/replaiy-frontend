@@ -15,11 +15,11 @@
 //   2. Personal knowledge  → what YOU teach your AI (questions + files)
 //   3. Workspace knowledge → what the COMPANY teaches the AI (questions + files)
 //
-// State (persona + workspace) lives in StiltContext so this pane and the
+// State (persona + workspace) lives in ReplaiyContext so this pane and the
 // AiList column read/write the same data — exactly like campaigns are shared
 // between CampaignsList and CampaignDetail.
 //
-// Built on design-system primitives (glass-pill, stilt-card, hover-elevate,
+// Built on design-system primitives (glass-pill, rp-card, hover-elevate,
 // active-elevate-2). Glass is reserved for real containers; small elements
 // (status, badges) are flat, matching the inbox's restraint.
 // ─────────────────────────────────────────────────────────────────
@@ -40,8 +40,8 @@ import {
   Lock,
   ArrowLeft,
 } from 'lucide-react';
-import { useStilt } from '@/state/StiltContext';
-import { StiltLogo } from '@/components/Logo';
+import { useReplaiy } from '@/state/ReplaiyContext';
+import { ReplaiyLogo } from '@/components/Logo';
 import { PersonaExperience } from '@/components/PersonaExperience';
 import iconPersona from '@/assets/ai_icon_persona.png';
 import iconPersonal from '@/assets/ai_icon_personal.png';
@@ -412,7 +412,7 @@ function PersonaDetail({
         {/* Tone of voice */}
         <section>
         <SectionHeader>Tone of voice</SectionHeader>
-        <div className="stilt-card rounded-3xl p-5 lg:p-6" data-testid="persona-tone">
+        <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-tone">
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <FieldLabel>Language</FieldLabel>
@@ -491,7 +491,7 @@ function PersonaDetail({
         {/* Strategy */}
         <section>
         <SectionHeader>Strategy</SectionHeader>
-        <div className="stilt-card rounded-3xl p-5 lg:p-6" data-testid="persona-strategy">
+        <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-strategy">
           <div className="mb-3">
             <FieldLabel>Approach</FieldLabel>
             <SegmentedPills
@@ -611,7 +611,7 @@ function KnowledgeDetail({
         <SectionHeader count={bundle.questions.length}>Questions</SectionHeader>
         <div className="flex flex-col gap-3" data-testid={`knowledge-${scope}-questions`}>
           {bundle.questions.map((q) => (
-            <div key={q.id} className="stilt-card rounded-3xl p-4 lg:p-5" data-testid={`question-${q.id}`}>
+            <div key={q.id} className="rp-card rounded-3xl p-4 lg:p-5" data-testid={`question-${q.id}`}>
               <div className="text-[14px] font-medium text-foreground leading-snug">{q.question}</div>
               {q.hint && <div className="text-[12px] text-foreground/45 mt-1">{q.hint}</div>}
               <div className="mt-3">
@@ -640,9 +640,9 @@ function KnowledgeDetail({
         <div className="flex flex-col gap-2" data-testid={`knowledge-${scope}-files`}>
           {/* File rows grouped into a single card cluster with hairline
               dividers, the SAME pattern the inbox list uses for conversation
-              rows (stilt-card rounded-3xl overflow-hidden + ml divider). */}
+              rows (rp-card rounded-3xl overflow-hidden + ml divider). */}
           {bundle.files.length > 0 && (
-            <div className="stilt-card rounded-3xl overflow-hidden">
+            <div className="rp-card rounded-3xl overflow-hidden">
               {bundle.files.map((doc, i) => {
                 const Icon = KNOWLEDGE_ICON[doc.kind];
                 return (
@@ -725,7 +725,7 @@ function SaveButton({ testId, onClick }: { testId: string; onClick: () => void }
 
 // ════════════════════════════════════════════════════════════════
 // Empty-state — bare /ai, before a part is selected. Mirrors the inbox's
-// "Select a conversation" empty detail (same StiltLogo + copy shape). On
+// "Select a conversation" empty detail (same ReplaiyLogo + copy shape). On
 // desktop the list column sits beside this; on mobile bare /ai shows the
 // full-screen list instead, so this reads mainly as a desktop affordance.
 // ════════════════════════════════════════════════════════════════
@@ -733,7 +733,7 @@ function EmptyAiDetail() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
       <div className="mb-4">
-        <StiltLogo size={56} />
+        <ReplaiyLogo size={56} />
       </div>
       <h2 className="text-[20px] font-semibold tracking-[-0.02em]">Select a part</h2>
       <p className="text-[14px] text-muted-foreground mt-1.5 max-w-xs">
@@ -784,13 +784,13 @@ function MijnAiDetailChromeSlot({
 
 // ════════════════════════════════════════════════════════════════
 // Router-aware DETAIL pane. Reads the /ai sub-route and renders the matching
-// detail (or the empty-state for bare /ai). State comes from StiltContext so
+// detail (or the empty-state for bare /ai). State comes from ReplaiyContext so
 // edits here reflect live in the AiList column. Each detail enters with an
 // Apple-spring slide, mirroring opening a conversation/campaign.
 // ════════════════════════════════════════════════════════════════
 export function MijnAi() {
   const [loc, navigate] = useLocation();
-  const { persona, setPersona, workspace, setWorkspace } = useStilt();
+  const { persona, setPersona, workspace, setWorkspace } = useReplaiy();
 
   const canEditWs = canEditWorkspaceKnowledge(workspace.currentRole);
 

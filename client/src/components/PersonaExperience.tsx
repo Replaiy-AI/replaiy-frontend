@@ -11,7 +11,7 @@
 //      the personality or tone changes, so the user sees the effect instantly.
 //
 // All motion uses framer-motion (Apple springs). Built on the real design
-// primitives (stilt-card, glass). The preset colours live ONLY here as
+// primitives (rp-card, glass). The preset colours live ONLY here as
 // character labels — blue #2F6BFF stays the single UI accent elsewhere.
 // ─────────────────────────────────────────────────────────────────
 import { AnimatePresence, motion } from 'framer-motion';
@@ -23,7 +23,7 @@ import {
   type Persona,
   type PersonaPreset,
 } from '@/data/mockPersona';
-import { StiltAvatar } from '@/components/Avatar';
+import { ReplaiyAvatar } from '@/components/Avatar';
 
 // Resolve the mascot image per preset id (Vite needs static import refs).
 import mascotPatient from '@/assets/preset_patient.png';
@@ -63,7 +63,7 @@ function PresetCard({
       transition={{ ...APPLE_SPRING, delay: 0.04 * index }}
       whileHover="hover"
       whileTap={{ scale: 0.97 }}
-      className="stilt-card relative rounded-3xl p-4 flex flex-col items-center text-center shrink-0 w-[150px] hover-elevate active-elevate-2"
+      className="rp-card relative rounded-3xl p-4 flex flex-col items-center text-center shrink-0 w-[150px] hover-elevate active-elevate-2"
       style={{
         // Selected = a soft accent ring + tint in the preset colour.
         boxShadow: active
@@ -162,10 +162,10 @@ function LivePreview({
         Just to give you a feel. Your AI adapts every message to the lead and context.
       </p>
 
-      <div className="stilt-card rounded-3xl p-5" data-testid="persona-preview">
+      <div className="rp-card rounded-3xl p-5" data-testid="persona-preview">
         {/* Lead identity row — who the AI is writing to (the inbox header look). */}
         <div className="flex items-center gap-2.5 mb-4">
-          <StiltAvatar name={previewLead.name} src={previewLead.avatar} size={32} />
+          <ReplaiyAvatar name={previewLead.name} src={previewLead.avatar} size={32} />
           <div className="min-w-0">
             <div className="text-[13.5px] font-semibold text-foreground leading-tight">
               {previewLead.name}
@@ -187,7 +187,7 @@ function LivePreview({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-                className="stilt-bubble rounded-[20px] px-3.5 py-2.5 text-[14.5px] leading-[1.5] text-foreground text-left"
+                className="rp-bubble rounded-[20px] px-3.5 py-2.5 text-[14.5px] leading-[1.5] text-foreground text-left"
                 style={{ borderBottomRightRadius: 6 }}
                 data-testid="persona-preview-bubble"
               >

@@ -1,11 +1,11 @@
 import { Sparkles, Clock, Inbox as InboxIcon, Star, ArrowRight, CheckCircle2, Moon } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 import { Link } from 'wouter';
-import { StiltAvatar } from '@/components/Avatar';
+import { ReplaiyAvatar } from '@/components/Avatar';
 
 export function Briefing() {
-  const { conversations, setConversationStatus } = useStilt();
+  const { conversations, setConversationStatus } = useReplaiy();
 
   const replyToday = conversations.filter((m) => m.needsReply && m.status === 'open');
   const waiting = conversations.filter((m) => m.status === 'waiting');
@@ -87,7 +87,7 @@ export function Briefing() {
             </div>
             <Link href={`/conversation/${topPriority.id}`} className="block hover-elevate active-elevate-2 rounded-2xl p-3 -m-1">
               <div className="flex items-start gap-3">
-                <StiltAvatar name={topPriority.from.name} src={topPriority.from.avatar} size={42} />
+                <ReplaiyAvatar name={topPriority.from.name} src={topPriority.from.avatar} size={42} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between">
                     <span className="font-semibold text-[15px] truncate">{topPriority.from.name}</span>
@@ -120,7 +120,7 @@ export function Briefing() {
             <div className="space-y-2">
               {waiting.slice(0, 3).map((m) => (
                 <Link key={m.id} href={`/conversation/${m.id}`} className="flex items-center gap-3 hover-elevate active-elevate-2 -mx-2 px-2 py-1.5 rounded-xl">
-                  <StiltAvatar name={m.from.name} src={m.from.avatar} size={32} />
+                  <ReplaiyAvatar name={m.from.name} src={m.from.avatar} size={32} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[13.5px] font-medium truncate">{m.from.name}</div>
                     <div className="text-[12px] text-muted-foreground truncate">

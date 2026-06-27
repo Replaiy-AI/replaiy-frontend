@@ -19,12 +19,12 @@ import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { X } from 'lucide-react';
-import { useStilt } from '@/state/StiltContext';
+import { useReplaiy } from '@/state/ReplaiyContext';
 import { APPLE_SPRING } from '@/lib/motion';
 import { SECONDARY_NAV, SETTINGS_NAV } from '@/lib/nav';
 
 export function DotsMenuSheet() {
-  const { dotsMenuOpen, setDotsMenuOpen, setSheetOpen } = useStilt();
+  const { dotsMenuOpen, setDotsMenuOpen, setSheetOpen } = useReplaiy();
   const [loc, navigate] = useLocation();
 
   // Drive global sheetOpen so the bottom nav + FAB hide.
