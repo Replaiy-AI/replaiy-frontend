@@ -74,15 +74,18 @@ export function MobileBottomNav() {
   // placeholder, so the FAB is hidden on both.
   const onCampaigns = loc.startsWith('/campaigns');
   const onCalendar = loc.startsWith('/calendar');
+  const onAi = loc.startsWith('/ai');
   const fabHref = '/campaigns/new';
   const fabLabel = 'New campaign';
   const fabIcon: LucideIcon = Plus;
 
-  const navValue: 'inbox' | 'campaigns' | 'calendar' = onCalendar
+  const navValue: 'inbox' | 'campaigns' | 'ai' | 'calendar' = onCalendar
     ? 'calendar'
-    : onCampaigns
-      ? 'campaigns'
-      : 'inbox';
+    : onAi
+      ? 'ai'
+      : onCampaigns
+        ? 'campaigns'
+        : 'inbox';
 
   // v30.32 — Pending-invite dot op tab-pill verwijderd; was visueel ruis
   // bovenop de calendar segment en niet consistent met de rest van het
@@ -110,12 +113,14 @@ export function MobileBottomNav() {
               onChange={(k) => {
                 if (k === 'inbox') setLoc('/');
                 else if (k === 'campaigns') setLoc('/campaigns');
+                else if (k === 'ai') setLoc('/ai');
                 else setLoc('/calendar');
               }}
               segments={[
                 { key: 'inbox',     icon: PRIMARY_NAV[0].icon, label: 'Inbox' },
                 { key: 'campaigns', icon: PRIMARY_NAV[1].icon, label: 'Campaigns' },
-                { key: 'calendar',  icon: PRIMARY_NAV[2].icon, label: 'Calendar' },
+                { key: 'ai',        icon: PRIMARY_NAV[2].icon, label: 'Mijn AI' },
+                { key: 'calendar',  icon: PRIMARY_NAV[3].icon, label: 'Calendar' },
               ]}
             />
 

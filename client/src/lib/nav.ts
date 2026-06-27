@@ -14,6 +14,7 @@ import {
   Inbox,
   Target,
   Calendar as CalendarIcon,
+  Sparkles,
   CircleCheck,
   Settings as SettingsIcon,
   type LucideIcon,
@@ -29,9 +30,12 @@ export type NavItem = {
 
 // Primary destinations — these appear in the mobile bottom nav AND
 // the desktop sidebar TOP PILL.
+// v-replaiy — 'Mijn AI' (4e tab): persona + knowledge (persoonlijk +
+// workspace, rol-gated). De avatar blijft vrij voor later account-gebruik.
 export const PRIMARY_NAV: NavItem[] = [
   { key: 'inbox',     label: 'Inbox',     href: '/',          icon: Inbox,        testId: 'nav-inbox' },
   { key: 'campaigns', label: 'Campaigns', href: '/campaigns', icon: Target,       testId: 'nav-campaigns' },
+  { key: 'ai',        label: 'Mijn AI',   href: '/ai',        icon: Sparkles,     testId: 'nav-ai' },
   { key: 'calendar',  label: 'Calendar',  href: '/calendar',  icon: CalendarIcon, testId: 'nav-calendar' },
 ];
 

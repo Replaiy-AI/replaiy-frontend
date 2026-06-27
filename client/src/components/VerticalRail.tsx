@@ -27,6 +27,7 @@ import {
   Inbox,
   Target,
   Calendar as CalendarIcon,
+  Sparkles,
   Search,
   Plus,
   type LucideIcon,
@@ -44,26 +45,30 @@ import { GlassCircleButton as SharedGlassCircleButton, ProfileInitials } from '.
 const GlassCircleButton = SharedGlassCircleButton;
 
 interface PrimaryItem {
-  key: 'inbox' | 'campaigns' | 'calendar';
+  key: 'inbox' | 'campaigns' | 'ai' | 'calendar';
   icon: LucideIcon;
   href: string;
   label: string;
 }
 
+// v-replaiy — 'Mijn AI' als 4e surface (persona + knowledge).
 const PRIMARY: PrimaryItem[] = [
   { key: 'inbox',     icon: Inbox,        href: '/',          label: 'Inbox' },
   { key: 'campaigns', icon: Target,       href: '/campaigns', label: 'Campaigns' },
+  { key: 'ai',        icon: Sparkles,     href: '/ai',        label: 'Mijn AI' },
   { key: 'calendar',  icon: CalendarIcon, href: '/calendar',  label: 'Calendar' },
 ];
 
 export function VerticalRail() {
   const [loc, navigate] = useLocation();
 
-  const tab: 'inbox' | 'campaigns' | 'calendar' = loc.startsWith('/campaigns')
+  const tab: 'inbox' | 'campaigns' | 'ai' | 'calendar' = loc.startsWith('/campaigns')
     ? 'campaigns'
-    : loc.startsWith('/calendar')
-      ? 'calendar'
-      : 'inbox';
+    : loc.startsWith('/ai')
+      ? 'ai'
+      : loc.startsWith('/calendar')
+        ? 'calendar'
+        : 'inbox';
 
   // Replaiy has three surfaces (Inbox, Campaigns, Calendar). The + button
   // only adds a new campaign on the Campaigns surface; the inbox has no
@@ -111,6 +116,7 @@ export function VerticalRail() {
           onChange={(k) => {
             if (k === 'inbox') navigate('/');
             else if (k === 'campaigns') navigate('/campaigns');
+            else if (k === 'ai') navigate('/ai');
             else navigate('/calendar');
           }}
           segments={PRIMARY.map((p) => ({

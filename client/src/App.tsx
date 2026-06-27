@@ -14,6 +14,7 @@ import { DotsMenuSheet } from '@/components/DotsMenuSheet';
 import { InboxList } from '@/components/InboxList';
 import { ConversationDetail } from '@/pages/ConversationDetail';
 import { Briefing } from '@/pages/Briefing';
+import { MijnAi } from '@/pages/MijnAi';
 import { CampaignsList } from '@/components/CampaignsList';
 import CampaignDetail from '@/pages/CampaignDetail';
 import { StiltLogo } from '@/components/Logo';
@@ -190,6 +191,10 @@ function LayoutShell() {
   const showingSettings = loc.startsWith('/settings');
   const showingArchive = loc.startsWith('/archive');
   const showingCalendar = loc.startsWith('/calendar');
+  // v-replaiy — 'Mijn AI' surface (persona + knowledge). Eén volledige
+  // pagina (zoals Calendar), geen list+detail: lijst-kolom verbergen en
+  // de pagina full-width in de rechter-pane tonen.
+  const showingAi = loc.startsWith('/ai');
   const showingCampaigns = loc.startsWith('/campaigns');
   // Campaigns behaves EXACTLY like the inbox: a fixed-width list column on the
   // left (with the briefing + roll-up + campaign list) that never changes when
@@ -227,7 +232,7 @@ function LayoutShell() {
         <div
           className={`
             ${
-              showingCalendar
+              showingCalendar || showingAi
                 ? 'hidden'
                 : showingConversation || showingBriefing || showingSettings || showingArchive || showingCampaignDetail
                   ? 'hidden md:flex'
@@ -246,7 +251,7 @@ function LayoutShell() {
             full-screen list underneath (matching the inbox). */}
         <div
           className={`
-            ${showingConversation || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaignDetail ? 'flex' : 'hidden md:flex'}
+            ${showingConversation || showingBriefing || showingSettings || showingArchive || showingCalendar || showingAi || showingCampaignDetail ? 'flex' : 'hidden md:flex'}
             flex-col flex-1 min-w-0 fixed md:relative inset-0 md:inset-auto z-10 md:z-0
             bg-transparent
           `}
@@ -267,6 +272,8 @@ function LayoutShell() {
             <Route path="/calendar">
               <ComingSoon title="Calendar" />
             </Route>
+            {/* v-replaiy — 'Mijn AI': persona + knowledge surface. */}
+            <Route path="/ai" component={MijnAi} />
             <Route path="/archive">
               <ArchiveView />
             </Route>

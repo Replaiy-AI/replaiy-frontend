@@ -88,7 +88,16 @@ export function VadikLiquidSwitcher<K extends string>({
   }, [activeIdx]);
 
   // Compute scaled dimensions
-  const trackW = V_TRACK_W * scale;
+  // v-replaiy — Track-breedte wordt afgeleid van het AANTAL segmenten i.p.v.
+  // de hardcoded 244 (die alleen klopte voor exact 3 tabs). Vadik's recipe:
+  //   trackW = padLeft*2 + optionW*count + gap*(count-1)
+  // Voor 3 segmenten geeft dit weer 244 (12*2 + 68*3 + 8*2). Voor 4 → 320.
+  // De indicator-stride (activeIdx * stride) schaalt al mee, dus dit is de
+  // enige plek die moest meegroeien. Cross-axis (V_TRACK_H) blijft gelijk.
+  const segCount = segments.length;
+  const dynamicTrackW =
+    V_PAD_LEFT * 2 + V_OPTION_W * segCount + V_GAP * (segCount - 1);
+  const trackW = dynamicTrackW * scale;
   const trackH = V_TRACK_H * scale;
   const padTop = V_PAD_TOP * scale;
   const padLeft = V_PAD_LEFT * scale;
