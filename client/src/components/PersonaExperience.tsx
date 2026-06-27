@@ -172,21 +172,24 @@ function LivePreview({
         </div>
       </div>
 
-      {/* The AI's message — mascot + bubble, styled exactly like the inbox
-          conversation (.stilt-bubble, same radius/type/tail + timestamp). */}
-      <div className="flex items-end gap-2.5">
-        <motion.img
-          src={mascotSrc}
-          alt=""
-          aria-hidden
-          draggable={false}
-          className="w-8 h-8 object-contain shrink-0 select-none pointer-events-none mb-5"
-          key={`m-${preset?.id ?? 'warm'}`}
-          initial={{ scale: 0.6, opacity: 0, y: 6 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={APPLE_SPRING}
-        />
-        <div className="min-w-0">
+      {/* The AI's message — mascot + bubble, laid out exactly like an inbound
+          message in the inbox conversation (avatar bottom-aligned, narrow
+          bubble at max-w-[78%], .stilt-bubble with tail + timestamp). */}
+      <div className="flex items-end gap-2">
+        <div className="w-8 shrink-0">
+          <motion.img
+            src={mascotSrc}
+            alt=""
+            aria-hidden
+            draggable={false}
+            className="w-8 h-8 object-contain select-none pointer-events-none"
+            key={`m-${preset?.id ?? 'warm'}`}
+            initial={{ scale: 0.6, opacity: 0, y: 6 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={APPLE_SPRING}
+          />
+        </div>
+        <div className="max-w-[78%] flex flex-col items-start">
           <AnimatePresence mode="wait">
             <motion.div
               key={sample}
@@ -194,7 +197,7 @@ function LivePreview({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-              className="stilt-bubble rounded-[20px] px-3.5 py-2.5 text-[14.5px] leading-[1.5] text-foreground inline-block"
+              className="stilt-bubble rounded-[20px] px-3.5 py-2.5 text-[14.5px] leading-[1.5] text-foreground"
               style={{ borderBottomLeftRadius: 6 }}
               data-testid="persona-preview-bubble"
             >
