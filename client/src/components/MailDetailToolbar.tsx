@@ -588,173 +588,22 @@ function MiniCalendar({
 // + Snooze opties + inline kalender (Spark stijl, geen modal).
 export function MailActionPillsCompact({
   onDone,
-  onSnooze,
-  onForward,
 }: {
   onDone: () => void;
-  onSnooze: (key: SnoozeKey) => void;
+  // v-replaiy-3 — onSnooze/onForward kept in the type for call-site
+  // compatibility but no longer rendered. The ··· overflow (Snooze /
+  // Forward / calendar) is removed: the only top-right action is ✓ Done.
+  // "Wegboeken" of a draft = ✓ Done while a draft is open (reason inferred
+  // or micro-asked — see learning concept). Forward doesn't exist in
+  // Replaiy; Snooze added inbox clutter without a clear sales purpose.
+  onSnooze?: (key: SnoozeKey) => void;
   onForward?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [pickedDate, setPickedDate] = useState<Date>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d;
-  });
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setShowCalendar(false);
-      }
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [open]);
-
   return (
-    <div ref={wrapRef} className="flex items-center gap-2 relative">
-      <ActionPill
-        testId="button-more"
-        label="More"
-        onClick={() => {
-          setOpen((v) => !v);
-          setShowCalendar(false);
-        }}
-        ariaPressed={open}
-      >
-        <MoreHorizontal size={19} strokeWidth={1.75} className="text-icon" />
-      </ActionPill>
+    <div className="flex items-center gap-2 relative">
       <ActionPill testId="button-done" label="Done" onClick={onDone}>
         <CircleCheck size={19} strokeWidth={1.75} className="text-icon" />
       </ActionPill>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            data-testid="more-menu"
-            initial={{ opacity: 0, y: -6, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.95 }}
-            transition={APPLE_SPRING}
-            style={{
-              transformOrigin: 'top right',
-              background:
-                'linear-gradient(180deg, color-mix(in srgb, var(--vadik-light, #fff) calc(var(--vadik-reflex-light, 1) * 55%), transparent) 0%, color-mix(in srgb, var(--vadik-light, #fff) calc(var(--vadik-reflex-light, 1) * 40%), transparent) 60%, color-mix(in srgb, var(--vadik-light, #fff) calc(var(--vadik-reflex-light, 1) * 30%), transparent) 100%)',
-              backdropFilter: 'blur(24px) saturate(160%)',
-              WebkitBackdropFilter: 'blur(24px) saturate(160%)',
-              boxShadow:
-                'inset 0 0 0 1px color-mix(in srgb, var(--vadik-light, #fff) calc(var(--vadik-reflex-light, 1) * 50%), transparent), inset 1.8px 3px 0 -2px color-mix(in srgb, var(--vadik-light, #fff) calc(var(--vadik-reflex-light, 1) * 80%), transparent), 0 2px 8px 0 color-mix(in srgb, var(--vadik-dark, #000) calc(var(--vadik-reflex-dark, 1) * 8%), transparent), 0 12px 32px 0 color-mix(in srgb, var(--vadik-dark, #000) calc(var(--vadik-reflex-dark, 1) * 14%), transparent)',
-              maxWidth: 'calc(100vw - 24px)',
-            }}
-            className="absolute top-[60px] right-0 z-50 rounded-2xl p-1.5 w-[280px]"
-          >
-            <div className="flex flex-col gap-0.5">
-              {/* Forward — zelfde stijl als snooze opties (geen bold). */}
-              {onForward && (
-                <button
-                  type="button"
-                  data-testid="more-forward"
-                  onClick={() => {
-                    setOpen(false);
-                    onForward();
-                  }}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13.5px] font-medium hover-elevate active-elevate-2 text-left text-foreground/85"
-                >
-                  <CornerUpRight size={14} strokeWidth={1.7} className="text-icon-muted shrink-0" />
-                  <span>Forward</span>
-                </button>
-              )}
-
-              {onForward && <div className="my-1.5 mx-2 h-px bg-foreground/[0.08]" />}
-
-              <div className="px-3 pt-0.5 pb-1 text-[10.5px] uppercase tracking-[0.08em] text-foreground/40 font-medium">
-                Snooze
-              </div>
-              {SNOOZE_OPTIONS.filter((opt) => opt.key !== 'pick').map((opt) => (
-                <button
-                  key={opt.key}
-                  type="button"
-                  data-testid={`more-snooze-${opt.key}`}
-                  onClick={() => {
-                    setOpen(false);
-                    onSnooze(opt.key);
-                  }}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13.5px] font-medium hover-elevate active-elevate-2 text-left text-foreground/85"
-                >
-                  <Clock size={14} strokeWidth={1.7} className="text-icon-muted shrink-0" />
-                  <span className="flex-1">{opt.label}</span>
-                  {opt.hint && (
-                    <span className="text-[11.5px] text-muted-foreground tabular-nums">
-                      {opt.hint}
-                    </span>
-                  )}
-                </button>
-              ))}
-
-              {/* Pick a date — toggle voor inline kalender */}
-              <button
-                type="button"
-                data-testid="more-snooze-pick"
-                onClick={() => setShowCalendar((v) => !v)}
-                aria-pressed={showCalendar}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13.5px] font-medium hover-elevate active-elevate-2 text-left text-foreground/85"
-              >
-                <Clock size={14} strokeWidth={1.7} className="text-icon-muted shrink-0" />
-                <span className="flex-1">Pick a date</span>
-                <span className="text-[11.5px] text-foreground/40 tabular-nums">
-                  {showCalendar
-                    ? pickedDate.toLocaleDateString(undefined, {
-                        day: 'numeric',
-                        month: 'short',
-                      })
-                    : '›'}
-                </span>
-              </button>
-
-              {/* Inline kalender expand */}
-              <AnimatePresence>
-                {showCalendar && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
-                    className="overflow-hidden"
-                  >
-                    <MiniCalendar value={pickedDate} onChange={setPickedDate} />
-                    <div className="flex items-center justify-end gap-1.5 px-2 pb-1">
-                      <button
-                        type="button"
-                        onClick={() => setShowCalendar(false)}
-                        className="px-3 py-1.5 rounded-full text-[12.5px] font-medium text-foreground/65 hover-elevate active-elevate-2"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="snooze-confirm"
-                        onClick={() => {
-                          setOpen(false);
-                          setShowCalendar(false);
-                          onSnooze('pick');
-                        }}
-                        className="px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold bg-foreground text-background hover-elevate active-elevate-2"
-                      >
-                        Snooze
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

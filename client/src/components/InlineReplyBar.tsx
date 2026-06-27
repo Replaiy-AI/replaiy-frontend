@@ -1713,42 +1713,12 @@ export function InlineReplyBar({
             className="absolute z-10 flex items-center gap-2"
             style={{ right: 12, bottom: 12 }}
           >
-            {/* v-replaiy-2 — Dismiss + Approve & send as a clear good/bad
-               pair, both icon + text.
-               • Dismiss = red ghost (X + "Dismiss"). Quiet by default
-                 (subtle red tint), fills with a soft red wash on hover —
-                 reads as the "reject" action without shouting.
-               • Approve & send = solid Replaiy-blue pill (Send + "Send").
-                 One accent, buyer-safe, unmistakably the primary action.
-               Colours come from tokens (--destructive, --ai-accent) —
-               nothing hardcoded. */}
-            {onDismiss && (
-              <button
-                type="button"
-                data-testid="button-dismiss-draft"
-                aria-label="Dismiss draft"
-                onClick={onDismiss}
-                className="group/dismiss h-10 pl-3 pr-3.5 rounded-full flex items-center gap-1.5 text-[13px] font-medium active-elevate-2 transition-colors"
-                style={{
-                  color: 'hsl(var(--destructive))',
-                  background:
-                    'color-mix(in srgb, hsl(var(--destructive)) 9%, transparent)',
-                  boxShadow:
-                    'inset 0 0 0 1px color-mix(in srgb, hsl(var(--destructive)) 22%, transparent)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background =
-                    'color-mix(in srgb, hsl(var(--destructive)) 16%, transparent)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background =
-                    'color-mix(in srgb, hsl(var(--destructive)) 9%, transparent)';
-                }}
-              >
-                <X size={15} strokeWidth={2.2} />
-                Dismiss
-              </button>
-            )}
+            {/* v-replaiy-3 — Dismiss removed. The bottom row now holds ONLY
+               the glass wand (left) + the solid blue Send (here). "Wegboeken"
+               (rejecting a draft) is handled by the ✓ Done action top-right
+               of the conversation, with the reason inferred / micro-asked
+               (see learning concept). This kills the old three-different-
+               button-styles problem: one glass + one solid accent. */}
             <button
               type="button"
               data-testid="button-approve-send"
