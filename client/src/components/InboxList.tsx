@@ -628,12 +628,13 @@ export function InboxList() {
   const setViewMode = (m: 'inbox' | 'smart') => setSmartMode(m === 'smart');
   // v30.34 — useParams() returnt alleen waarde als de component BINNEN
   // een matched <Route>. InboxList rendert als top-level (split pane),
-  // dus parsen we de mail-id zelf uit de URL zodat active state werkt
-  // wanneer er ook een mail open is in kolom 3.
+  // dus parsen we de conversation-id zelf uit de URL zodat de selected-
+  // highlight werkt wanneer er een gesprek open is in kolom 3.
+  // (Route is /conversation/:id sinds de Mail→Conversation rename.)
   const [pathname] = useLocation();
-  const mailIdMatch = pathname.match(/^\/mail\/([^/?#]+)/);
-  const params: { id?: string } | null = mailIdMatch
-    ? { id: decodeURIComponent(mailIdMatch[1]) }
+  const conversationIdMatch = pathname.match(/^\/conversation\/([^/?#]+)/);
+  const params: { id?: string } | null = conversationIdMatch
+    ? { id: decodeURIComponent(conversationIdMatch[1]) }
     : null;
   const isMobile = useIsMobile();
 
