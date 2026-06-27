@@ -83,7 +83,6 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
     summaryPanelOpen,
     toggleSummaryPanel,
     setSummaryPanelOpen,
-    setContactPanelOpen,
   } = useStilt();
   const mail = mails.find((m) => m.id === mailId)!;
 
@@ -120,6 +119,10 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
   // Pre-fill met de huidige inline tekst zou ideaal zijn, maar dat
   // vereist state-lift uit InlineReplyBar. Voor nu: open Compose leeg
   // (of met smart reply prefill) en laat user opnieuw beginnen.
+  // v-replaiy — The standalone /compose route was removed in the Stilt
+  // cleanup (this SingleMailDetail path is itself legacy/unused — the
+  // exported MailDetail renders ConversationTimeline). Staging prefill
+  // only; no route switch.
   const onExpandCompose = () => {
     setComposePrefill({
       to: `${mail.from.name} <${mail.from.email}>`,
@@ -127,7 +130,6 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
       body: '',
       replyToId: mail.id,
     });
-    navigate('/compose');
   };
 
   // v30.30 — Forward: opent InlineReplyBar in forward-mode (geen
@@ -213,8 +215,6 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
     navigate('/');
   };
 
-  const handleOpenContact = () => setContactPanelOpen(true);
-
   // v19.3 — auto-collapse the inline summary panel when the user starts
   // scrolling the thread. Deadzone of 8px so micro-jitter doesn't fire.
   const desktopScrollRef = useRef<HTMLDivElement>(null);
@@ -242,7 +242,6 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
         name={mail.from.name}
         avatar={mail.from.avatar}
         onBack={() => navigate('/')}
-        onOpenContact={handleOpenContact}
         onDone={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
         onSnooze={() => { setMailStatus(mail.id, 'snoozed'); navigate('/'); }}
         onForward={onForward}
@@ -278,7 +277,6 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
               avatar={mail.from.avatar}
               subject={mail.subject}
               metaLabel={hasSummaryPanelValue(mail) ? `${mail.messages?.length ?? 1} messages` : null}
-              onOpenContact={handleOpenContact}
               onMetaClick={hasSummaryPanelValue(mail) ? toggleSummaryPanel : undefined}
               metaActive={summaryPanelOpen}
             />
@@ -500,7 +498,6 @@ function MailDetailChromeSlot({
   name,
   avatar,
   onBack,
-  onOpenContact,
   onDone,
   onSnooze,
   onForward,
@@ -508,7 +505,6 @@ function MailDetailChromeSlot({
   name: string;
   avatar?: string;
   onBack: () => void;
-  onOpenContact: () => void;
   onDone?: () => void;
   onSnooze?: () => void;
   onForward?: () => void;
@@ -522,18 +518,18 @@ function MailDetailChromeSlot({
         </ActionPill>
       ),
       togglePill: (
-        // v30.30 — iMessage style: avatar + naam plain (geen capsule).
-        <button
-          type="button"
+        // v-replaiy — iMessage style: avatar + naam plain (geen capsule).
+        // The Stilt contact info panel was removed, so this is now a plain
+        // non-interactive identity.
+        <div
           data-testid="contact-pill"
-          onClick={onOpenContact}
-          className="inline-flex items-center gap-2 px-1 h-[52px] hover:opacity-80 transition-opacity"
+          className="inline-flex items-center gap-2 px-1 h-[52px]"
         >
           <StiltAvatar name={name} src={avatar} size={32} />
           <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[160px] text-foreground">
             {name}
           </span>
-        </button>
+        </div>
       ),
       // v30.30 — Mobile: Done + ••• overflow (compact).
       rightSlot:
@@ -547,7 +543,7 @@ function MailDetailChromeSlot({
           <div style={{ width: 52, height: 52 }} aria-hidden="true" />
         ),
     }),
-    [name, avatar, onBack, onOpenContact, onDone, onSnooze, onForward],
+    [name, avatar, onBack, onDone, onSnooze, onForward],
   );
   useMobileTopChromeSlot(slot);
   return null;

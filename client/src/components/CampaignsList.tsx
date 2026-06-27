@@ -29,18 +29,18 @@ import remiMascot from '@/assets/replaiy-mascot.png';
 import { GlassToggle } from './GlassToggle';
 import { ListRow } from './ListRow';
 import { useMobileTopChromeSlot } from './MobileTopChrome';
+import { StiltLogo } from '@/components/Logo';
 import { GlassCircleButton, ProfileInitials } from './GlassCircleButton';
 
-// Top-left of the mobile chrome — the SAME profile circle the inbox uses,
-// so Campaigns and Inbox share one identical chrome. Opens the profile menu
-// (NOT the mail dots-menu, which is the wrong default for this screen).
+// v-replaiy — top-left of the mobile chrome. The Stilt profile menu was
+// removed (fake template UI), but the SB avatar button stays so we can wire
+// it to something later. onClick is a no-op for now. Identical to the inbox
+// chrome so Campaigns and Inbox share one chrome.
 function MobileProfileAvatar() {
-  const { setProfileMenuOpen } = useStilt();
   return (
     <GlassCircleButton
       label="Profile"
       testId="mobile-profile-avatar"
-      onClick={() => setProfileMenuOpen(true)}
       showTooltip={false}
     >
       <ProfileInitials initials="SB" />

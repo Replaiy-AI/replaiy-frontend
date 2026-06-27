@@ -4,19 +4,10 @@ import { useLocation } from 'wouter';
 import {
   Search as SearchIcon,
   X,
-  Calendar as CalendarIcon,
-  Clock,
-  Zap,
-  CircleCheck,
   CheckCircle2,
-  FileEdit,
   Paperclip,
-  CalendarRange,
-  CalendarDays,
-  CalendarClock,
 } from 'lucide-react';
-import { useStilt, type CalView } from '@/state/StiltContext';
-import { mockEvents, accountColor } from '@/data/mockEvents';
+import { useStilt } from '@/state/StiltContext';
 import { StiltAvatar } from './Avatar';
 import { timeAgo } from '@/lib/avatar';
 import { APPLE_SPRING } from '@/lib/motion';
@@ -26,8 +17,7 @@ import VadikGlass from './VadikGlass';
 // ─────────────────────────────────────────────────────────────────
 // v15.3 — Universal Search (⌘K)
 //
-// One search across the whole app, replacing the three per-surface
-// search circles in Inbox / Calendar / Docs top chrome.
+// One search across the inbox — leads, drafts, and conversations.
 //
 // Trigger:  52×52 glass circle in the desktop sidebar header between
 //           the tab pill and the + circle, OR keyboard shortcut ⌘K
@@ -36,10 +26,8 @@ import VadikGlass from './VadikGlass';
 //
 // Modal:    Centered glass card ~640px wide. Spring entrance (scale 0.96
 //           → 1, opacity 0 → 1). Grouped results:
-//             • Mails (up to 5)
-//             • Events (up to 3)
-//             • Docs (up to 5)
-//             • Contacts (up to 3)
+//             • Drafts (up to 5)
+//             • Leads (up to 3)
 //           Filter chips: Done only / Has attachment / From: / Last 30 days
 //           Keyboard: ↑↓ to navigate, ↵ to open, ⎋ to close.
 //
@@ -47,27 +35,10 @@ import VadikGlass from './VadikGlass';
 // returns matching mails/events/docs from the project's own fixtures.
 // ─────────────────────────────────────────────────────────────────
 
-// v30.30 — Context-aware chips. Welke chips er getoond worden hangt af van
-// de huidige route: Mail-route toont mail-categorieën, Calendar-route
-// toont cal-views (Today/Week/Month/Upcoming), Docs-route toont
-// docs-views (Recent/Pinned/etc.). De chip-keys zijn typed per surface.
-// v30.31 — Perplexity stijl: monochrome chips, geen iOS systeem-tints.
-// v-replaiy — Draft-filters aligned with the Replaiy inbox sections
-// (zelfde status-velden als InboxList.tsx). Geen mail-views (inbox/sent/
-// spam/etc.) meer; dit zijn LinkedIn-draft statussen.
-const MAIL_CHIPS: { key: string; label: string; icon: any; tint?: string }[] = [
-  { key: 'needsApproval', label: 'Needs approval', icon: FileEdit },
-  { key: 'waiting', label: 'Waiting on reply', icon: Clock },
-  { key: 'autoSent', label: 'Auto-sent', icon: Zap },
-  { key: 'dismissed', label: 'Dismissed', icon: CircleCheck },
-];
-
-const CAL_CHIPS: { key: CalView; label: string; icon: any; tint?: string }[] = [
-  { key: 'today', label: 'Today', icon: CalendarIcon },
-  { key: 'week', label: 'This week', icon: CalendarRange },
-  { key: 'month', label: 'Month', icon: CalendarDays },
-  { key: 'upcoming', label: 'Upcoming', icon: CalendarClock },
-];
+// v-replaiy — Draft-filter chips were removed for the inbox surface:
+// search is a clean lead/draft lookup, not a filter board (the inbox
+// already groups by section). The `activeChip` filter logic below is
+// retained but unreachable unless a chip is re-introduced.
 
 interface ResultMail {
   kind: 'mail';
@@ -81,14 +52,6 @@ interface ResultMail {
   done: boolean;
   ts: string;
 }
-interface ResultEvent {
-  kind: 'event';
-  id: string;
-  title: string;
-  subtitle: string;
-  meta: string;
-  account?: string;
-}
 interface ResultContact {
   kind: 'contact';
   id: string; // mail id to open as proxy
@@ -97,17 +60,7 @@ interface ResultContact {
   meta: string; // role/last contact
   avatar?: string;
 }
-type Result = ResultMail | ResultEvent | ResultContact;
-
-function formatEventWhen(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  if (sameDay) return `Today · ${time}`;
-  const dayLabel = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  return `${dayLabel} · ${time}`;
-}
+type Result = ResultMail | ResultContact;
 
 export function UniversalSearch() {
   const [open, setOpen] = useState(false);
@@ -117,16 +70,9 @@ export function UniversalSearch() {
   // user expliciet op een chip klikt. Bij open van modal reset altijd
   // naar null (= alles zoeken across all sources).
   const [activeChip, setActiveChip] = useState<string | null>(null);
-  const { mails, calView, setCalView } = useStilt();
-  const [location, navigate] = useLocation();
+  const { mails } = useStilt();
+  const [, navigate] = useLocation();
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // v-replaiy — Surface detectie. Docs bestaat niet meer in Replaiy; alleen
-  // de Calendar-surface houdt z'n eigen cal-chips. Alles anders (inbox /
-  // mail-detail) gebruikt de Replaiy draft-filters (MAIL_CHIPS).
-  const surface: 'mail' | 'calendar' =
-    location.startsWith('/calendar') ? 'calendar' : 'mail';
-  const chips = surface === 'calendar' ? CAL_CHIPS : MAIL_CHIPS;
 
   // Global open/close — keyboard ⌘K + custom event from sidebar trigger.
   useEffect(() => {
@@ -180,14 +126,14 @@ export function UniversalSearch() {
   const term = q.trim().toLowerCase();
 
   // Compute grouped results.
-  const { mailResults, eventResults, contactResults, flat } = useMemo(() => {
+  const { mailResults, contactResults, flat } = useMemo(() => {
     // v-replaiy — Draft-filter logic. activeChip is alleen actief als de
     // gebruiker expliciet een chip heeft aangeklikt. Default (null) = geen
     // filter, alle bronnen tonen. Bij actieve draft-chip filteren we de
     // drafts op de juiste Replaiy-status (zelfde velden als InboxList.tsx)
     // én verbergen we andere groepen (events/leads).
     let mailsFiltered = mails;
-    const hasChipFilter = surface === 'mail' && !!activeChip;
+    const hasChipFilter = !!activeChip;
     if (hasChipFilter) {
       if (activeChip === 'needsApproval') {
         // Pending drafts die op review wachten (zelfde als InboxList).
@@ -210,8 +156,8 @@ export function UniversalSearch() {
       // draft/incoming tekst. Geen e-mail "subject" meer (bestaat niet op
       // LinkedIn).
       mailsFiltered = mailsFiltered.filter((m) => {
-        const headline = (m as any).leadHeadline ?? (m as any).contact?.title ?? '';
-        const company = (m as any).leadCompany ?? (m as any).contact?.company ?? '';
+        const headline = (m as any).leadHeadline ?? '';
+        const company = (m as any).leadCompany ?? '';
         return (
           m.from.name.toLowerCase().includes(term) ||
           headline.toLowerCase().includes(term) ||
@@ -224,8 +170,8 @@ export function UniversalSearch() {
     // Bij actieve chip: toon meer drafts (max 30) en verberg andere groepen.
     const mailLimit = hasChipFilter ? 30 : 5;
     const mailItems: ResultMail[] = mailsFiltered.slice(0, mailLimit).map((m) => {
-      const headline = (m as any).leadHeadline ?? (m as any).contact?.title ?? '';
-      const company = (m as any).leadCompany ?? (m as any).contact?.company ?? '';
+      const headline = (m as any).leadHeadline ?? '';
+      const company = (m as any).leadCompany ?? '';
       const sub = [headline, company].filter(Boolean).join(' · ');
       return {
         kind: 'mail',
@@ -242,28 +188,8 @@ export function UniversalSearch() {
       };
     });
 
-    // Events — bij actieve mail-chip verbergen.
-    const evFiltered = hasChipFilter
-      ? []
-      : mockEvents
-          .filter((e) =>
-            term
-              ? e.title.toLowerCase().includes(term) ||
-                (e.description || '').toLowerCase().includes(term) ||
-                (e.location || '').toLowerCase().includes(term)
-              : true,
-          )
-          .slice(0, 3);
-    const eventItems: ResultEvent[] = evFiltered.map((e) => ({
-      kind: 'event',
-      id: e.id,
-      title: e.title,
-      subtitle: e.location || (e.videoLink ? 'Video call' : ''),
-      meta: formatEventWhen(e.start),
-      account: e.account,
-    }));
-
-    // v-replaiy — Docs-resultaten verwijderd: Docs bestaat niet in Replaiy.
+    // v-replaiy — Events & Docs-resultaten verwijderd: Calendar/Docs
+    // bestaan niet in Replaiy.
 
     // Leads (afgeleid van unieke leads die op de term matchen) — bij
     // actieve draft-chip verbergen. Zoek op naam, headline/functie en
@@ -272,8 +198,8 @@ export function UniversalSearch() {
     if (!hasChipFilter) {
       for (const m of mails) {
         const name = m.from.name;
-        const headline = (m as any).leadHeadline ?? (m as any).contact?.title ?? '';
-        const company = (m as any).leadCompany ?? (m as any).contact?.company ?? '';
+        const headline = (m as any).leadHeadline ?? '';
+        const company = (m as any).leadCompany ?? '';
         if (
           term &&
           !name.toLowerCase().includes(term) &&
@@ -298,17 +224,15 @@ export function UniversalSearch() {
 
     const flat: Result[] = [
       ...mailItems,
-      ...eventItems,
       ...contactItems,
     ];
 
     return {
       mailResults: mailItems,
-      eventResults: eventItems,
       contactResults: contactItems,
       flat,
     };
-  }, [mails, term, activeChip, surface]);
+  }, [mails, term, activeChip]);
 
   // Keep selectedIdx in range.
   useEffect(() => {
@@ -318,7 +242,6 @@ export function UniversalSearch() {
   const openResult = (r: Result) => {
     setOpen(false);
     if (r.kind === 'mail') navigate(`/mail/${r.id}`);
-    else if (r.kind === 'event') navigate('/calendar');
     else if (r.kind === 'contact') navigate(`/mail/${r.id}`);
   };
 
@@ -341,12 +264,6 @@ export function UniversalSearch() {
   // v-replaiy — De draft-chips (needsApproval/waiting/autoSent/dismissed)
   // zijn lokale filters, geen mail-views meer, dus we setten geen MailView
   // op de context. Alleen de Calendar-surface zet z'n cal-view persistent.
-  const pickChip = (key: string) => {
-    const next = activeChip === key ? null : key;
-    setActiveChip(next);
-    if (next === null) return;
-    if (surface === 'calendar') setCalView(next as CalView);
-  };
 
   return (
     <AnimatePresence>
@@ -418,50 +335,7 @@ export function UniversalSearch() {
 
             {/* v-replaiy-2 — Search shortcut chips removed for the mail/inbox
                 surface per Simon: search should be a clean lead/draft lookup,
-                not a filter board (the inbox already groups by section). The
-                Calendar surface keeps its chips because there they switch
-                calendar VIEWS (Today / Week / etc.), a different purpose. */}
-            {surface === 'calendar' && (
-            <div className="flex items-center gap-2 px-5 py-3 overflow-x-auto no-scrollbar">
-              {chips.map((c) => {
-                const Icon = c.icon;
-                const isActive = c.key === activeChip;
-                return (
-                  <button
-                    key={c.key}
-                    data-testid={`view-chip-${c.key}`}
-                    onClick={() => pickChip(c.key)}
-                    className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-medium tracking-[-0.005em] transition-colors ${
-                      isActive
-                        ? 'text-foreground'
-                        : 'text-icon hover:text-foreground'
-                    }`}
-                    style={
-                      isActive
-                        ? {
-                            background:
-                              'color-mix(in srgb, #bbbbbc 36%, transparent)',
-                            boxShadow:
-                              'inset 0 0 0 1px color-mix(in srgb, #fff 10%, transparent), inset 2px 1px 0 -1px color-mix(in srgb, #fff 90%, transparent), inset -1.5px -1px 0 -1px color-mix(in srgb, #fff 80%, transparent), inset -2px -6px 1px -5px color-mix(in srgb, #fff 60%, transparent), inset -1px 2px 3px -1px color-mix(in srgb, #000 20%, transparent), inset 0 -4px 1px -2px color-mix(in srgb, #000 10%, transparent), 0 3px 6px 0 color-mix(in srgb, #000 8%, transparent)',
-                          }
-                        : {
-                            background: 'rgba(255,255,255,0.04)',
-                            boxShadow:
-                              'inset 0 0 0 1px rgba(255,255,255,0.06)',
-                          }
-                    }
-                  >
-                    <Icon
-                      size={13}
-                      strokeWidth={1.9}
-                      style={c.tint ? { color: c.tint } : undefined}
-                    />
-                    <span>{c.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            )}
+                not a filter board (the inbox already groups by section). */}
 
             {/* Results */}
             <div className="flex-1 overflow-y-auto no-scrollbar px-2 py-2">
@@ -504,39 +378,11 @@ export function UniversalSearch() {
                       })}
                     </ResultGroup>
                   )}
-                  {eventResults.length > 0 && (
-                    <ResultGroup label="Events">
-                      {eventResults.map((r, i) => {
-                        const idx = mailResults.length + i;
-                        return (
-                          <ResultRow
-                            key={`e-${r.id}`}
-                            active={selectedIdx === idx}
-                            onMouseEnter={() => setSelectedIdx(idx)}
-                            onClick={() => openResult(r)}
-                            testId={`search-result-event-${r.id}`}
-                            leading={
-                              <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-foreground/[0.05] dark:bg-white/[0.06]">
-                                <CalendarIcon
-                                  size={13}
-                                  strokeWidth={1.8}
-                                  style={{ color: accountColor(r.account as any) }}
-                                />
-                              </div>
-                            }
-                            title={r.title}
-                            subtitle={r.subtitle || '—'}
-                            meta={r.meta}
-                          />
-                        );
-                      })}
-                    </ResultGroup>
-                  )}
                   {contactResults.length > 0 && (
                     <ResultGroup label="Leads">
                       {contactResults.map((r, i) => {
                         const idx =
-                          mailResults.length + eventResults.length + i;
+                          mailResults.length + i;
                         return (
                           <ResultRow
                             key={`c-${r.id}-${r.title}`}

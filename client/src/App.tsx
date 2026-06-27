@@ -11,29 +11,41 @@ import { StiltProvider, useStilt } from '@/state/StiltContext';
 import { DesktopRail, MobileBottomNav, TabletLeftRail } from '@/components/Chrome';
 import { MobileTopChromeProvider, MobileTopChromeShell } from '@/components/MobileTopChrome';
 import { DotsMenuSheet } from '@/components/DotsMenuSheet';
-import { ContactInfoPanel } from '@/components/ContactInfoPanel';
 import { InboxList } from '@/components/InboxList';
 import { MailDetail } from '@/pages/MailDetail';
-import { Compose } from '@/pages/Compose';
 import { Briefing } from '@/pages/Briefing';
 import { CampaignsList } from '@/components/CampaignsList';
 import CampaignDetail from '@/pages/CampaignDetail';
-import { ProfileMenu } from '@/components/ProfileMenu';
 import { StiltLogo } from '@/components/Logo';
 import { UniversalSearch } from '@/components/UniversalSearch';
 import { LiquidGlassFilters } from '@/components/LiquidGlassFilters';
 import { AnimatePresence, motion } from 'framer-motion';
 
-// v15.4 — /settings is deprecated. Opens the Profile menu sheet and
-// returns the user to the inbox so the route doesn't reappear.
+// v-replaiy — /settings is deprecated. The Stilt profile menu was removed
+// (all fake template UI), so this route now simply redirects to the inbox
+// so the route doesn't 404.
 function SettingsRedirect() {
-  const { setProfileMenuOpen } = useStilt();
   const [, navigate] = useLocation();
   useEffect(() => {
-    setProfileMenuOpen(true);
     navigate('/');
-  }, [setProfileMenuOpen, navigate]);
+  }, [navigate]);
   return null;
+}
+
+// v-replaiy — clean "Coming soon" placeholder in Stilt's empty-state style.
+// Used for Calendar (content-only; same typography/layout as EmptyDetail,
+// no new styles). The old working calendar implementation + its data were
+// removed in the Stilt cleanup; the Calendar tab now points here.
+function ComingSoon({ title }: { title: string }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+      <div className="mb-4">
+        <StiltLogo size={56} />
+      </div>
+      <h2 className="text-[20px] font-semibold tracking-[-0.02em]">{title}</h2>
+      <p className="text-[14px] text-muted-foreground mt-1.5 max-w-xs">Coming soon.</p>
+    </div>
+  );
 }
 
 function EmptyDetail() {
@@ -47,21 +59,6 @@ function EmptyDetail() {
         Choose a conversation to review the draft and reply. Your approved
         replies are sent straight to the lead.
       </p>
-    </div>
-  );
-}
-
-// v-replaiy — clean "Coming soon" placeholder in Stilt's empty-state style.
-// Used for Campaigns and Calendar (content-only; same typography/layout as
-// EmptyDetail, no new styles).
-function ComingSoon({ title }: { title: string }) {
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
-      <div className="mb-4">
-        <StiltLogo size={56} />
-      </div>
-      <h2 className="text-[20px] font-semibold tracking-[-0.02em]">{title}</h2>
-      <p className="text-[14px] text-muted-foreground mt-1.5 max-w-xs">Coming soon.</p>
     </div>
   );
 }
@@ -89,7 +86,6 @@ function Shortcuts() {
             <h3 className="text-[15px] font-semibold mb-4">Keyboard shortcuts</h3>
             <div className="space-y-2 text-[13px]">
               {[
-                ['c', 'Compose'],
                 ['e', 'Done'],
                 ['s', 'Snooze'],
                 ['i', 'Context panel'],
@@ -129,11 +125,6 @@ function KeyboardShortcuts() {
         return;
       }
       const key = e.key.toLowerCase();
-      if (key === 'c') {
-        e.preventDefault();
-        navigate('/compose');
-        return;
-      }
       if (key === '?') {
         e.preventDefault();
         setShowShortcuts(true);
@@ -195,7 +186,6 @@ function LayoutShell() {
 
   // Determine right-pane content based on route
   const showingMail = loc.startsWith('/mail/');
-  const showingCompose = loc.startsWith('/compose');
   const showingBriefing = loc.startsWith('/briefing');
   const showingSettings = loc.startsWith('/settings');
   const showingArchive = loc.startsWith('/archive');
@@ -231,17 +221,15 @@ function LayoutShell() {
           (rail is fixed-positioned and overlays this padding). */}
       <main className="flex-1 flex min-w-0 relative lg:pl-[88px]">
         {/* List column. Inbox shows InboxList; Campaigns shows CampaignsList
-            (same list+detail architecture). Calendar is a full-screen
-            "Coming soon" — it has no list column at all, so the list is hidden
-            entirely on /calendar (previously it leaked the inbox list).
-            Hidden on mobile when a detail pane is open (mail or a specific
-            campaign), shown again for bare /campaigns (empty state). */}
+            (same list+detail architecture).
+            Hidden on mobile when a detail pane is open (a conversation or a
+            specific campaign), shown again for bare /campaigns (empty state). */}
         <div
           className={`
             ${
               showingCalendar
                 ? 'hidden'
-                : showingMail || showingCompose || showingBriefing || showingSettings || showingArchive || showingCampaignDetail
+                : showingMail || showingBriefing || showingSettings || showingArchive || showingCampaignDetail
                   ? 'hidden md:flex'
                   : 'flex'
             }
@@ -258,19 +246,21 @@ function LayoutShell() {
             full-screen list underneath (matching the inbox). */}
         <div
           className={`
-            ${showingMail || showingCompose || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaignDetail ? 'flex' : 'hidden md:flex'}
+            ${showingMail || showingBriefing || showingSettings || showingArchive || showingCalendar || showingCampaignDetail ? 'flex' : 'hidden md:flex'}
             flex-col flex-1 min-w-0 fixed md:relative inset-0 md:inset-auto z-10 md:z-0
             bg-transparent
           `}
         >
           <Switch>
             <Route path="/mail/:id" component={MailDetail} />
-            <Route path="/compose" component={Compose} />
             <Route path="/briefing" component={Briefing} />
             {/* v15.4 — /settings redirects to profile menu (opens sheet). */}
             <Route path="/settings" component={SettingsRedirect} />
             <Route path="/campaigns/:id" component={CampaignDetail} />
             <Route path="/campaigns" component={CampaignDetail} />
+            {/* v-replaiy — Calendar tab retained as a "Coming soon" placeholder.
+                The old working calendar implementation + its data were deleted
+                in the Stilt cleanup; only this placeholder remains. */}
             <Route path="/calendar/new">
               <ComingSoon title="Calendar" />
             </Route>
@@ -288,23 +278,14 @@ function LayoutShell() {
             </Route>
           </Switch>
         </div>
-
-        {/* v30.34 — ContactInfoPanel één bron voor mobile sheet én
-            desktop side-panel. Opent via 'stilt:open-contact-panel'
-            custom event (afzender naam in subject pill of avatar). */}
-        <ContactInfoPanel />
       </main>
 
       <MobileBottomNav />
 
       {/* Route-aware ••• menu — mounted once at the layout level so it
-          renders on every route (Inbox shows Mail items, Calendar shows
-          Calendar items). Mail-detail and Compose suppress the menu
-          themselves since they replace the ••• button with a back arrow. */}
+          renders on every route. The conversation detail suppresses the
+          menu itself since it replaces the ••• button with a back arrow. */}
       <DotsMenuSheet />
-
-      {/* v15.4 — Profile menu (replaces standalone Settings page). */}
-      <ProfileMenu />
     </div>
   );
 }

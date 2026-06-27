@@ -1,23 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { mockEmails, type Mail, type MailStatus, type MailCategory } from '@/data/mockEmails';
-import type { AccountId, RsvpStatus } from '@/data/mockEvents';
 import { MOCK_CAMPAIGNS, type Campaign } from '@/data/mockCampaigns';
 
 type Theme = 'light' | 'dark' | 'auto';
 type Category = MailCategory | 'done';
 export type ViewMode = 'inbox' | 'smart';
 
-// v15.4: view-selector state — per-surface current view.
+// View-selector state for the inbox (conversation) surface.
 export type MailView = 'inbox' | 'snoozed' | 'sent' | 'done' | 'drafts' | 'spam';
-export type CalView = 'today' | 'week' | 'month' | 'upcoming';
-export type DocsView = 'recent' | 'pinned' | 'shared' | 'templates' | 'trash';
 
+// Replaiy AI settings — only toggles that apply to LinkedIn outbound.
 interface AISettings {
   summary: boolean;
   smartReply: boolean;
-  autoCategorize: boolean;
-  cleanup: boolean;
-  toneCheck: boolean;
 }
 
 interface StiltState {
@@ -48,19 +43,12 @@ interface StiltState {
   setCategory: (c: Category) => void;
   viewMode: ViewMode;
   setViewMode: (v: ViewMode) => void;
-  // v15.4 — GLOBAL Smart toggle affecting Mail / Calendar / Docs simultaneously.
+  // GLOBAL Smart toggle for the AI-curated conversation view.
   smartMode: boolean;
   setSmartMode: (v: boolean) => void;
-  // v15.4 — per-surface view selector state.
+  // Inbox view selector state.
   mailView: MailView;
   setMailView: (v: MailView) => void;
-  calView: CalView;
-  setCalView: (v: CalView) => void;
-  docsView: DocsView;
-  setDocsView: (v: DocsView) => void;
-  // v15.4 — Profile menu sheet.
-  profileMenuOpen: boolean;
-  setProfileMenuOpen: (b: boolean) => void;
   query: string;
   setQuery: (q: string) => void;
   ai: AISettings;
@@ -77,19 +65,10 @@ interface StiltState {
   setSummaryPanelOpen: (b: boolean) => void;
   toggleSummaryPanel: () => void;
   /** v18 — Contact+Linked side-sheet (desktop) / bottom-sheet (mobile). Persists across mail navigation. */
-  contactPanelOpen: boolean;
-  setContactPanelOpen: (b: boolean) => void;
-  toggleContactPanel: () => void;
   /** Back-compat alias for v17 callers. Maps to summaryPanelOpen. */
   contextPanelOpen: boolean;
   setContextPanelOpen: (b: boolean) => void;
   toggleContextPanel: () => void;
-  /** Per-account calendar visibility toggles (Settings + multi-account). */
-  accountVisible: Record<AccountId, boolean>;
-  setAccountVisible: (id: AccountId, v: boolean) => void;
-  /** Local RSVP overrides keyed by event id. Falls back to the event's static rsvpStatus. */
-  rsvpOverrides: Record<string, RsvpStatus>;
-  setRsvp: (eventId: string, status: RsvpStatus) => void;
 }
 
 const Ctx = createContext<StiltState | null>(null);
@@ -110,9 +89,6 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
   // v15.4 — Default Smart ON. Single state used by all 3 surfaces.
   const [smartMode, setSmartMode] = useState<boolean>(true);
   const [mailView, setMailView] = useState<MailView>('inbox');
-  const [calView, setCalView] = useState<CalView>('today');
-  const [docsView, setDocsView] = useState<DocsView>('recent');
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [dotsMenuOpen, setDotsMenuOpen] = useState(false);
@@ -120,32 +96,13 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
   const [summaryPanelOpen, setSummaryPanelOpenState] = useState(false);
   const setSummaryPanelOpen = useCallback((b: boolean) => setSummaryPanelOpenState(b), []);
   const toggleSummaryPanel = useCallback(() => setSummaryPanelOpenState((v) => !v), []);
-  const [contactPanelOpen, setContactPanelOpenState] = useState(false);
-  const setContactPanelOpen = useCallback((b: boolean) => setContactPanelOpenState(b), []);
-  const toggleContactPanel = useCallback(() => setContactPanelOpenState((v) => !v), []);
   // v17 back-compat aliases.
   const contextPanelOpen = summaryPanelOpen;
   const setContextPanelOpen = setSummaryPanelOpen;
   const toggleContextPanel = toggleSummaryPanel;
-  const [accountVisible, setAccountVisibleState] = useState<Record<AccountId, boolean>>({
-    google: true,
-    microsoft: true,
-    apple: true,
-    personal: true,
-  });
-  const setAccountVisible = useCallback((id: AccountId, v: boolean) => {
-    setAccountVisibleState((prev) => ({ ...prev, [id]: v }));
-  }, []);
-  const [rsvpOverrides, setRsvpOverrides] = useState<Record<string, RsvpStatus>>({});
-  const setRsvp = useCallback((eventId: string, status: RsvpStatus) => {
-    setRsvpOverrides((prev) => ({ ...prev, [eventId]: status }));
-  }, []);
   const [ai, setAIState] = useState<AISettings>({
     summary: true,
     smartReply: true,
-    autoCategorize: true,
-    cleanup: true,
-    toneCheck: true,
   });
 
   // Watch system theme
@@ -248,12 +205,6 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
       setSmartMode,
       mailView,
       setMailView,
-      calView,
-      setCalView,
-      docsView,
-      setDocsView,
-      profileMenuOpen,
-      setProfileMenuOpen,
       query,
       setQuery,
       ai,
@@ -267,18 +218,11 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
       summaryPanelOpen,
       setSummaryPanelOpen,
       toggleSummaryPanel,
-      contactPanelOpen,
-      setContactPanelOpen,
-      toggleContactPanel,
       contextPanelOpen,
       setContextPanelOpen,
       toggleContextPanel,
-      accountVisible,
-      setAccountVisible,
-      rsvpOverrides,
-      setRsvp,
     }),
-    [mails, setMailStatus, campaigns, addCampaign, updateCampaign, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, mailView, calView, docsView, profileMenuOpen, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contactPanelOpen, setContactPanelOpen, toggleContactPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel, accountVisible, setAccountVisible, rsvpOverrides, setRsvp]
+    [mails, setMailStatus, campaigns, addCampaign, updateCampaign, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, mailView, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

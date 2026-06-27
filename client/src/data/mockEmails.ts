@@ -22,29 +22,9 @@ export interface ThreadMessage {
   attachments?: Attachment[];
 }
 
-export interface ContactInfo {
-  title?: string;
-  company?: string;
-  timezone?: string;
-  lastContacted?: string;
-  linkedinUrl?: string;
-  websiteUrl?: string;
-  phone?: string;
-  // v30.34 — free-form location (city, country) en notes (1 zinnetje).
-  // Beide optioneel, beide alleen getoond als gevuld op de Contact tab.
-  location?: string;
-  notes?: string;
-  aiInsights?: {
-    avgResponseTime?: string;
-    mostActive?: string;
-    sentiment?: string;
-  };
-}
-
 export interface Mail {
   id: string;
   from: { name: string; email: string; avatar?: string };
-  contact?: ContactInfo;
   to: string;
   subject: string;
   preview: string;
@@ -140,12 +120,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd2',
     from: { name: 'Emma Chen', email: '', avatar: 'https://i.pravatar.cc/120?img=47' },
-    contact: {
-      title: 'Head of Growth',
-      company: 'Northwave Labs',
-      location: 'Berlin',
-      linkedinUrl: 'https://linkedin.com/in/emmachen',
-    },
     to: 'replaiy',
     subject: 'Head of Growth · Northwave Labs',
     preview: "Ok this actually sounds useful. We're scaling SDR outbound right now and reply quality is a mess.",
@@ -172,12 +146,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd1',
     from: { name: 'Jan de Vries', email: '', avatar: 'https://i.pravatar.cc/120?img=12' },
-    contact: {
-      title: 'CTO',
-      company: 'Acme Software',
-      location: 'Amsterdam',
-      linkedinUrl: 'https://linkedin.com/in/jandevries',
-    },
     to: 'replaiy',
     subject: 'CTO · Acme Software',
     preview: 'Interessant, maar we hebben vorig jaar al een outbound-tool geprobeerd en die voelde echt als spam. Hoe is dit anders?',
@@ -204,12 +172,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd8',
     from: { name: 'Hannah Müller', email: '', avatar: 'https://i.pravatar.cc/120?img=49' },
-    contact: {
-      title: 'Marketing Lead',
-      company: 'Kettle & Co',
-      location: 'Vienna',
-      linkedinUrl: 'https://linkedin.com/in/hannahmueller',
-    },
     to: 'replaiy',
     subject: 'Marketing Lead · Kettle & Co',
     preview: 'Looks promising. How do we get started?',
@@ -236,12 +198,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd6',
     from: { name: 'Sara Janssen', email: '', avatar: 'https://i.pravatar.cc/120?img=5' },
-    contact: {
-      title: 'RevOps Manager',
-      company: 'Hexpond',
-      location: 'Rotterdam',
-      linkedinUrl: 'https://linkedin.com/in/sarajanssen',
-    },
     to: 'replaiy',
     subject: 'RevOps Manager · Hexpond',
     preview: 'Doen jullie ook integratie met HubSpot? Anders is het voor ons een no-go.',
@@ -268,12 +224,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd3',
     from: { name: 'Lars Bakker', email: '', avatar: 'https://i.pravatar.cc/120?img=33' },
-    contact: {
-      title: 'VP Sales',
-      company: 'Tendr B.V.',
-      location: 'Utrecht',
-      linkedinUrl: 'https://linkedin.com/in/larsbakker',
-    },
     to: 'replaiy',
     subject: 'VP Sales · Tendr B.V.',
     preview: 'Prijs is wel een dingetje. €600/maand is fors voor een team van vier. Wat krijgen we daar concreet voor terug?',
@@ -300,12 +250,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd4',
     from: { name: 'Priya Nair', email: '', avatar: 'https://i.pravatar.cc/120?img=44' },
-    contact: {
-      title: 'Founder & CEO',
-      company: 'Loopfield',
-      location: 'London',
-      linkedinUrl: 'https://linkedin.com/in/priyanair',
-    },
     to: 'replaiy',
     subject: 'Cold opener · hiring-signaal',
     preview: 'Loopfield opende net een paar SDR-rollen — Replaiy stelt een lage-druk opener voor.',
@@ -332,12 +276,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd5',
     from: { name: 'Marco Rossi', email: '', avatar: 'https://i.pravatar.cc/120?img=60' },
-    contact: {
-      title: 'Sales Director',
-      company: 'Velco Group',
-      location: 'Milan',
-      linkedinUrl: 'https://linkedin.com/in/marcorossi',
-    },
     to: 'replaiy',
     subject: 'Sales Director · Velco Group',
     preview: 'Thanks, will discuss internally and get back to you.',
@@ -364,12 +302,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd7',
     from: { name: 'David Okafor', email: '', avatar: 'https://i.pravatar.cc/120?img=68' },
-    contact: {
-      title: 'Co-founder',
-      company: 'Brightmile',
-      location: 'Dublin',
-      linkedinUrl: 'https://linkedin.com/in/davidokafor',
-    },
     to: 'replaiy',
     subject: 'Co-founder · Brightmile',
     preview: 'Honestly not sure AI-written messages are the move for us — feels like it could damage the brand if it sounds off.',
@@ -398,12 +330,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd9',
     from: { name: 'Femke de Boer', email: '', avatar: 'https://i.pravatar.cc/120?img=32' },
-    contact: {
-      title: 'Head of Talent',
-      company: 'Norvell',
-      location: 'The Hague',
-      linkedinUrl: 'https://linkedin.com/in/femkedeboer',
-    },
     to: 'replaiy',
     subject: 'Head of Talent · Norvell',
     preview: 'Verstuurd — wacht op interne terugkoppeling.',
@@ -430,12 +356,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd10',
     from: { name: 'Tomás Reyes', email: '', avatar: 'https://i.pravatar.cc/120?img=15' },
-    contact: {
-      title: 'Growth Lead',
-      company: 'Caldera',
-      location: 'Madrid',
-      linkedinUrl: 'https://linkedin.com/in/tomasreyes',
-    },
     to: 'replaiy',
     subject: 'Growth Lead · Caldera',
     preview: 'Sent — awaiting their slot pick.',
@@ -464,12 +384,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd11',
     from: { name: 'Nora Lindqvist', email: '', avatar: 'https://i.pravatar.cc/120?img=20' },
-    contact: {
-      title: 'SDR Manager',
-      company: 'Frost & Park',
-      location: 'Stockholm',
-      linkedinUrl: 'https://linkedin.com/in/noralindqvist',
-    },
     to: 'replaiy',
     subject: 'SDR Manager · Frost & Park',
     preview: 'Auto-sent overnight · opener on a hiring signal.',
@@ -498,12 +412,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd12',
     from: { name: 'Ben Carter', email: '', avatar: 'https://i.pravatar.cc/120?img=51' },
-    contact: {
-      title: 'VP Revenue',
-      company: 'Hollowpoint',
-      location: 'Austin',
-      linkedinUrl: 'https://linkedin.com/in/bencarter',
-    },
     to: 'replaiy',
     subject: 'VP Revenue · Hollowpoint',
     preview: 'Auto-sent overnight · pricing reply.',
@@ -532,12 +440,6 @@ export const mockEmails: Mail[] = [
   {
     id: 'd13',
     from: { name: 'Aisha Rahman', email: '', avatar: 'https://i.pravatar.cc/120?img=45' },
-    contact: {
-      title: 'Founder',
-      company: 'Tideglass',
-      location: 'Singapore',
-      linkedinUrl: 'https://linkedin.com/in/aisharahman',
-    },
     to: 'replaiy',
     subject: 'Founder · Tideglass',
     preview: 'Auto-sent overnight · nurture follow-up.',

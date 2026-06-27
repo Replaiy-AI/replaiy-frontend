@@ -25,15 +25,12 @@ import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Inbox,
-  Calendar as CalendarIcon,
   Target,
+  Calendar as CalendarIcon,
   Search,
   Plus,
-  SquarePen,
   type LucideIcon,
 } from 'lucide-react';
-import { useStilt } from '@/state/StiltContext';
-import { StiltAvatar } from './Avatar';
 import { VadikLiquidSwitcher } from './VadikLiquidSwitcher';
 import VadikGlass from './VadikGlass';
 import { GlassCircleButton as SharedGlassCircleButton, ProfileInitials } from './GlassCircleButton';
@@ -61,24 +58,20 @@ const PRIMARY: PrimaryItem[] = [
 
 export function VerticalRail() {
   const [loc, navigate] = useLocation();
-  const { setProfileMenuOpen } = useStilt();
 
-  const tab: 'inbox' | 'campaigns' | 'calendar' = loc.startsWith('/calendar')
-    ? 'calendar'
-    : loc.startsWith('/campaigns')
-      ? 'campaigns'
+  const tab: 'inbox' | 'campaigns' | 'calendar' = loc.startsWith('/campaigns')
+    ? 'campaigns'
+    : loc.startsWith('/calendar')
+      ? 'calendar'
       : 'inbox';
 
-  // v31 — In de Inbox-context gebruiken we SquarePen (universele compose-
-  // affordance, zoals Apple Mail / Spark / Twitter). Hier = nieuwe outreach.
-  // Campaigns en Calendar blijven Plus omdat dat semantisch "add item" is.
-  const newAction =
-    tab === 'inbox'
-      ? { href: '/compose',       label: 'New message', icon: SquarePen }
-      : tab === 'campaigns'
-        ? { href: '/campaigns',    label: 'New campaign', icon: Plus }
-        : { href: '/calendar/new', label: 'New event',    icon: Plus };
+  // Replaiy has three surfaces (Inbox, Campaigns, Calendar). The + button
+  // only adds a new campaign on the Campaigns surface; the inbox has no
+  // cold-compose affordance (LinkedIn replies happen inline inside a
+  // conversation) and Calendar is a "Coming soon" placeholder.
+  const newAction = { href: '/campaigns/new', label: 'New campaign', icon: Plus };
   const NewIcon = newAction.icon;
+  const showNew = tab === 'campaigns';
 
   // v16 — indicator must be a CIRCLE (width === height) inside each 52×52 segment.
   // Track width = 52, pad = 4 → indicator width = 52 - 4*2 = 44.
@@ -142,16 +135,18 @@ export function VerticalRail() {
         </GlassCircleButton>
       </div>
 
-      {/* 3. + New */}
-      <div className="pointer-events-auto">
-        <GlassCircleButton
-          label={newAction.label}
-          testId="rail-new"
-          onClick={() => navigate(newAction.href)}
-        >
-          <NewIcon size={19} strokeWidth={1.75} />
-        </GlassCircleButton>
-      </div>
+      {/* 3. + New — only on the Campaigns surface (adds a new campaign). */}
+      {showNew && (
+        <div className="pointer-events-auto">
+          <GlassCircleButton
+            label={newAction.label}
+            testId="rail-new"
+            onClick={() => navigate(newAction.href)}
+          >
+            <NewIcon size={19} strokeWidth={1.75} />
+          </GlassCircleButton>
+        </div>
+      )}
 
       {/* v19 — Smart-toggle removed from chrome. Lives in Settings (AI section) only.
          The smartMode boolean in StiltContext continues to drive behavior. */}
@@ -159,16 +154,13 @@ export function VerticalRail() {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* 5. Profile pill at bottom — v30.31
-         Was StiltAvatar binnen GlassCircleButton (gaf pill-binnen-pill
-         doordat avatar fallback z'n eigen background + inset-shadow had).
-         Nu: gewoon initials direct in de glass-pill, zelfde recipe als
-         Search en Plus buttons. */}
+      {/* 5. Profile pill at bottom — v-replaiy: the Stilt profile menu was
+         removed (fake template UI), but the SB avatar pill stays so we can
+         wire it to something later. onClick is a no-op for now. */}
       <div className="pointer-events-auto" style={{ marginBottom: 0 }}>
         <GlassCircleButton
           label="Simon van Basten"
           testId="rail-profile"
-          onClick={() => setProfileMenuOpen(true)}
         >
           <ProfileInitials initials="SB" />
         </GlassCircleButton>

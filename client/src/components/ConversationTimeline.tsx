@@ -427,7 +427,6 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
     summaryPanelOpen,
     toggleSummaryPanel,
     setSummaryPanelOpen,
-    setContactPanelOpen,
   } = useStilt();
   // v30.32 — ConversationTimeline rendert nu ALLE mails (single + thread).
   // Voorheen had SingleMailDetail een eigen render-tree, wat tot subtiele
@@ -603,6 +602,10 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
     navigate('/');
   };
 
+  // v-replaiy — The standalone /compose route was removed in the Stilt
+  // cleanup. Replies are always composed inline via the ComposeColumn /
+  // ComposeSheet editor below, so "expand to compose" only stages the
+  // prefill (the InlineReplyBar onExpand prop is currently inert).
   const onExpandCompose = () => {
     const last = messages[messages.length - 1];
     const replyTo = last && last.from === 'other' ? last.authorEmail : mail.from.email;
@@ -612,7 +615,6 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
       body: '',
       replyToId: mail.id,
     });
-    navigate('/compose');
   };
 
   const isTodayForYou =
@@ -941,7 +943,6 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
         avatar={mail.from.avatar}
         threadCount={messages.length}
         onBack={() => navigate('/')}
-        onOpenContact={() => setContactPanelOpen(true)}
         onDone={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
         onSnooze={() => { setMailStatus(mail.id, 'snoozed'); navigate('/'); }}
       />
@@ -978,7 +979,6 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
               avatar={mail.from.avatar}
               subject={[mail.leadHeadline, mail.leadCompany].filter(Boolean).join(' · ')}
               metaLabel={null}
-              onOpenContact={() => setContactPanelOpen(true)}
               onMetaClick={undefined}
               metaActive={summaryPanelOpen}
             />
@@ -1339,7 +1339,6 @@ function ThreadChromeSlot({
   avatar,
   threadCount,
   onBack,
-  onOpenContact,
   onDone,
   onSnooze,
   onForward,
@@ -1348,7 +1347,6 @@ function ThreadChromeSlot({
   avatar?: string;
   threadCount: number;
   onBack: () => void;
-  onOpenContact: () => void;
   onDone?: () => void;
   onSnooze?: () => void;
   onForward?: () => void;
@@ -1362,14 +1360,12 @@ function ThreadChromeSlot({
         </ActionPill>
       ),
       togglePill: (
-        // v30.30 — iMessage style: avatar + naam plain (geen capsule).
-        // Geen background, geen badge, alleen avatar + naam + chevron.
-        // Klik = contact panel.
-        <button
-          type="button"
+        // v-replaiy — iMessage style: avatar + naam plain (geen capsule).
+        // The Stilt contact info panel was removed, so this is now a plain
+        // non-interactive identity (avatar + naam + thread count).
+        <div
           data-testid="contact-pill"
-          onClick={onOpenContact}
-          className="inline-flex items-center gap-2 px-1 h-[52px] hover:opacity-80 transition-opacity"
+          className="inline-flex items-center gap-2 px-1 h-[52px]"
         >
           <StiltAvatar name={name} src={avatar} size={32} />
           <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[140px] text-foreground leading-tight">
@@ -1378,7 +1374,7 @@ function ThreadChromeSlot({
           <span className="text-foreground/40 text-[12px] tabular-nums shrink-0">
             {threadCount}
           </span>
-        </button>
+        </div>
       ),
       // v30.30 — Mobile: alleen Done als prominent pill + ... overflow met
       // Snooze + Forward in een liquid-glass dropdown.
@@ -1393,7 +1389,7 @@ function ThreadChromeSlot({
           <div style={{ width: 52, height: 52 }} aria-hidden="true" />
         ),
     }),
-    [name, avatar, threadCount, onBack, onOpenContact, onDone, onSnooze, onForward],
+    [name, avatar, threadCount, onBack, onDone, onSnooze, onForward],
   );
   useMobileTopChromeSlot(slot);
   return null;

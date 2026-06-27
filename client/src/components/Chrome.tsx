@@ -1,12 +1,8 @@
-import { Plus, SquarePen, Search, MoreHorizontal, type LucideIcon } from 'lucide-react';
-import { Link, useLocation } from 'wouter';
+import { Plus, Search, MoreHorizontal, type LucideIcon } from 'lucide-react';
+import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PRIMARY_NAV } from '@/lib/nav';
-import { mockEvents } from '@/data/mockEvents';
-import { GlassSegmentedToggle } from './GlassSegmentedToggle';
 import { VadikLiquidSwitcher } from './VadikLiquidSwitcher';
-import VadikGlass from './VadikGlass';
-import { StiltAvatar } from './Avatar';
 import { GlassCircleButton } from './GlassCircleButton';
 
 // v30.32 — FAB "+" gebruikt nu centrale GlassCircleButton, identiek aan
@@ -65,32 +61,26 @@ const ICON_TINT: Record<string, string> = {
 
 export function MobileBottomNav() {
   const [loc, setLoc] = useLocation();
-  const { sheetOpen, rsvpOverrides } = useStilt();
+  const { sheetOpen } = useStilt();
 
-  if (
-    loc.startsWith('/compose') ||
-    loc.startsWith('/mail/')
-  ) {
+  if (loc.startsWith('/mail/')) {
     return null;
   }
 
-  const fabHref = loc.startsWith('/calendar')
-    ? '/calendar/new'
-    : loc.startsWith('/campaigns')
-      ? '/campaigns/new'
-      : '/compose';
-  const fabLabel = loc.startsWith('/calendar')
-    ? 'New event'
-    : loc.startsWith('/campaigns')
-      ? 'New campaign'
-      : 'New message';
-  // v31 — Inbox FAB krijgt SquarePen (nieuwe outreach); Campaigns/Calendar blijven Plus.
-  const fabIcon: LucideIcon =
-    loc.startsWith('/calendar') || loc.startsWith('/campaigns') ? Plus : SquarePen;
+  // Replaiy has three surfaces: Inbox (conversations), Campaigns, and
+  // Calendar (a "Coming soon" placeholder). The FAB only adds a new
+  // campaign on /campaigns; the inbox has no cold-compose affordance
+  // (LinkedIn replies happen inline in a conversation) and Calendar is a
+  // placeholder, so the FAB is hidden on both.
+  const onCampaigns = loc.startsWith('/campaigns');
+  const onCalendar = loc.startsWith('/calendar');
+  const fabHref = '/campaigns/new';
+  const fabLabel = 'New campaign';
+  const fabIcon: LucideIcon = Plus;
 
-  const navValue: 'inbox' | 'campaigns' | 'calendar' = loc.startsWith('/calendar')
+  const navValue: 'inbox' | 'campaigns' | 'calendar' = onCalendar
     ? 'calendar'
-    : loc.startsWith('/campaigns')
+    : onCampaigns
       ? 'campaigns'
       : 'inbox';
 
@@ -133,8 +123,11 @@ export function MobileBottomNav() {
         )}
       </AnimatePresence>
 
+      {/* FAB only on Campaigns (adds a new campaign). The inbox has no
+          cold-compose affordance — replies are inline in a conversation —
+          and Calendar is a placeholder. */}
       <AnimatePresence>
-        {!sheetOpen && (
+        {!sheetOpen && onCampaigns && (
           <motion.div
             key="fab"
             initial={{ opacity: 0, scale: 0 }}
@@ -143,11 +136,6 @@ export function MobileBottomNav() {
             transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
             className="ml-auto pointer-events-auto"
           >
-            {/* v30.3 — FAB "+" gebruikt nu VadikButton (1-op-1 DOM-recipe
-                van de werkende tab-pill: outer <div> + inner <fieldset>).
-                Doel: bewijzen dat 1-segment Vadik glass schoon rendert op
-                iOS Safari met content erachter. Als deze clean is, kunnen
-                we de Reply pill ook naar VadikButton porten. */}
             <FabComposeButton href={fabHref} ariaLabel={fabLabel} icon={fabIcon} />
           </motion.div>
         )}

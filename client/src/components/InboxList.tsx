@@ -24,6 +24,7 @@ import { ListRow } from './ListRow';
 import { StiltAvatar } from './Avatar';
 import remiMascot from '@/assets/replaiy-mascot.png';
 import VadikGlass from './VadikGlass';
+import { StiltLogo } from '@/components/Logo';
 import { GlassCircleButton, ProfileInitials } from './GlassCircleButton';
 import { timeBucket, timeAgo, stateTag, formatInboxTime } from '@/lib/avatar';
 import { useInboxSettings } from '@/lib/inboxSettings';
@@ -564,16 +565,15 @@ function MobileCarousel({
 // v30.9 — Vervangen door VadikGlass shape="circle" (zelfde recipe als de
 // werkende mobile +/Search/Done/Snooze/Forward en desktop sidebar circles).
 // `overflow:hidden` op de wrapperStyle zodat de avatar binnen de cirkel blijft.
-// v30.32 — gebruikt nu centrale GlassCircleButton + ProfileInitials,
-// identiek aan desktop VerticalRail profile. Geen StiltAvatar fallback
-// meer (gaf pill-in-pill effect).
+// v-replaiy — the Stilt profile menu was removed (all fake template UI),
+// but the SB avatar button stays as the mobile top-chrome left slot so we
+// can wire it to something later (saves rebuilding). onClick is a no-op
+// for now. Kept consistent with CampaignsList.
 function MobileProfileAvatar() {
-  const { setProfileMenuOpen } = useStilt();
   return (
     <GlassCircleButton
       label="Profile"
       testId="mobile-profile-avatar"
-      onClick={() => setProfileMenuOpen(true)}
       showTooltip={false}
     >
       <ProfileInitials initials="SB" />

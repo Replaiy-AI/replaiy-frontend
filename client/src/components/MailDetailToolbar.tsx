@@ -82,7 +82,6 @@ export function SubjectIdentityPill({
   avatar,
   subject,
   metaLabel,
-  onOpenContact,
   onMetaClick,
   metaActive,
 }: {
@@ -90,7 +89,6 @@ export function SubjectIdentityPill({
   avatar?: string;
   subject: string;
   metaLabel?: string | null;
-  onOpenContact: () => void;
   onMetaClick?: () => void;
   metaActive?: boolean;
 }) {
@@ -110,19 +108,18 @@ export function SubjectIdentityPill({
       wrapperStyle={{ flex: 1, maxWidth: 640, minWidth: 0 }}
     >
       <div className="flex items-center w-full h-full pl-1.5 pr-1.5">
-        {/* Identity zone (clickable) */}
-        <button
-          type="button"
+        {/* Identity zone — plain (non-interactive). The Stilt contact
+           info panel was removed; the sender name/avatar no longer opens
+           anything. */}
+        <div
           data-testid="toolbar-identity"
-          onClick={onOpenContact}
-          className="inline-flex items-center gap-2.5 h-[42px] px-2.5 rounded-full shrink-0 hover-elevate active-elevate-2"
-          aria-label={`Open contact details for ${name}`}
+          className="inline-flex items-center gap-2.5 h-[42px] px-2.5 rounded-full shrink-0"
         >
           <StiltAvatar name={name} src={avatar} size={32} />
           <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate max-w-[160px]">
             {name}
           </span>
-        </button>
+        </div>
 
         {/* Vertical hairline divider */}
         <div
