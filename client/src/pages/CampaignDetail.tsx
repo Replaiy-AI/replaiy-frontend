@@ -326,16 +326,21 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
   const [editing, setEditing] = useState(false);
   const [goalType, setGoalType] = useState<CampaignGoalType>(campaign.goalType);
   const [customLabel, setCustomLabel] = useState(campaign.goalLabel ?? '');
+  const [goalDescription, setGoalDescription] = useState(campaign.goalDescription ?? '');
 
   const meta = GOAL_META[campaign.goalType];
   const label =
     campaign.goalType === 'custom' && campaign.goalLabel
       ? campaign.goalLabel
       : meta.label;
+  // View-mode subtitle: the campaign's own description if set, else the
+  // generic goal hint as a sensible fallback.
+  const description = campaign.goalDescription?.trim() || meta.hint;
 
   const beginEdit = () => {
     setGoalType(campaign.goalType);
     setCustomLabel(campaign.goalLabel ?? '');
+    setGoalDescription(campaign.goalDescription ?? '');
     setEditing(true);
   };
 
@@ -346,6 +351,7 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
     updateCampaign(campaign.id, {
       goalType,
       goalLabel: goalType === 'custom' ? customLabel.trim() : undefined,
+      goalDescription: goalDescription.trim() || undefined,
     });
     setEditing(false);
   };
@@ -383,6 +389,16 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
               onPick={setGoalType}
               onCustomLabel={setCustomLabel}
             />
+            {/* Editable goal description — same field shown on the row. */}
+            <div className="stilt-card rounded-3xl px-4 py-3">
+              <input
+                data-testid="input-edit-goal-description"
+                value={goalDescription}
+                onChange={(e) => setGoalDescription(e.target.value)}
+                placeholder="Short description — e.g. Book a 20-min intro call"
+                className="w-full bg-transparent outline-none text-[14px] text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
             <div className="flex items-center gap-2 px-1">
               <button
                 type="button"
@@ -422,7 +438,7 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
                   {label}
                 </div>
                 <p className="mt-1 text-[13px] text-muted-foreground leading-snug">
-                  {meta.hint}
+                  {description}
                 </p>
               </div>
             </div>
@@ -1025,6 +1041,7 @@ function CampaignCreate() {
   const [name, setName] = useState('');
   const [goalType, setGoalType] = useState<CampaignGoalType>('meeting');
   const [customLabel, setCustomLabel] = useState('');
+  const [goalDescription, setGoalDescription] = useState('');
 
   const canCreate =
     name.trim().length > 0 &&
@@ -1038,6 +1055,7 @@ function CampaignCreate() {
       name: name.trim(),
       goalType,
       goalLabel: goalType === 'custom' ? customLabel.trim() : undefined,
+      goalDescription: goalDescription.trim() || undefined,
       status: 'draft',
       memberIds: [],
       // flow omitted → falls back to DEFAULT_FLOW.
@@ -1118,6 +1136,23 @@ function CampaignCreate() {
           onPick={setGoalType}
           onCustomLabel={setCustomLabel}
         />
+      </section>
+
+      {/* Goal description — short, human line shown as the row subtitle. */}
+      <section>
+        <div className="px-2 mb-1.5 flex items-baseline justify-between gap-2">
+          <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Description</span>
+          <span className="text-[11.5px] text-muted-foreground">Optional</span>
+        </div>
+        <div className="stilt-card rounded-3xl px-4 py-3">
+          <input
+            data-testid="input-campaign-description"
+            value={goalDescription}
+            onChange={(e) => setGoalDescription(e.target.value)}
+            placeholder="e.g. Book a 20-min intro call about reply quality"
+            className="w-full bg-transparent outline-none text-[15px] text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
       </section>
 
       {/* Actions */}
