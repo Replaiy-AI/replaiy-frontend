@@ -39,6 +39,7 @@ const SNOOZE_OPTIONS: { key: SnoozeKey; label: string; hint: string }[] = [
 // rest of the top-row baseline.
 export function IdentityPill({
   name,
+  avatar,
   // Back-compat: callers used to pass meta + threadCount. We swallow
   // them silently — the meta-badge now lives on SubjectPill.
   meta: _meta,
@@ -46,6 +47,7 @@ export function IdentityPill({
   threadCount: _threadCount,
 }: {
   name: string;
+  avatar?: string;
   meta?: string;
   onOpenContact: () => void;
   threadCount?: number;
@@ -59,7 +61,7 @@ export function IdentityPill({
       className="inline-flex items-center gap-2.5 px-1 h-[52px] hover:opacity-80 transition-opacity"
       aria-label={`Open contact details for ${name}`}
     >
-      <StiltAvatar name={name} size={36} />
+      <StiltAvatar name={name} src={avatar} size={36} />
       <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate max-w-[180px]">
         {name}
       </span>
@@ -77,6 +79,7 @@ export function IdentityPill({
 // Desktop chrome: gebruikt deze SubjectIdentityPill.
 export function SubjectIdentityPill({
   name,
+  avatar,
   subject,
   metaLabel,
   onOpenContact,
@@ -84,6 +87,7 @@ export function SubjectIdentityPill({
   metaActive,
 }: {
   name: string;
+  avatar?: string;
   subject: string;
   metaLabel?: string | null;
   onOpenContact: () => void;
@@ -114,7 +118,7 @@ export function SubjectIdentityPill({
           className="inline-flex items-center gap-2.5 h-[42px] px-2.5 rounded-full shrink-0 hover-elevate active-elevate-2"
           aria-label={`Open contact details for ${name}`}
         >
-          <StiltAvatar name={name} size={32} />
+          <StiltAvatar name={name} src={avatar} size={32} />
           <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate max-w-[160px]">
             {name}
           </span>

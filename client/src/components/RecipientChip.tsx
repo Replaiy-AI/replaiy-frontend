@@ -13,10 +13,11 @@ import { StiltAvatar } from './Avatar';
 export interface RecipientChipProps {
   email: string;
   name?: string;
+  avatar?: string;
   onRemove: () => void;
 }
 
-export function RecipientChip({ email, name, onRemove }: RecipientChipProps) {
+export function RecipientChip({ email, name, avatar, onRemove }: RecipientChipProps) {
   if (name) {
     // Avatar + name variant — Compose pattern.
     return (
@@ -24,7 +25,7 @@ export function RecipientChip({ email, name, onRemove }: RecipientChipProps) {
         data-testid={`recipient-chip-${email}`}
         className="inline-flex items-center gap-1.5 h-8 pl-1 pr-1.5 rounded-full bg-foreground/[0.06] text-[13px] font-medium tracking-[-0.005em] text-foreground/85 shrink-0"
       >
-        <StiltAvatar name={name} size={24} />
+        <StiltAvatar name={name} src={avatar} size={24} />
         <span className="truncate max-w-[180px]">{name}</span>
         <button
           type="button"

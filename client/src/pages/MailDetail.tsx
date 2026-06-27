@@ -240,6 +240,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
       {/* Mobile top-chrome slot — back + identity + Done/Snooze acties. */}
       <MailDetailChromeSlot
         name={mail.from.name}
+        avatar={mail.from.avatar}
         onBack={() => navigate('/')}
         onOpenContact={handleOpenContact}
         onDone={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
@@ -274,6 +275,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
                (lange thread). Voor single mails: geen badge, geen klik. */}
             <SubjectIdentityPill
               name={mail.from.name}
+              avatar={mail.from.avatar}
               subject={mail.subject}
               metaLabel={hasSummaryPanelValue(mail) ? `${mail.messages?.length ?? 1} messages` : null}
               onOpenContact={handleOpenContact}
@@ -466,6 +468,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
           mailId={mail.id}
           forwardContext={forwardContext}
           onForwardCancel={() => setForwardContext(null)}
+          onDismiss={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
           onSend={onSendInline}
           onExpand={onExpandCompose}
         />
@@ -483,6 +486,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
           mailId={mail.id}
           forwardContext={forwardContext}
           onForwardCancel={() => setForwardContext(null)}
+          onDismiss={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
           onSend={onSendInline}
           onExpand={onExpandCompose}
           onExpandedChange={setReplyBarExpanded}
@@ -494,6 +498,7 @@ function SingleMailDetail({ mailId }: { mailId: string }) {
 
 function MailDetailChromeSlot({
   name,
+  avatar,
   onBack,
   onOpenContact,
   onDone,
@@ -501,6 +506,7 @@ function MailDetailChromeSlot({
   onForward,
 }: {
   name: string;
+  avatar?: string;
   onBack: () => void;
   onOpenContact: () => void;
   onDone?: () => void;
@@ -523,7 +529,7 @@ function MailDetailChromeSlot({
           onClick={onOpenContact}
           className="inline-flex items-center gap-2 px-1 h-[52px] hover:opacity-80 transition-opacity"
         >
-          <StiltAvatar name={name} size={32} />
+          <StiltAvatar name={name} src={avatar} size={32} />
           <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[160px] text-foreground">
             {name}
           </span>
@@ -541,7 +547,7 @@ function MailDetailChromeSlot({
           <div style={{ width: 52, height: 52 }} aria-hidden="true" />
         ),
     }),
-    [name, onBack, onOpenContact, onDone, onSnooze, onForward],
+    [name, avatar, onBack, onOpenContact, onDone, onSnooze, onForward],
   );
   useMobileTopChromeSlot(slot);
   return null;

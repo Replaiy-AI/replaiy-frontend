@@ -78,7 +78,7 @@ function ProfileHeaderCard({ mail, onEmail }: { mail: Mail; onEmail: () => void 
   const firstName = from.name.split(' ')[0];
   return (
     <div className="flex flex-col items-center text-center pt-2 pb-1" data-testid="profile-header-card">
-      <StiltAvatar name={from.name} size={96} />
+      <StiltAvatar name={from.name} src={from.avatar} size={96} />
       <h2
         className="mt-4 text-[20px] font-semibold tracking-[-0.02em] text-foreground"
         data-testid="text-profile-name"

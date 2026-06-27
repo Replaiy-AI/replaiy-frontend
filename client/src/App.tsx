@@ -350,7 +350,7 @@ function MailRowLite({ mail }: { mail: any }) {
       href={`/mail/${mail.id}`}
       className="px-4 py-3 flex items-start gap-3 hover-elevate active-elevate-2"
     >
-      <StiltAvatar name={mail.from.name} size={36} />
+      <StiltAvatar name={mail.from.name} src={mail.from.avatar} size={36} />
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between">
           <span className="font-semibold text-[14.5px] truncate">{mail.from.name}</span>

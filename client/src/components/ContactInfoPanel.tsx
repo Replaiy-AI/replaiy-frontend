@@ -619,7 +619,7 @@ function StickyHeader({
         className="px-6 flex flex-col items-center justify-center text-center"
         style={{ height: 168 }}
       >
-        <StiltAvatar name={from.name} size={80} />
+        <StiltAvatar name={from.name} src={from.avatar} size={80} />
         <h3
           className="mt-2 text-[22px] font-semibold tracking-[-0.015em] leading-tight"
           data-testid="contact-name"

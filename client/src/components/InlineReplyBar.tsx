@@ -27,11 +27,7 @@ import { createPortal } from 'react-dom';
 import {
   Send,
   Sparkles,
-  Bold,
-  Italic,
-  Underline,
   List,
-  Link2,
   X,
   Maximize2,
   Minimize2,
@@ -80,6 +76,10 @@ interface InlineReplyBarProps {
   forwardContext?: ForwardContext | null;
   /** Callback om forward-mode te annuleren (parent state resetten). */
   onForwardCancel?: () => void;
+  /** v-replaiy — Optioneel: Dismiss-actie. Markeert de draft als afgehandeld
+   *  (done/dismissed) en navigeert terug naar de inbox. Rendert de Dismiss
+   *  ghost-knop naast de Approve & send-knop wanneer aanwezig. */
+  onDismiss?: () => void;
   /** Callback bij Send. kind onderscheidt reply/forward/compose. Subject is
    *  alleen relevant bij forward of compose (bij reply geërfd van thread). */
   onSend: (payload: {
@@ -262,6 +262,7 @@ export function InlineReplyBar({
   mailId,
   forwardContext,
   onForwardCancel,
+  onDismiss,
   onSend,
   onExpandedChange,
   composeMode = false,
@@ -1479,10 +1480,10 @@ export function InlineReplyBar({
              conversation's lead. No recipient picker, Cc/Bcc, subject, or
              forward. We keep the header row purely as the home for the
              fullscreen / close action buttons (Stilt's design unchanged). */}
+          {/* v-replaiy — duplicate lead-name header removed (name already
+             shows in the conversation pill + bubble). `mr-auto` moved to the
+             action group so the fullscreen/close buttons stay right-aligned. */}
           <div className="flex items-center gap-3 min-h-[36px]">
-            <span className="text-[13px] font-medium text-foreground/55 shrink-0 leading-none mr-auto">
-              {recipientName ?? 'Lead'}
-            </span>
             {/* v32.1 — Right-side action group, split:
                 • Chevron (Cc/Bcc toggle): ALWAYS visible in sheetMode
                   (compose AND mobile reply/forward sheet — the wrapper
@@ -1494,7 +1495,7 @@ export function InlineReplyBar({
                 • Internal Close X: only in composeMode AND not chromeless
                   (the ComposeSheetMobile wrapper supplies its own close). */}
             {(sheetMode || !chromeless) && (
-            <div className="flex items-center gap-0.5 shrink-0">
+            <div className="flex items-center gap-0.5 shrink-0 ml-auto">
             {/* v-replaiy — Cc/Bcc toggle removed (LinkedIn has no Cc/Bcc). */}
             {/* Fullscreen toggle. v31 — verborgen in composeMode: er valt
                niks te vergroten, de editor IS de hele kolom al. v32 — ook
@@ -1684,13 +1685,28 @@ export function InlineReplyBar({
            clashed visually with the new Pen-pill. */}
         {!chromeless && (
           <div
-            className="absolute z-10"
+            className="absolute z-10 flex items-center gap-2"
             style={{ right: 12, bottom: 12 }}
           >
+            {/* v-replaiy — Dismiss + Approve & send as one adjacent pair.
+               Dismiss is the quieter ghost button (Stilt's existing neutral
+               text-icon/hover-elevate style, no new style); Send stays the
+               solid Vadik glass pill. */}
+            {onDismiss && (
+              <button
+                type="button"
+                data-testid="button-dismiss-draft"
+                aria-label="Dismiss draft"
+                onClick={onDismiss}
+                className="h-10 px-3.5 rounded-full flex items-center justify-center text-[13px] font-medium text-icon hover:text-foreground hover-elevate active-elevate-2"
+              >
+                Dismiss
+              </button>
+            )}
             <button
               type="button"
-              data-testid="button-send-reply"
-              aria-label="Send reply"
+              data-testid="button-approve-send"
+              aria-label="Approve & send"
               onClick={handleSend}
               className="h-10 w-10 rounded-full flex items-center justify-center text-icon hover:text-foreground active-elevate-2"
               style={replyPillStyle()}
@@ -1813,48 +1829,10 @@ export function InlineReplyBar({
                     className="flex items-center overflow-hidden"
                   >
                     <div className="flex items-center pr-1">
-                      <ReplyFormatBtn
-                        label="Bold"
-                        testId="reply-fmt-bold"
-                        onClick={() => handleFormat('bold')}
-                        active={activeFormats.has('bold')}
-                      >
-                        <Bold
-                          size={16}
-                          strokeWidth={activeFormats.has('bold') ? 3.2 : 2.2}
-                        />
-                      </ReplyFormatBtn>
-                      <ReplyFormatBtn
-                        label="Italic"
-                        testId="reply-fmt-italic"
-                        onClick={() => handleFormat('italic')}
-                        active={activeFormats.has('italic')}
-                      >
-                        <Italic
-                          size={16}
-                          strokeWidth={activeFormats.has('italic') ? 3.2 : 2.2}
-                        />
-                      </ReplyFormatBtn>
-                      <ReplyFormatBtn
-                        label="Underline"
-                        testId="reply-fmt-underline"
-                        onClick={() => handleFormat('underline')}
-                        active={activeFormats.has('underline')}
-                      >
-                        <Underline
-                          size={16}
-                          strokeWidth={activeFormats.has('underline') ? 3.2 : 2.2}
-                        />
-                      </ReplyFormatBtn>
-                      {/* v38.2 — Bulleted-list button removed: "- " or
-                         "1. " markdown shortcuts already create lists. */}
-                      <ReplyFormatBtn
-                        label="Insert link"
-                        testId="reply-fmt-link"
-                        onClick={() => handleFormat('link')}
-                      >
-                        <Link2 size={16} strokeWidth={2} />
-                      </ReplyFormatBtn>
+                      {/* v-replaiy — Rich-text buttons (Bold/Italic/Underline)
+                         and the Insert-link button removed: LinkedIn messages
+                         have no rich text and auto-detect raw URLs. The media
+                         attach button below stays (LinkedIn supports it). */}
                       <ReplyFormatBtn
                         label="Attach file"
                         testId="reply-fmt-attach"

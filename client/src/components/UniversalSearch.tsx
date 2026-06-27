@@ -4,31 +4,19 @@ import { useLocation } from 'wouter';
 import {
   Search as SearchIcon,
   X,
-  Mail as MailIcon,
   Calendar as CalendarIcon,
-  FileText,
-  User as UserIcon,
-  Inbox as InboxIcon,
   Clock,
-  Send,
+  Zap,
   CircleCheck,
   CheckCircle2,
   FileEdit,
-  Ban,
   Paperclip,
-  CornerUpLeft,
   CalendarRange,
   CalendarDays,
   CalendarClock,
-  FileClock,
-  Pin,
-  Share2,
-  LayoutTemplate,
-  Trash2,
 } from 'lucide-react';
-import { useStilt, type MailView, type CalView, type DocsView } from '@/state/StiltContext';
+import { useStilt, type CalView } from '@/state/StiltContext';
 import { mockEvents, accountColor } from '@/data/mockEvents';
-import { mockDocs } from '@/data/mockDocs';
 import { StiltAvatar } from './Avatar';
 import { timeAgo } from '@/lib/avatar';
 import { APPLE_SPRING } from '@/lib/motion';
@@ -64,13 +52,14 @@ import VadikGlass from './VadikGlass';
 // toont cal-views (Today/Week/Month/Upcoming), Docs-route toont
 // docs-views (Recent/Pinned/etc.). De chip-keys zijn typed per surface.
 // v30.31 — Perplexity stijl: monochrome chips, geen iOS systeem-tints.
-const MAIL_CHIPS: { key: MailView; label: string; icon: any; tint?: string }[] = [
-  { key: 'inbox', label: 'Inbox', icon: InboxIcon },
-  { key: 'snoozed', label: 'Snoozed', icon: Clock },
-  { key: 'sent', label: 'Sent', icon: Send },
-  { key: 'done', label: 'Done', icon: CircleCheck },
-  { key: 'drafts', label: 'Drafts', icon: FileEdit },
-  { key: 'spam', label: 'Spam', icon: Ban },
+// v-replaiy — Draft-filters aligned with the Replaiy inbox sections
+// (zelfde status-velden als InboxList.tsx). Geen mail-views (inbox/sent/
+// spam/etc.) meer; dit zijn LinkedIn-draft statussen.
+const MAIL_CHIPS: { key: string; label: string; icon: any; tint?: string }[] = [
+  { key: 'needsApproval', label: 'Needs approval', icon: FileEdit },
+  { key: 'waiting', label: 'Waiting on reply', icon: Clock },
+  { key: 'autoSent', label: 'Auto-sent', icon: Zap },
+  { key: 'dismissed', label: 'Dismissed', icon: CircleCheck },
 ];
 
 const CAL_CHIPS: { key: CalView; label: string; icon: any; tint?: string }[] = [
@@ -80,14 +69,6 @@ const CAL_CHIPS: { key: CalView; label: string; icon: any; tint?: string }[] = [
   { key: 'upcoming', label: 'Upcoming', icon: CalendarClock },
 ];
 
-const DOCS_CHIPS: { key: DocsView; label: string; icon: any; tint?: string }[] = [
-  { key: 'recent', label: 'Recent', icon: FileClock },
-  { key: 'pinned', label: 'Pinned', icon: Pin },
-  { key: 'shared', label: 'Shared', icon: Share2 },
-  { key: 'templates', label: 'Templates', icon: LayoutTemplate },
-  { key: 'trash', label: 'Trash', icon: Trash2 },
-];
-
 interface ResultMail {
   kind: 'mail';
   id: string;
@@ -95,6 +76,7 @@ interface ResultMail {
   subtitle: string;
   meta: string;
   fromName: string;
+  avatar?: string;
   hasAttachment: boolean;
   done: boolean;
   ts: string;
@@ -107,21 +89,15 @@ interface ResultEvent {
   meta: string;
   account?: string;
 }
-interface ResultDoc {
-  kind: 'doc';
-  id: string;
-  title: string;
-  subtitle: string;
-  meta: string;
-}
 interface ResultContact {
   kind: 'contact';
   id: string; // mail id to open as proxy
   title: string; // name
   subtitle: string; // email
   meta: string; // role/last contact
+  avatar?: string;
 }
-type Result = ResultMail | ResultEvent | ResultDoc | ResultContact;
+type Result = ResultMail | ResultEvent | ResultContact;
 
 function formatEventWhen(iso: string): string {
   const d = new Date(iso);
@@ -141,20 +117,16 @@ export function UniversalSearch() {
   // user expliciet op een chip klikt. Bij open van modal reset altijd
   // naar null (= alles zoeken across all sources).
   const [activeChip, setActiveChip] = useState<string | null>(null);
-  const { mails, mailView, setMailView, calView, setCalView, docsView, setDocsView } = useStilt();
+  const { mails, calView, setCalView } = useStilt();
   const [location, navigate] = useLocation();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // v30.30 — Detecteer surface op basis van huidige route. Bepaalt welke
-  // chip-set we tonen + welke setter we triggeren bij chip-click.
-  const surface: 'mail' | 'calendar' | 'docs' =
-    location.startsWith('/calendar') ? 'calendar'
-    : location.startsWith('/docs') ? 'docs'
-    : 'mail';
-  const chips =
-    surface === 'calendar' ? CAL_CHIPS
-    : surface === 'docs' ? DOCS_CHIPS
-    : MAIL_CHIPS;
+  // v-replaiy — Surface detectie. Docs bestaat niet meer in Replaiy; alleen
+  // de Calendar-surface houdt z'n eigen cal-chips. Alles anders (inbox /
+  // mail-detail) gebruikt de Replaiy draft-filters (MAIL_CHIPS).
+  const surface: 'mail' | 'calendar' =
+    location.startsWith('/calendar') ? 'calendar' : 'mail';
+  const chips = surface === 'calendar' ? CAL_CHIPS : MAIL_CHIPS;
 
   // Global open/close — keyboard ⌘K + custom event from sidebar trigger.
   useEffect(() => {
@@ -208,57 +180,67 @@ export function UniversalSearch() {
   const term = q.trim().toLowerCase();
 
   // Compute grouped results.
-  const { mailResults, eventResults, docResults, contactResults, flat } = useMemo(() => {
-    // v30.30.1 — Filter logic. activeChip is alleen actief als de gebruiker
-    // expliciet een chip heeft aangeklikt. Default (null) = geen filter,
-    // alle categorieën worden getoond. Bij actieve mail-chip filteren we
-    // de mails op de juiste view-status (zelfde logic als InboxList.tsx)
-    // én verbergen we andere groepen (events/docs/contacts).
+  const { mailResults, eventResults, contactResults, flat } = useMemo(() => {
+    // v-replaiy — Draft-filter logic. activeChip is alleen actief als de
+    // gebruiker expliciet een chip heeft aangeklikt. Default (null) = geen
+    // filter, alle bronnen tonen. Bij actieve draft-chip filteren we de
+    // drafts op de juiste Replaiy-status (zelfde velden als InboxList.tsx)
+    // én verbergen we andere groepen (events/leads).
     let mailsFiltered = mails;
     const hasChipFilter = surface === 'mail' && !!activeChip;
     if (hasChipFilter) {
-      if (activeChip === 'inbox') {
-        // Default inbox: primary + fyi + newsletter, non-done, non-sent
+      if (activeChip === 'needsApproval') {
+        // Pending drafts die op review wachten (zelfde als InboxList).
         mailsFiltered = mailsFiltered.filter(
-          (m) =>
-            (m as any).isSent !== true &&
-            m.status !== 'done' &&
-            (m.category === 'primary' || m.category === 'fyi' || m.category === 'newsletter'),
+          (m) => m.priority === 'high' && m.status === 'open' && m.needsReply,
         );
-      } else if (activeChip === 'snoozed') {
-        mailsFiltered = mailsFiltered.filter((m) => m.status === 'snoozed');
-      } else if (activeChip === 'sent') {
-        mailsFiltered = mailsFiltered.filter((m) => (m as any).isSent === true);
-      } else if (activeChip === 'done') {
+      } else if (activeChip === 'waiting') {
+        // Verstuurd, wacht op reactie van de lead.
+        mailsFiltered = mailsFiltered.filter((m) => m.status === 'waiting');
+      } else if (activeChip === 'autoSent') {
+        // Automatisch verstuurd door autopilot.
+        mailsFiltered = mailsFiltered.filter((m) => (m as any).isAutoSent === true);
+      } else if (activeChip === 'dismissed') {
+        // Afgewezen drafts (status done/dismissed).
         mailsFiltered = mailsFiltered.filter((m) => m.status === 'done');
-      } else if (activeChip === 'drafts') {
-        mailsFiltered = mailsFiltered.filter((m) => (m as any).isDraft === true);
-      } else if (activeChip === 'spam') {
-        mailsFiltered = mailsFiltered.filter((m) => m.category === 'promo');
       }
     }
     if (term) {
-      mailsFiltered = mailsFiltered.filter(
-        (m) =>
+      // v-replaiy — Zoek op lead-naam, functie/headline, bedrijf en de
+      // draft/incoming tekst. Geen e-mail "subject" meer (bestaat niet op
+      // LinkedIn).
+      mailsFiltered = mailsFiltered.filter((m) => {
+        const headline = (m as any).leadHeadline ?? (m as any).contact?.title ?? '';
+        const company = (m as any).leadCompany ?? (m as any).contact?.company ?? '';
+        return (
           m.from.name.toLowerCase().includes(term) ||
-          m.subject.toLowerCase().includes(term) ||
+          headline.toLowerCase().includes(term) ||
+          company.toLowerCase().includes(term) ||
           m.preview.toLowerCase().includes(term) ||
-          (m.body || '').toLowerCase().includes(term),
-      );
+          (m.body || '').toLowerCase().includes(term)
+        );
+      });
     }
-    // Bij actieve chip: toon meer mails (max 30) en verberg andere groepen.
+    // Bij actieve chip: toon meer drafts (max 30) en verberg andere groepen.
     const mailLimit = hasChipFilter ? 30 : 5;
-    const mailItems: ResultMail[] = mailsFiltered.slice(0, mailLimit).map((m) => ({
-      kind: 'mail',
-      id: m.id,
-      title: m.subject,
-      subtitle: m.from.name,
-      meta: timeAgo(m.ts),
-      fromName: m.from.name,
-      hasAttachment: !!((m as any).attachments && (m as any).attachments.length > 0),
-      done: m.status === 'done',
-      ts: m.ts,
-    }));
+    const mailItems: ResultMail[] = mailsFiltered.slice(0, mailLimit).map((m) => {
+      const headline = (m as any).leadHeadline ?? (m as any).contact?.title ?? '';
+      const company = (m as any).leadCompany ?? (m as any).contact?.company ?? '';
+      const sub = [headline, company].filter(Boolean).join(' · ');
+      return {
+        kind: 'mail',
+        id: m.id,
+        // Title = lead-naam; subtitle = headline · company (LinkedIn-stijl).
+        title: m.from.name,
+        subtitle: sub || m.preview,
+        meta: timeAgo(m.ts),
+        fromName: m.from.name,
+        avatar: m.from.avatar,
+        hasAttachment: !!((m as any).attachments && (m as any).attachments.length > 0),
+        done: m.status === 'done',
+        ts: m.ts,
+      };
+    });
 
     // Events — bij actieve mail-chip verbergen.
     const evFiltered = hasChipFilter
@@ -281,43 +263,33 @@ export function UniversalSearch() {
       account: e.account,
     }));
 
-    // Docs — bij actieve mail-chip verbergen.
-    const docsFiltered = hasChipFilter
-      ? []
-      : mockDocs
-          .filter((d) =>
-            term
-              ? d.title.toLowerCase().includes(term) ||
-                d.preview.toLowerCase().includes(term) ||
-                d.tags.some((t) => t.toLowerCase().includes(term))
-              : true,
-          )
-          .slice(0, 5);
-    const docItems: ResultDoc[] = docsFiltered.map((d) => ({
-      kind: 'doc',
-      id: d.id,
-      title: d.title,
-      subtitle: d.preview,
-      meta: timeAgo(d.lastEdited),
-    }));
+    // v-replaiy — Docs-resultaten verwijderd: Docs bestaat niet in Replaiy.
 
-    // Contacts (derived from unique senders matching term) — bij actieve
-    // mail-chip verbergen.
+    // Leads (afgeleid van unieke leads die op de term matchen) — bij
+    // actieve draft-chip verbergen. Zoek op naam, headline/functie en
+    // bedrijf (geen e-mail).
     const contactMap = new Map<string, ResultContact>();
     if (!hasChipFilter) {
       for (const m of mails) {
         const name = m.from.name;
-        if (term && !name.toLowerCase().includes(term) && !m.from.email.toLowerCase().includes(term))
+        const headline = (m as any).leadHeadline ?? (m as any).contact?.title ?? '';
+        const company = (m as any).leadCompany ?? (m as any).contact?.company ?? '';
+        if (
+          term &&
+          !name.toLowerCase().includes(term) &&
+          !headline.toLowerCase().includes(term) &&
+          !company.toLowerCase().includes(term)
+        )
           continue;
         if (contactMap.has(name)) continue;
+        const sub = [headline, company].filter(Boolean).join(' · ');
         contactMap.set(name, {
           kind: 'contact',
           id: m.id,
           title: name,
-          subtitle: m.from.email,
-          meta: (m as any).contact?.title
-            ? `${(m as any).contact.title}${(m as any).contact.company ? ' · ' + (m as any).contact.company : ''}`
-            : `Last seen ${timeAgo(m.ts)}`,
+          subtitle: sub || `Last seen ${timeAgo(m.ts)}`,
+          meta: company || `Last seen ${timeAgo(m.ts)}`,
+          avatar: m.from.avatar,
         });
         if (contactMap.size >= 3) break;
       }
@@ -327,14 +299,12 @@ export function UniversalSearch() {
     const flat: Result[] = [
       ...mailItems,
       ...eventItems,
-      ...docItems,
       ...contactItems,
     ];
 
     return {
       mailResults: mailItems,
       eventResults: eventItems,
-      docResults: docItems,
       contactResults: contactItems,
       flat,
     };
@@ -349,7 +319,6 @@ export function UniversalSearch() {
     setOpen(false);
     if (r.kind === 'mail') navigate(`/mail/${r.id}`);
     else if (r.kind === 'event') navigate('/calendar');
-    else if (r.kind === 'doc') navigate(`/docs/${r.id}`);
     else if (r.kind === 'contact') navigate(`/mail/${r.id}`);
   };
 
@@ -368,16 +337,15 @@ export function UniversalSearch() {
   };
 
   // v30.30 — Klik op chip = filter binnen de modal, modal blijft open.
-  // Toggle: tweede klik op zelfde chip = filter weer uit. Ook setten we
-  // de bijbehorende view in de StiltContext zodat het persistent is na
-  // sluiten en de surface daadwerkelijk in die view staat.
+  // Toggle: tweede klik op zelfde chip = filter weer uit.
+  // v-replaiy — De draft-chips (needsApproval/waiting/autoSent/dismissed)
+  // zijn lokale filters, geen mail-views meer, dus we setten geen MailView
+  // op de context. Alleen de Calendar-surface zet z'n cal-view persistent.
   const pickChip = (key: string) => {
     const next = activeChip === key ? null : key;
     setActiveChip(next);
     if (next === null) return;
-    if (surface === 'mail') setMailView(next as MailView);
-    else if (surface === 'calendar') setCalView(next as CalView);
-    else setDocsView(next as DocsView);
+    if (surface === 'calendar') setCalView(next as CalView);
   };
 
   return (
@@ -430,7 +398,7 @@ export function UniversalSearch() {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Search mails, events, docs, contacts…"
+                placeholder="Search drafts, leads, conversations…"
                 className="flex-1 min-w-0 bg-transparent text-[15.5px] outline-none placeholder:text-foreground/40 tracking-[-0.005em]"
               />
               <kbd className="hidden md:inline-flex items-center gap-0.5 glass-pill pill px-2 py-0.5 text-[11px] font-semibold text-foreground/70 select-none">
@@ -496,13 +464,13 @@ export function UniversalSearch() {
                 <div className="px-4 py-12 text-center text-foreground/55">
                   <p className="text-[14px] font-medium">No matches</p>
                   <p className="text-[12.5px] mt-1 text-foreground/45">
-                    Try a different word, sender, or doc title.
+                    Try a different lead, company, or draft phrase.
                   </p>
                 </div>
               ) : (
                 <>
                   {mailResults.length > 0 && (
-                    <ResultGroup label="Mails">
+                    <ResultGroup label="Drafts">
                       {mailResults.map((r, i) => {
                         const idx = i;
                         return (
@@ -512,7 +480,7 @@ export function UniversalSearch() {
                             onMouseEnter={() => setSelectedIdx(idx)}
                             onClick={() => openResult(r)}
                             testId={`search-result-mail-${r.id}`}
-                            leading={<StiltAvatar name={r.fromName} size={28} />}
+                            leading={<StiltAvatar name={r.fromName} src={r.avatar} size={28} />}
                             title={r.title}
                             subtitle={r.subtitle}
                             meta={r.meta}
@@ -559,35 +527,11 @@ export function UniversalSearch() {
                       })}
                     </ResultGroup>
                   )}
-                  {docResults.length > 0 && (
-                    <ResultGroup label="Docs">
-                      {docResults.map((r, i) => {
-                        const idx = mailResults.length + eventResults.length + i;
-                        return (
-                          <ResultRow
-                            key={`d-${r.id}`}
-                            active={selectedIdx === idx}
-                            onMouseEnter={() => setSelectedIdx(idx)}
-                            onClick={() => openResult(r)}
-                            testId={`search-result-doc-${r.id}`}
-                            leading={
-                              <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-foreground/[0.05] dark:bg-white/[0.06]">
-                                <FileText size={13} strokeWidth={1.8} className="text-icon-muted" />
-                              </div>
-                            }
-                            title={r.title}
-                            subtitle={r.subtitle}
-                            meta={r.meta}
-                          />
-                        );
-                      })}
-                    </ResultGroup>
-                  )}
                   {contactResults.length > 0 && (
-                    <ResultGroup label="Contacts">
+                    <ResultGroup label="Leads">
                       {contactResults.map((r, i) => {
                         const idx =
-                          mailResults.length + eventResults.length + docResults.length + i;
+                          mailResults.length + eventResults.length + i;
                         return (
                           <ResultRow
                             key={`c-${r.id}-${r.title}`}
@@ -595,7 +539,7 @@ export function UniversalSearch() {
                             onMouseEnter={() => setSelectedIdx(idx)}
                             onClick={() => openResult(r)}
                             testId={`search-result-contact-${i}`}
-                            leading={<StiltAvatar name={r.title} size={28} />}
+                            leading={<StiltAvatar name={r.title} src={r.avatar} size={28} />}
                             title={r.title}
                             subtitle={r.subtitle}
                             meta={r.meta}

@@ -22,6 +22,17 @@ interface AISettings {
 interface StiltState {
   mails: Mail[];
   setMailStatus: (id: string, status: MailStatus) => void;
+  /** Replaiy — start a fresh empty conversation with a lead. Creates a
+   *  new empty Mail (no messages) and returns its id so the caller can
+   *  navigate to /mail/:id (the normal conversation view + reply bar). */
+  startConversationWith: (lead: {
+    name: string;
+    email?: string;
+    avatar?: string;
+    leadHeadline?: string;
+    leadCompany?: string;
+    leadLocation?: string;
+  }) => string;
   composePrefill: { to?: string; subject?: string; body?: string; replyToId?: string } | null;
   setComposePrefill: (v: StiltState['composePrefill']) => void;
   theme: Theme;
@@ -151,6 +162,48 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
     setMails((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
   }, []);
 
+  const startConversationWith = useCallback(
+    (lead: {
+      name: string;
+      email?: string;
+      avatar?: string;
+      leadHeadline?: string;
+      leadCompany?: string;
+      leadLocation?: string;
+    }) => {
+      const id = `new-${Date.now()}`;
+      const newMail: Mail = {
+        id,
+        from: { name: lead.name, email: lead.email ?? '', avatar: lead.avatar },
+        contact: {
+          title: lead.leadHeadline,
+          company: lead.leadCompany,
+          location: lead.leadLocation,
+        },
+        to: 'me',
+        subject: '',
+        preview: '',
+        body: '',
+        ts: new Date().toISOString(),
+        status: 'open',
+        category: 'primary',
+        priority: 'normal',
+        needsReply: false,
+        summary: '',
+        smartReplies: ['', '', ''],
+        leadHeadline: lead.leadHeadline,
+        leadCompany: lead.leadCompany,
+        leadLocation: lead.leadLocation,
+        // Empty thread — ConversationTimeline renders the lead header + an
+        // empty timeline with the reply/draft bar at the bottom.
+        messages: [],
+      };
+      setMails((prev) => [newMail, ...prev]);
+      return id;
+    },
+    []
+  );
+
   const setAI = useCallback((patch: Partial<AISettings>) => {
     setAIState((prev) => ({ ...prev, ...patch }));
   }, []);
@@ -159,6 +212,7 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
     () => ({
       mails,
       setMailStatus,
+      startConversationWith,
       composePrefill,
       setComposePrefill,
       theme,
@@ -202,7 +256,7 @@ export function StiltProvider({ children }: { children: React.ReactNode }) {
       rsvpOverrides,
       setRsvp,
     }),
-    [mails, setMailStatus, composePrefill, theme, effectiveDark, category, viewMode, smartMode, mailView, calView, docsView, profileMenuOpen, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contactPanelOpen, setContactPanelOpen, toggleContactPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel, accountVisible, setAccountVisible, rsvpOverrides, setRsvp]
+    [mails, setMailStatus, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, mailView, calView, docsView, profileMenuOpen, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contactPanelOpen, setContactPanelOpen, toggleContactPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel, accountVisible, setAccountVisible, rsvpOverrides, setRsvp]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

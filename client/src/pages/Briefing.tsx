@@ -87,7 +87,7 @@ export function Briefing() {
             </div>
             <Link href={`/mail/${topPriority.id}`} className="block hover-elevate active-elevate-2 rounded-2xl p-3 -m-1">
               <div className="flex items-start gap-3">
-                <StiltAvatar name={topPriority.from.name} size={42} />
+                <StiltAvatar name={topPriority.from.name} src={topPriority.from.avatar} size={42} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between">
                     <span className="font-semibold text-[15px] truncate">{topPriority.from.name}</span>
@@ -120,7 +120,7 @@ export function Briefing() {
             <div className="space-y-2">
               {waiting.slice(0, 3).map((m) => (
                 <Link key={m.id} href={`/mail/${m.id}`} className="flex items-center gap-3 hover-elevate active-elevate-2 -mx-2 px-2 py-1.5 rounded-xl">
-                  <StiltAvatar name={m.from.name} size={32} />
+                  <StiltAvatar name={m.from.name} src={m.from.avatar} size={32} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[13.5px] font-medium truncate">{m.from.name}</div>
                     <div className="text-[12px] text-muted-foreground truncate">

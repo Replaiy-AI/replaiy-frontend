@@ -2,27 +2,15 @@ import { avatarFor } from '@/lib/avatar';
 
 interface AvatarProps {
   name: string;
+  /** Portrait URL from the lead data. When provided it always wins
+     (Replaiy rule: no hardcoded sender lists — the data drives the photo). */
+  src?: string;
   size?: number;
   className?: string;
 }
 
-// Deterministic photo avatars for a curated set of human senders.
-// We mix real-looking portraits (pravatar) with initial-circles for company senders.
-const PHOTO_SENDERS: Record<string, string> = {
-  'Nora Chen':         'https://i.pravatar.cc/120?img=47',
-  'Marcus Webb':       'https://i.pravatar.cc/120?img=12',
-  'Elena Park':        'https://i.pravatar.cc/120?img=49',
-  'Jordan Reilly':     'https://i.pravatar.cc/120?img=15',
-  'Devon Mathers':     'https://i.pravatar.cc/120?img=33',
-  'Maya Iyer':         'https://i.pravatar.cc/120?img=44',
-  'Sam Okafor':        'https://i.pravatar.cc/120?img=68',
-  'Avery Tan':         'https://i.pravatar.cc/120?img=20',
-  'Emma Larsen':       'https://i.pravatar.cc/120?img=5',
-  'Tomás Reyes':       'https://i.pravatar.cc/120?img=60',
-};
-
-export function StiltAvatar({ name, size = 40, className = '' }: AvatarProps) {
-  const photo = PHOTO_SENDERS[name];
+export function StiltAvatar({ name, src, size = 40, className = '' }: AvatarProps) {
+  const photo = src;
 
   if (photo) {
     return (

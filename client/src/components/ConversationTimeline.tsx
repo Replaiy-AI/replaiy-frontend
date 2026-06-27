@@ -119,11 +119,13 @@ function BubbleV2({
   showAvatar,
   showName,
   isLastInRun,
+  avatarSrc,
 }: {
   msg: ThreadMessage;
   showAvatar: boolean;
   showName: boolean;
   isLastInRun: boolean;
+  avatarSrc?: string;
 }) {
   const mine = msg.from === 'me';
   const isLong = msg.body.length >= LONG_MSG_THRESHOLD;
@@ -237,7 +239,7 @@ function BubbleV2({
       className="stilt-thread-other flex items-end gap-2"
     >
       <div className="w-8 shrink-0">
-        {showAvatar && <StiltAvatar name={msg.authorName} size={32} />}
+        {showAvatar && <StiltAvatar name={msg.authorName} src={avatarSrc} size={32} />}
       </div>
       <div className="max-w-[78%] flex flex-col items-start">
         {showName && (
@@ -432,17 +434,24 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
   // styling-verschillen leidde tussen "Elena's mail" en "Nora's thread".
   // Nu: als mail.messages leeg is, sintetiseren we één message uit
   // mail.body — het hele thread-systeem werkt dan ook voor single mails.
-  const messages: ThreadMessage[] = mail.messages && mail.messages.length > 0
-    ? mail.messages
-    : [{
-        id: `${mail.id}-msg`,
-        from: 'other',
-        authorName: mail.from.name,
-        authorEmail: mail.from.email,
-        ts: mail.ts,
-        body: mail.body,
-        attachments: mail.attachments,
-      }];
+  // Replaiy — een NIEUWE lege conversatie (geen messages én geen body)
+  // houdt een lege thread: alleen de lead-header bovenin + de reply-balk
+  // onderaan, geen synthetische bubble. Bestaande mails blijven één
+  // bubble synthetiseren uit mail.body.
+  const messages: ThreadMessage[] =
+    mail.messages && mail.messages.length > 0
+      ? mail.messages
+      : mail.body
+        ? [{
+            id: `${mail.id}-msg`,
+            from: 'other',
+            authorName: mail.from.name,
+            authorEmail: mail.from.email,
+            ts: mail.ts,
+            body: mail.body,
+            attachments: mail.attachments,
+          }]
+        : [];
   const lastSeenId = mail.lastSeenMessageId;
   const lastSeenIdx = lastSeenId
     ? messages.findIndex((m) => m.id === lastSeenId)
@@ -907,6 +916,16 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
     return out;
   }, [messages, firstNewIdx]);
 
+  // Replaiy-regel: niks hardcoded, de data stuurt de foto. Resolve een
+  // bericht-avatar door authorName te matchen tegen de lead (mail.from)
+  // of een thread-deelnemer. 'me'-berichten krijgen geen src → initials.
+  const resolveAuthorAvatar = (m: ThreadMessage): string | undefined => {
+    if (m.from === 'me') return undefined;
+    if (m.authorName === mail.from.name) return mail.from.avatar;
+    const p = mail.threadParticipants?.find((x) => x.name === m.authorName);
+    return p?.avatar ?? mail.from.avatar;
+  };
+
   // Title pill: show participant or "X people"
   const titleName = mail.from.name;
 
@@ -916,6 +935,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
       {/* Mobile top chrome: back + identity pill + Done/Snooze actions. */}
       <ThreadChromeSlot
         name={titleName}
+        avatar={mail.from.avatar}
         threadCount={messages.length}
         onBack={() => navigate('/')}
         onOpenContact={() => setContactPanelOpen(true)}
@@ -952,6 +972,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
             {/* v30.32 — meta-badge alleen tonen als panel waarde heeft. */}
             <SubjectIdentityPill
               name={titleName}
+              avatar={mail.from.avatar}
               subject={[mail.leadHeadline, mail.leadCompany].filter(Boolean).join(' · ')}
               metaLabel={null}
               onOpenContact={() => setContactPanelOpen(true)}
@@ -1091,6 +1112,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
                     showAvatar={it.showAvatar}
                     showName={it.showName}
                     isLastInRun={it.isLastInRun}
+                    avatarSrc={resolveAuthorAvatar(it.msg)}
                   />
                 </div>
               );
@@ -1123,6 +1145,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
           mailId={mail.id}
           forwardContext={forwardContext}
           onForwardCancel={() => setForwardContext(null)}
+          onDismiss={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
           onSend={onSendInline}
           onExpand={onExpandCompose}
           onFocusMode={() => setReplyFocusOpen(true)}
@@ -1226,6 +1249,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
           mailId={mail.id}
           /* No forwardContext here — forward state is owned by the sheet
              instance (below) so this inline placeholder never auto-expands. */
+          onDismiss={() => { setMailStatus(mail.id, 'done'); navigate('/'); }}
           onSend={onSendInline}
           onExpand={onExpandCompose}
           onExpandedChange={setReplyBarExpanded}
@@ -1301,6 +1325,7 @@ export function ConversationTimeline({ mail }: { mail: Mail }) {
 
 function ThreadChromeSlot({
   name,
+  avatar,
   threadCount,
   onBack,
   onOpenContact,
@@ -1309,6 +1334,7 @@ function ThreadChromeSlot({
   onForward,
 }: {
   name: string;
+  avatar?: string;
   threadCount: number;
   onBack: () => void;
   onOpenContact: () => void;
@@ -1334,7 +1360,7 @@ function ThreadChromeSlot({
           onClick={onOpenContact}
           className="inline-flex items-center gap-2 px-1 h-[52px] hover:opacity-80 transition-opacity"
         >
-          <StiltAvatar name={name} size={32} />
+          <StiltAvatar name={name} src={avatar} size={32} />
           <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[140px] text-foreground leading-tight">
             {name}
           </span>
@@ -1356,7 +1382,7 @@ function ThreadChromeSlot({
           <div style={{ width: 52, height: 52 }} aria-hidden="true" />
         ),
     }),
-    [name, threadCount, onBack, onOpenContact, onDone, onSnooze, onForward],
+    [name, avatar, threadCount, onBack, onOpenContact, onDone, onSnooze, onForward],
   );
   useMobileTopChromeSlot(slot);
   return null;
