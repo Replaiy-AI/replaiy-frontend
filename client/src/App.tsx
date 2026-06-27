@@ -16,6 +16,7 @@ import { InboxList } from '@/components/InboxList';
 import { MailDetail } from '@/pages/MailDetail';
 import { Compose } from '@/pages/Compose';
 import { Briefing } from '@/pages/Briefing';
+import Campaigns from '@/pages/Campaigns';
 import { ProfileMenu } from '@/components/ProfileMenu';
 import { StiltLogo } from '@/components/Logo';
 import { UniversalSearch } from '@/components/UniversalSearch';
@@ -249,9 +250,7 @@ function LayoutShell() {
             <Route path="/briefing" component={Briefing} />
             {/* v15.4 — /settings redirects to profile menu (opens sheet). */}
             <Route path="/settings" component={SettingsRedirect} />
-            <Route path="/campaigns">
-              <ComingSoon title="Campaigns" />
-            </Route>
+            <Route path="/campaigns" component={Campaigns} />
             <Route path="/calendar/new">
               <ComingSoon title="Calendar" />
             </Route>
