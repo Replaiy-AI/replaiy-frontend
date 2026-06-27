@@ -22,18 +22,16 @@
 import { motion } from 'framer-motion';
 import { useMemo } from 'react';
 import { useLocation } from 'wouter';
-import {
-  Sparkles,
-  User as UserIcon,
-  Building2,
-  Lock,
-  ChevronRight,
-} from 'lucide-react';
+import { Lock, ChevronRight } from 'lucide-react';
 import { useStilt } from '@/state/StiltContext';
 import { useMobileTopChromeSlot } from './MobileTopChrome';
 import { GlassCircleButton, ProfileInitials } from './GlassCircleButton';
+import { ConversionBar } from './CampaignsList';
 import { APPLE_SPRING } from '@/lib/motion';
 import remiMascot from '@/assets/replaiy-mascot.png';
+import iconPersona from '@/assets/ai_icon_persona.png';
+import iconPersonal from '@/assets/ai_icon_personal.png';
+import iconWorkspace from '@/assets/ai_icon_workspace.png';
 import { canEditWorkspaceKnowledge } from '@/data/mockWorkspace';
 
 // Mobile top-chrome left slot — identical to Inbox/Campaigns so the surfaces
@@ -54,20 +52,21 @@ function MobileProfileAvatar() {
 // the SAME neutral active highlight the inbox/campaigns rows use (bg-foreground
 // /[0.05]) plus a subtle accent ring so the selected card reads clearly.
 function PartCard({
-  icon: Icon,
+  iconSrc,
   title,
   description,
-  summary,
+  pct,
   locked,
   to,
   testId,
   index,
   active,
 }: {
-  icon: typeof Sparkles;
+  iconSrc: string;
   title: string;
   description: string;
-  summary: string;
+  /** Setup completion 0..100 — drives the brand gradient bar. */
+  pct: number;
   locked?: boolean;
   to: string;
   testId: string;
@@ -75,6 +74,7 @@ function PartCard({
   active?: boolean;
 }) {
   const [, navigate] = useLocation();
+  const complete = Math.round(pct) >= 100;
   return (
     <motion.button
       type="button"
@@ -87,26 +87,42 @@ function PartCard({
         active ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
       }`}
     >
-      <div className="flex items-start justify-between">
-        <Icon size={24} strokeWidth={1.8} className="shrink-0 text-foreground/70" />
-        {locked ? (
-          <Lock size={15} strokeWidth={2} className="text-icon-muted shrink-0" />
-        ) : (
-          <ChevronRight size={18} strokeWidth={2} className="text-icon-muted shrink-0" />
-        )}
+      <div className="flex items-start gap-4">
+        {/* Prominent 3D brand icon — same material world as the mascot. */}
+        <img
+          src={iconSrc}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="shrink-0 w-14 h-14 object-contain select-none pointer-events-none"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-[16.5px] font-semibold tracking-[-0.01em] text-foreground">
+              {title}
+            </h3>
+            {locked ? (
+              <Lock size={15} strokeWidth={2} className="text-icon-muted shrink-0 mt-1" />
+            ) : (
+              <ChevronRight size={18} strokeWidth={2} className="text-icon-muted shrink-0 mt-0.5" />
+            )}
+          </div>
+          <p className="text-[13.5px] leading-[1.5] text-foreground/55 mt-1">{description}</p>
+        </div>
       </div>
-      <h3 className="text-[16.5px] font-semibold tracking-[-0.01em] text-foreground mt-3.5">
-        {title}
-      </h3>
-      <p className="text-[13.5px] leading-[1.5] text-foreground/55 mt-1.5">
-        {description}
-      </p>
-      {/* Flat summary tag — accent text, not a glass pill. */}
-      <div
-        className="text-[13px] font-medium tabular-nums mt-3.5"
-        style={{ color: 'var(--ai-accent, #2F6BFF)' }}
-      >
-        {summary}
+
+      {/* Setup completion — the shared brand gradient bar (same as campaign
+          rows), here meaning how fully this part is set up. */}
+      <div className="mt-4 flex items-center gap-3">
+        <div className="flex-1">
+          <ConversionBar pct={pct} />
+        </div>
+        <span
+          className="text-[12px] font-medium tabular-nums shrink-0"
+          style={{ color: complete ? 'var(--ai-accent, #2F6BFF)' : 'hsl(var(--foreground) / 0.45)' }}
+        >
+          {complete ? 'Complete' : `${Math.round(pct)}% complete`}
+        </span>
       </div>
     </motion.button>
   );
@@ -136,14 +152,28 @@ export function AiList() {
   useMobileTopChromeSlot(detailOpen ? null : overviewSlot);
 
   const t = persona.tone;
-  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-  const langLabel = t.language === 'nl' ? 'Dutch' : 'English';
   const canEditWs = canEditWorkspaceKnowledge(workspace.currentRole);
 
-  const pAnswered = persona.knowledge.questions.filter((q) => q.answer.trim()).length;
-  const wAnswered = workspace.knowledge.questions.filter((q) => q.answer.trim()).length;
-  const pTotal = persona.knowledge.questions.length;
-  const wTotal = workspace.knowledge.questions.length;
+  // ── Setup completion per part (0..100), feeding the brand gradient bar ──
+  // Persona: share of the meaningful tone+strategy fields that are filled in.
+  const personaFields = [
+    t.voice,
+    persona.strategy.qualification,
+    persona.strategy.closing,
+    persona.strategy.pushVsWait,
+  ];
+  const personaFilled =
+    personaFields.filter((v) => v && v.trim()).length +
+    (t.dos.length ? 1 : 0) +
+    (t.donts.length ? 1 : 0);
+  const personaPct = (personaFilled / (personaFields.length + 2)) * 100;
+
+  // Knowledge: share of intake questions answered (files are a bonus, not
+  // required for "complete").
+  const pQ = persona.knowledge.questions;
+  const wQ = workspace.knowledge.questions;
+  const personalPct = pQ.length ? (pQ.filter((q) => q.answer.trim()).length / pQ.length) * 100 : 0;
+  const workspacePct = wQ.length ? (wQ.filter((q) => q.answer.trim()).length / wQ.length) * 100 : 0;
 
   // ── One single list layout, always (inbox/campaigns parity) ────────
   return (
@@ -199,30 +229,30 @@ export function AiList() {
             <PartCard
               index={0}
               testId="part-persona"
-              icon={Sparkles}
+              iconSrc={iconPersona}
               title="Persona"
-              description="How your AI sounds, reacts and thinks in every conversation."
-              summary={`${cap(t.formality)} · ${langLabel}`}
+              description="The voice, tone and strategy your AI uses to reply. This is what makes it sound like you."
+              pct={personaPct}
               to="/ai/persona"
               active={loc.startsWith('/ai/persona')}
             />
             <PartCard
               index={1}
               testId="part-knowledge-personal"
-              icon={UserIcon}
+              iconSrc={iconPersonal}
               title="Personal knowledge"
-              description="What you teach your AI — context only your conversations use."
-              summary={`${pAnswered}/${pTotal} answered`}
+              description="Your own notes, writing samples and answers. Only your conversations draw on this."
+              pct={personalPct}
               to="/ai/knowledge-personal"
               active={loc.startsWith('/ai/knowledge-personal')}
             />
             <PartCard
               index={2}
               testId="part-knowledge-workspace"
-              icon={Building2}
+              iconSrc={iconWorkspace}
               title="Workspace knowledge"
-              description="What your company teaches your AI, shared with the whole team."
-              summary={`${wAnswered}/${wTotal} answered`}
+              description="Company facts every teammate's AI shares: what you sell, who it is for and how you handle objections."
+              pct={workspacePct}
               locked={!canEditWs}
               to="/ai/knowledge-workspace"
               active={loc.startsWith('/ai/knowledge-workspace')}
