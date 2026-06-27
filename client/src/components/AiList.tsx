@@ -231,7 +231,7 @@ export function AiList() {
               testId="part-persona"
               iconSrc={iconPersona}
               title="Persona"
-              description="The voice, tone and strategy your AI uses to reply. This is what makes it sound like you."
+              description="The voice, tone and strategy your AI uses to reply. It sounds like you on your best day, every day."
               pct={personaPct}
               to="/ai/persona"
               active={loc.startsWith('/ai/persona')}
