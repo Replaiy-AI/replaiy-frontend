@@ -39,6 +39,12 @@ import {
   Check,
   Lock,
   ArrowLeft,
+  Linkedin,
+  Globe,
+  UploadCloud,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import { ReplaiyLogo } from '@/components/Logo';
@@ -53,6 +59,8 @@ import {
   type StrategyStance,
   type KnowledgeBundle,
   type KnowledgeDoc,
+  type KnowledgeSource,
+  type KnowledgeStatus,
 } from '@/data/mockPersona';
 import {
   canEditWorkspaceKnowledge,
@@ -249,12 +257,42 @@ function EditableList({
   );
 }
 
-const KNOWLEDGE_ICON: Record<KnowledgeDoc['kind'], typeof FileText> = {
+const FILE_KIND_ICON: Record<NonNullable<KnowledgeDoc['kind']>, typeof FileText> = {
   pdf: FileText,
   doc: FileText,
   note: StickyNote,
   link: Link2,
 };
+
+// Icon per source TYPE (linkedin / url / file).
+function sourceIcon(src: KnowledgeSource) {
+  if (src.type === 'linkedin') return Linkedin;
+  if (src.type === 'url') return Globe;
+  return FILE_KIND_ICON[src.kind ?? 'doc'];
+}
+
+// Small status pill mirroring the backend ingest lifecycle. 'ready' is quiet
+// (just the meta text); the others get a small coloured chip.
+function SourceStatus({ status }: { status: KnowledgeStatus }) {
+  if (status === 'ready') return null;
+  if (status === 'connected')
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#2F6BFF]">
+        <CheckCircle2 size={12} strokeWidth={2} /> Connected
+      </span>
+    );
+  if (status === 'processing')
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground/50">
+        <Loader2 size={12} strokeWidth={2} className="animate-spin" /> Processing
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-500">
+      <AlertCircle size={12} strokeWidth={2} /> Failed
+    </span>
+  );
+}
 
 // ════════════════════════════════════════════════════════════════
 // Detail-pane shell: scroll container + back affordances on BOTH breakpoints.
@@ -570,28 +608,87 @@ function KnowledgeDetail({
       (editable ? '' : ' Read-only for your role.');
   const headerIcon = isPersonal ? iconPersonal : iconWorkspace;
 
-  // Live one-line state for the header. Counts answered questions and files
-  // so the header reflects how much of this part is set up right now.
+  // Live one-line header summary. Counts answered questions + sources.
   const answeredCount = bundle.questions.filter((q) => q.answer.trim()).length;
-  const fileCount = bundle.files.length;
-  const headerSummary = `${answeredCount} of ${bundle.questions.length} questions answered. ${fileCount} ${fileCount === 1 ? 'file' : 'files'}.`;
+  const srcCount = bundle.sources.length;
+  const headerSummary = `${answeredCount} of ${bundle.questions.length} questions answered. ${srcCount} ${srcCount === 1 ? 'source' : 'sources'}.`;
 
+  // ── Q&A ──
   const setAnswer = (id: string, answer: string) =>
     setBundle((prev) => ({
       ...prev,
       questions: prev.questions.map((q) => (q.id === id ? { ...q, answer } : q)),
     }));
-
-  const addFile = () =>
+  const addQuestion = () =>
     setBundle((prev) => ({
       ...prev,
-      files: [
-        ...prev.files,
-        { id: `f_${Date.now()}`, title: 'New document', kind: 'doc', hint: 'Not uploaded yet', meta: 'Draft' },
+      questions: [
+        ...prev.questions,
+        { id: `q_${Date.now()}`, question: 'New question', answer: '', custom: true },
       ],
     }));
-  const removeFile = (id: string) =>
-    setBundle((prev) => ({ ...prev, files: prev.files.filter((f) => f.id !== id) }));
+  const editQuestion = (id: string, question: string) =>
+    setBundle((prev) => ({
+      ...prev,
+      questions: prev.questions.map((q) => (q.id === id ? { ...q, question } : q)),
+    }));
+  const removeQuestion = (id: string) =>
+    setBundle((prev) => ({ ...prev, questions: prev.questions.filter((q) => q.id !== id) }));
+
+  // ── Sources (files + urls + linkedin) ──
+  const removeSource = (id: string) =>
+    setBundle((prev) => ({ ...prev, sources: prev.sources.filter((s) => s.id !== id) }));
+
+  // Mock the backend ingest: a new source starts 'processing', then flips to
+  // 'ready' after a moment. The real backend will drive this status for real.
+  const ingest = (src: KnowledgeSource) => {
+    setBundle((prev) => ({ ...prev, sources: [...prev.sources, src] }));
+    setTimeout(() => {
+      setBundle((prev) => ({
+        ...prev,
+        sources: prev.sources.map((s) => (s.id === src.id ? { ...s, status: 'ready' } : s)),
+      }));
+    }, 2200);
+  };
+
+  const addFiles = (files: FileList | File[]) => {
+    Array.from(files).forEach((file, i) => {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      const kind: KnowledgeDoc['kind'] = ext === 'pdf' ? 'pdf' : 'doc';
+      const kb = Math.max(1, Math.round(file.size / 1024));
+      const meta = kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
+      ingest({
+        id: `f_${Date.now()}_${i}`,
+        type: 'file',
+        title: file.name,
+        kind,
+        hint: 'Uploaded document',
+        meta,
+        status: 'processing',
+      });
+    });
+  };
+
+  const addUrl = (raw: string) => {
+    let url = raw.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    let domain = url;
+    try {
+      domain = new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      /* keep raw */
+    }
+    ingest({
+      id: `u_${Date.now()}`,
+      type: 'url',
+      title: domain,
+      url,
+      hint: 'Web page — the AI reads it for context',
+      meta: domain,
+      status: 'processing',
+    });
+  };
 
   return (
     <ViewShell title={title} onBack={onBack}>
@@ -611,8 +708,31 @@ function KnowledgeDetail({
         <SectionHeader count={bundle.questions.length}>Questions</SectionHeader>
         <div className="flex flex-col gap-3" data-testid={`knowledge-${scope}-questions`}>
           {bundle.questions.map((q) => (
-            <div key={q.id} className="rp-card rounded-3xl p-4 lg:p-5" data-testid={`question-${q.id}`}>
-              <div className="text-[14px] font-medium text-foreground leading-snug">{q.question}</div>
+            <div key={q.id} className="group rp-card rounded-3xl p-4 lg:p-5" data-testid={`question-${q.id}`}>
+              <div className="flex items-start gap-2">
+                {editable && q.custom ? (
+                  <input
+                    value={q.question}
+                    onChange={(e) => editQuestion(q.id, e.target.value)}
+                    data-testid={`question-edit-${q.id}`}
+                    className="flex-1 bg-transparent text-[14px] font-medium text-foreground leading-snug outline-none placeholder:text-foreground/35"
+                    placeholder="Your question…"
+                  />
+                ) : (
+                  <div className="flex-1 text-[14px] font-medium text-foreground leading-snug">{q.question}</div>
+                )}
+                {editable && q.custom && (
+                  <button
+                    type="button"
+                    aria-label="Remove question"
+                    data-testid={`question-remove-${q.id}`}
+                    onClick={() => removeQuestion(q.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+                  >
+                    <Trash2 size={13} strokeWidth={1.8} />
+                  </button>
+                )}
+              </div>
               {q.hint && <div className="text-[12px] text-foreground/45 mt-1">{q.hint}</div>}
               <div className="mt-3">
               {editable ? (
@@ -631,43 +751,55 @@ function KnowledgeDetail({
               </div>
             </div>
           ))}
+          {editable && (
+            <button
+              type="button"
+              data-testid={`knowledge-${scope}-add-question`}
+              onClick={addQuestion}
+              className="glass-pill pill h-11 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold text-foreground/70 hover-elevate active-elevate-2"
+            >
+              <Plus size={15} strokeWidth={2} />
+              Add your own question
+            </button>
+          )}
         </div>
         </section>
 
-        {/* ── Files ── */}
+        {/* ── Sources (LinkedIn / website / files) ── */}
         <section>
-        <SectionHeader count={bundle.files.length}>Files</SectionHeader>
-        <div className="flex flex-col gap-2" data-testid={`knowledge-${scope}-files`}>
-          {/* File rows grouped into a single card cluster with hairline
-              dividers, the SAME pattern the inbox list uses for conversation
-              rows (rp-card rounded-3xl overflow-hidden + ml divider). */}
-          {bundle.files.length > 0 && (
+        <SectionHeader count={bundle.sources.length}>Sources</SectionHeader>
+        <div className="flex flex-col gap-3" data-testid={`knowledge-${scope}-sources`}>
+          {bundle.sources.length > 0 && (
             <div className="rp-card rounded-3xl overflow-hidden">
-              {bundle.files.map((doc, i) => {
-                const Icon = KNOWLEDGE_ICON[doc.kind];
+              {bundle.sources.map((src, i) => {
+                const Icon = sourceIcon(src);
+                const canRemove = editable && src.type !== 'linkedin';
                 return (
-                  <div key={doc.id}>
+                  <div key={src.id}>
                     {i > 0 && (
                       <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
                     )}
                     <div
-                      data-testid={`file-${doc.id}`}
+                      data-testid={`source-${src.id}`}
                       className="group px-4 py-3 flex items-center gap-3 hover-elevate active-elevate-2"
                     >
                       <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
                         <Icon size={16} strokeWidth={1.8} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-[14px] font-medium text-foreground truncate">{doc.title}</div>
-                        <div className="text-[12px] text-foreground/50 truncate">{doc.hint}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[14px] font-medium text-foreground truncate">{src.title}</span>
+                          <SourceStatus status={src.status} />
+                        </div>
+                        <div className="text-[12px] text-foreground/50 truncate">{src.hint}</div>
                       </div>
-                      <span className="text-[11.5px] text-foreground/40 shrink-0">{doc.meta}</span>
-                      {editable && (
+                      <span className="text-[11.5px] text-foreground/40 shrink-0">{src.meta}</span>
+                      {canRemove && (
                         <button
                           type="button"
-                          aria-label="Remove document"
-                          data-testid={`file-remove-${doc.id}`}
-                          onClick={() => removeFile(doc.id)}
+                          aria-label="Remove source"
+                          data-testid={`source-remove-${src.id}`}
+                          onClick={() => removeSource(src.id)}
                           className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
                         >
                           <Trash2 size={13} strokeWidth={1.8} />
@@ -679,16 +811,9 @@ function KnowledgeDetail({
               })}
             </div>
           )}
+
           {editable ? (
-            <button
-              type="button"
-              data-testid={`knowledge-${scope}-add`}
-              onClick={addFile}
-              className="glass-pill pill h-11 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold text-foreground/70 hover-elevate active-elevate-2"
-            >
-              <Plus size={15} strokeWidth={2} />
-              Add document
-            </button>
+            <SourceAdders scope={scope} onFiles={addFiles} onUrl={addUrl} />
           ) : (
             <div
               data-testid={`knowledge-${scope}-locked`}
@@ -702,9 +827,114 @@ function KnowledgeDetail({
         </section>
         </div>
 
-        {editable && <SaveButton testId={`knowledge-${scope}-save`} onClick={onBack} />}
+        {/* Auto-save: changes are kept live; no explicit Save button. */}
       </motion.div>
     </ViewShell>
+  );
+}
+
+// ── Source adders: drag-&-drop file upload + add-URL row ──────────
+function SourceAdders({
+  scope,
+  onFiles,
+  onUrl,
+}: {
+  scope: 'personal' | 'workspace';
+  onFiles: (files: FileList | File[]) => void;
+  onUrl: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const [urlOpen, setUrlOpen] = useState(false);
+  const [urlVal, setUrlVal] = useState('');
+
+  const submitUrl = () => {
+    if (urlVal.trim()) {
+      onUrl(urlVal);
+      setUrlVal('');
+      setUrlOpen(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div
+        data-testid={`knowledge-${scope}-dropzone`}
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files);
+        }}
+        className={`cursor-pointer rounded-2xl border border-dashed px-4 py-5 flex flex-col items-center justify-center gap-1.5 text-center transition-colors ${
+          dragging
+            ? 'border-[#2F6BFF] bg-[#2F6BFF]/[0.06]'
+            : 'border-foreground/15 hover:border-foreground/30 bg-foreground/[0.02] dark:bg-white/[0.02]'
+        }`}
+      >
+        <UploadCloud size={20} strokeWidth={1.8} className="text-icon-muted" />
+        <div className="text-[13px] font-medium text-foreground/75">
+          Drop files here, or click to upload
+        </div>
+        <div className="text-[11.5px] text-foreground/40">PDF, DOC, TXT</div>
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept=".pdf,.doc,.docx,.txt,.md"
+          className="hidden"
+          data-testid={`knowledge-${scope}-file-input`}
+          onChange={(e) => {
+            if (e.target.files?.length) onFiles(e.target.files);
+            e.target.value = '';
+          }}
+        />
+      </div>
+
+      {urlOpen ? (
+        <div className="flex items-center gap-2">
+          <input
+            autoFocus
+            value={urlVal}
+            onChange={(e) => setUrlVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitUrl();
+              if (e.key === 'Escape') {
+                setUrlOpen(false);
+                setUrlVal('');
+              }
+            }}
+            placeholder="https://your-website.com"
+            data-testid={`knowledge-${scope}-url-input`}
+            className="flex-1 rounded-xl bg-foreground/[0.035] dark:bg-white/[0.04] px-3 py-2.5 text-[13.5px] text-foreground/90 placeholder:text-foreground/35 outline-none focus:bg-foreground/[0.06] transition-colors"
+          />
+          <button
+            type="button"
+            onClick={submitUrl}
+            data-testid={`knowledge-${scope}-url-submit`}
+            className="pill h-10 px-4 flex items-center gap-1.5 text-[13px] font-semibold text-white hover-elevate active-elevate-2"
+            style={{ background: '#2F6BFF' }}
+          >
+            Add
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          data-testid={`knowledge-${scope}-add-url`}
+          onClick={() => setUrlOpen(true)}
+          className="glass-pill pill h-11 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold text-foreground/70 hover-elevate active-elevate-2"
+        >
+          <Globe size={15} strokeWidth={2} />
+          Add a website or URL
+        </button>
+      )}
+    </div>
   );
 }
 

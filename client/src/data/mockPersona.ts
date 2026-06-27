@@ -46,19 +46,42 @@ export interface KnowledgeQA {
   hint?: string;
   /** The user's answer (empty = not answered yet). */
   answer: string;
+  /** True for user-added questions (editable + removable). */
+  custom?: boolean;
 }
 
-export interface KnowledgeDoc {
+// A knowledge SOURCE the AI learns from. Three real-world kinds:
+//   • file     — an uploaded document (pdf/doc/note)
+//   • url      — a web page / website (e.g. the company site)
+//   • linkedin — an auto-connected profile (Personal only; we already have the
+//                Unipile link, so it needs no user action)
+// `status` mirrors the backend ingest lifecycle so the UI can show progress.
+export type KnowledgeSourceType = 'file' | 'url' | 'linkedin';
+export type KnowledgeStatus = 'connected' | 'processing' | 'ready' | 'error';
+
+export interface KnowledgeSource {
   id: string;
+  type: KnowledgeSourceType;
+  /** Display title (file name, page title, or "LinkedIn profile"). */
   title: string;
-  kind: 'pdf' | 'doc' | 'note' | 'link';
+  /** For files: pdf/doc/note. For url/linkedin: ignored. */
+  kind?: 'pdf' | 'doc' | 'note' | 'link';
+  /** The URL, for type === 'url' or 'linkedin'. */
+  url?: string;
+  /** Short one-line description. */
   hint: string;
+  /** Right-aligned meta (size, page count, domain, "Auto-synced"). */
   meta: string;
+  status: KnowledgeStatus;
 }
+
+// Back-compat alias — older code referenced KnowledgeDoc.
+export type KnowledgeDoc = KnowledgeSource;
 
 export interface KnowledgeBundle {
   questions: KnowledgeQA[];
-  files: KnowledgeDoc[];
+  /** All non-Q&A sources: files, urls, and (personal) the LinkedIn link. */
+  sources: KnowledgeSource[];
 }
 
 export interface Persona {
@@ -88,6 +111,13 @@ export interface PersonaPreset {
   strategy: StrategyProfile;
   /** Example opener shown in the live preview. */
   sample: string;
+  /**
+   * BACKEND-FACING behaviour instruction. This is the system-prompt fragment
+   * the AI engine uses to actually drive how this persona thinks, replies and
+   * closes. It is NOT shown in the UI today (under the hood); a future paid
+   * "Custom persona" add-on will let power-users edit this directly.
+   */
+  behavior: string;
 }
 
 export interface PreviewLead {
@@ -160,20 +190,33 @@ export const mockPersona: Persona = {
         answer: '',
       },
     ],
-    files: [
+    sources: [
+      {
+        id: 'pf_linkedin',
+        type: 'linkedin',
+        title: 'LinkedIn profile',
+        url: 'https://www.linkedin.com/in/simonvanbasten',
+        hint: 'Your headline, about and recent posts — so your AI sounds like you',
+        meta: 'Auto-synced',
+        status: 'connected',
+      },
       {
         id: 'pf_voice',
+        type: 'file',
         title: 'My writing samples',
         kind: 'note',
         hint: 'Winning messages that genuinely sound like me',
         meta: '8 examples',
+        status: 'ready',
       },
       {
         id: 'pf_pitch',
+        type: 'file',
         title: 'Personal pitch',
         kind: 'doc',
         hint: 'How I explain Replaiy in one sentence',
         meta: 'DOC · 1 page',
+        status: 'ready',
       },
     ],
   },
@@ -203,6 +246,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     sample:
       'Hey Emma, really enjoyed your take on rep ramp time. No agenda here, just following along. Curious what is working for your team lately?',
+    behavior:
+      'Act as a patient relationship-builder. Lead every message with genuine interest in the person and their work, never with a pitch. Ask one thoughtful question at a time and give them room to reply. Never create urgency, never chase. If they go quiet, send at most one light, valuable follow-up, then wait. Optimise for long-term trust over a fast meeting. Keep it warm, human and unhurried.',
   },
   {
     id: 'warm',
@@ -231,6 +276,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     sample:
       'Hey Emma, saw your post on scaling SDR outbound, sharp read. Curious how you are handling reply quality as the team grows?',
+    behavior:
+      'Act as the founder talking to a peer: direct, warm and human. Open with a specific, genuine observation about their work, then one good question. No sales talk, no clichés, no corporate tone. Short sentences, the occasional light wink. Be balanced about next steps: suggest a call only once there is real interest, and make it feel easy and low-pressure.',
   },
   {
     id: 'consultative',
@@ -254,6 +301,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     sample:
       'Hi Emma, quick question on your outbound setup, are dead threads the bottleneck, or is it reply quality? Seeing both slow teams down lately, curious where it bites for you.',
+    behavior:
+      'Act as a sharp consultant who diagnoses before prescribing. Ask precise, qualifying questions to surface the real bottleneck and intent. Reflect back what you hear, add a relevant insight, and only then connect it to a possible next step. Be credible and concise, never pushy. Earn the meeting by being genuinely useful first.',
   },
   {
     id: 'sharp',
@@ -277,6 +326,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     sample:
       'Hey Emma, we help teams like yours turn dead LinkedIn threads into booked meetings. Worth a quick 15 min this week to see if it fits?',
+    behavior:
+      'Act as a crisp, effective closer who still respects the person. State the value clearly, qualify quickly, and propose a concrete short call as soon as interest shows. Follow up promptly and clearly — about two nudges — before easing off. Be confident and to the point without being pushy or salesy.',
   },
   {
     id: 'direct',
@@ -300,6 +351,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     sample:
       'Emma, straight to it: we book qualified meetings from your existing LinkedIn conversations. I have Thursday 11:00 or Friday 14:00, which works to take a look?',
+    behavior:
+      'Act as a confident, decisive closer. Lead with the value and the ask in the same breath. Qualify in one line, then drive to a specific next step with concrete time options that make saying yes effortless. Project conviction, stay respectful, never hedge or leave the next step open. Follow up persistently with value until you get a clear yes or no.',
   },
 ];
 
