@@ -30,7 +30,7 @@ import { APPLE_SPRING } from '@/lib/motion';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import {
-  Sparkles,
+  Brain,
   Plus,
   FileText,
   StickyNote,
@@ -39,11 +39,12 @@ import {
   Check,
   Lock,
   ArrowLeft,
-  MessageCircleQuestion,
-  Files,
 } from 'lucide-react';
 import { useStilt } from '@/state/StiltContext';
 import { StiltLogo } from '@/components/Logo';
+import iconPersona from '@/assets/ai_icon_persona.png';
+import iconPersonal from '@/assets/ai_icon_personal.png';
+import iconWorkspace from '@/assets/ai_icon_workspace.png';
 import {
   type Persona,
   type ToneFormality,
@@ -269,50 +270,104 @@ function ViewShell({
   onBack: () => void;
 }) {
   // MOBILE back: the top-chrome slot (MijnAiDetailChromeSlot) replaces the •••
-  // with a back arrow. DESKTOP back: a floating top row mirroring the inbox's
-  // `desktop-pill-row` (ConversationDetail.tsx) — back ActionPill top-left and a
-  // centered plain title. The hub has no persistent list column on desktop, so
-  // this is the single way back to /ai (matching how opening an inbox
-  // conversation shows a back affordance + centered identity).
+  // with a back arrow + centered title. That stays — on mobile the detail
+  // covers the full screen, so the back affordance is the only way back.
+  // DESKTOP: NO back row. The left AiList cards column is always visible on
+  // desktop, so the user goes "back" by clicking another card (exactly like the
+  // inbox keeps its list visible). A floating desktop top row would duplicate
+  // the in-pane DetailHeader title, so it is intentionally omitted here.
+  // `title`/`onBack` are still consumed by the mobile chrome slot elsewhere.
+  void title;
+  void onBack;
   return (
     <div className="relative flex flex-col h-full min-h-0 overflow-y-auto no-scrollbar">
-      {/* DESKTOP floating top row — same treatment as the inbox desktop pill
-          row: absolutely positioned, top-3, pointer-events gated so only the
-          pills are interactive. Back arrow left, plain title centered. */}
-      <div
-        data-testid="ai-desktop-pill-row"
-        className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none"
-      >
-        <div className="absolute top-0 left-6 pointer-events-auto">
-          <ActionPill testId="button-back" label="Back" onClick={onBack}>
-            <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
-          </ActionPill>
-        </div>
-        <div className="flex justify-center items-center px-[120px]">
-          <div className="pointer-events-auto flex items-center h-[52px] min-w-0 max-w-[640px]">
-            <span className="text-[14px] font-semibold tracking-[-0.005em] truncate text-foreground">
-              {title}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* pt-20 on mobile clears the fixed mobile top-chrome; lg:pt-[76px]
-          clears the floating desktop top row (12 top + 52 pill + 12 gap). */}
-      <div className="px-4 lg:px-8 pt-20 lg:pt-[76px] pb-28 lg:pb-12 max-w-2xl w-full">
-        {children}
+      {/* pt-20 on mobile clears the fixed mobile top-chrome. On desktop there
+          is no floating top row, so only a modest top padding keeps the header
+          aligned cleanly. Content is centred in a comfortable max-width column
+          (mx-auto) so it never runs full-bleed on a wide desktop pane — the
+          SAME treatment the inbox conversation detail uses (max-w-2xl mx-auto). */}
+      <div className="px-4 lg:px-6 pt-20 lg:pt-8 pb-28 lg:pb-16">
+        <div className="max-w-2xl mx-auto w-full">{children}</div>
       </div>
     </div>
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+// ── DetailHeader — the character-rich header at the top of each detail pane.
+// Mirrors the left PartCard's identity (same 3D brand icon) so the left list
+// and right detail tie together. A 3D icon, an uppercase eyebrow, the title,
+// and a single live summary line describing the part's current state. The
+// summary is the same flat blue accent the left cards use for their live tag.
+function DetailHeader({
+  iconSrc,
+  eyebrow,
+  title,
+  intro,
+  summary,
+  locked,
+}: {
+  iconSrc: string;
+  eyebrow: string;
+  title: string;
+  intro: string;
+  /** One-line live state, e.g. "Setup 80% complete. English, informal." */
+  summary: React.ReactNode;
+  locked?: boolean;
+}) {
   return (
-    <div className="inline-flex items-center gap-1.5 mb-2.5">
-      <Sparkles size={12} strokeWidth={2.2} className="text-icon-muted" />
-      <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold text-foreground/70">
-        {children}
-      </span>
+    <div className="flex items-start gap-4 lg:gap-5 mb-7 lg:mb-8">
+      {/* Same prominent 3D brand icon as the matching left card. */}
+      <img
+        src={iconSrc}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="shrink-0 w-16 h-16 lg:w-[72px] lg:h-[72px] object-contain select-none pointer-events-none -mt-1"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="inline-flex items-center gap-1.5 mb-1.5">
+          <Brain size={12} strokeWidth={2.2} className="text-icon-muted" />
+          <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold text-foreground/70">
+            {eyebrow}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <h1 className="text-[23px] lg:text-[28px] font-semibold tracking-[-0.025em] leading-tight text-foreground">
+            {title}
+          </h1>
+          {locked && <Lock size={16} strokeWidth={2} className="text-icon-muted shrink-0" />}
+        </div>
+        <p className="text-[13.5px] leading-[1.5] text-foreground/55 mt-1.5">{intro}</p>
+        {summary && (
+          <div
+            className="mt-3 text-[12.5px] font-medium leading-snug"
+            style={{ color: 'var(--ai-accent, #2F6BFF)' }}
+          >
+            {summary}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// In-pane section header — the SAME treatment the inbox/campaigns lists use
+// above each card cluster: a small semibold label and an optional muted count,
+// at px-2 mb-1.5 (see InboxList SmartInboxView "Needs your approval"). Reusing
+// this exact pattern keeps the detail panes pixel-consistent with the lists.
+function SectionHeader({
+  children,
+  count,
+}: {
+  children: React.ReactNode;
+  count?: number;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-2 mb-1.5">
+      <span className="text-[12.5px] font-semibold tracking-[-0.005em]">{children}</span>
+      {count !== undefined && (
+        <span className="text-[12px] text-muted-foreground">{count}</span>
+      )}
     </div>
   );
 }
@@ -336,20 +391,31 @@ function PersonaDetail({
   const patchStrategy = (p: Partial<typeof strategy>) =>
     setPersona((prev) => ({ ...prev, strategy: { ...prev.strategy, ...p } }));
 
+  // Live one-line state for the header, in the platform voice. Reads the
+  // current tone settings so the header reflects the real configuration.
+  const langLabel = tone.language === 'en' ? 'English' : 'Dutch';
+  const formalityLabel =
+    tone.formality === 'informal' ? 'informal' : tone.formality === 'formal' ? 'formal' : 'neutral';
+  const lengthLabel =
+    tone.length === 'short' ? 'short replies' : tone.length === 'long' ? 'longer replies' : 'medium replies';
+  const headerSummary = `${langLabel}, ${formalityLabel}, ${lengthLabel}.`;
+
   return (
     <ViewShell title="Persona" onBack={onBack}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-        <SectionLabel>Persona</SectionLabel>
-        <h1 className="text-[22px] lg:text-[26px] font-semibold tracking-[-0.025em] leading-tight">
-          How your AI sounds &amp; thinks
-        </h1>
-        <p className="text-[13.5px] leading-[1.5] text-foreground/55 mt-1.5 mb-6">
-          The voice and strategy your AI uses in every conversation.
-        </p>
+        <DetailHeader
+          iconSrc={iconPersona}
+          eyebrow="Persona"
+          title="How your AI sounds and thinks"
+          intro="The voice and strategy your AI uses in every conversation."
+          summary={headerSummary}
+        />
 
+        <div className="flex flex-col gap-5 md:gap-6">
         {/* Tone of voice */}
-        <div className="stilt-card rounded-3xl p-4 lg:p-5 mb-3" data-testid="persona-tone">
-          <div className="text-[13px] font-semibold text-foreground/80 mb-3">Tone of voice</div>
+        <section>
+        <SectionHeader>Tone of voice</SectionHeader>
+        <div className="stilt-card rounded-3xl p-5 lg:p-6" data-testid="persona-tone">
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <FieldLabel>Language</FieldLabel>
@@ -423,10 +489,12 @@ function PersonaDetail({
             </div>
           </div>
         </div>
+        </section>
 
         {/* Strategy */}
-        <div className="stilt-card rounded-3xl p-4 lg:p-5" data-testid="persona-strategy">
-          <div className="text-[13px] font-semibold text-foreground/80 mb-3">Strategy</div>
+        <section>
+        <SectionHeader>Strategy</SectionHeader>
+        <div className="stilt-card rounded-3xl p-5 lg:p-6" data-testid="persona-strategy">
           <div className="mb-3">
             <FieldLabel>Approach</FieldLabel>
             <SegmentedPills
@@ -471,6 +539,8 @@ function PersonaDetail({
             />
           </div>
         </div>
+        </section>
+        </div>
 
         <SaveButton testId="persona-save" onClick={onBack} />
       </motion.div>
@@ -498,9 +568,16 @@ function KnowledgeDetail({
   const isPersonal = scope === 'personal';
   const title = isPersonal ? 'Personal knowledge' : 'Workspace knowledge';
   const intro = isPersonal
-    ? 'Only your AI uses this — answer a few questions or add your own material.'
+    ? 'Only your AI uses this. Answer a few questions or add your own material.'
     : 'Company-wide knowledge, shared with your whole team.' +
       (editable ? '' : ' Read-only for your role.');
+  const headerIcon = isPersonal ? iconPersonal : iconWorkspace;
+
+  // Live one-line state for the header. Counts answered questions and files
+  // so the header reflects how much of this part is set up right now.
+  const answeredCount = bundle.questions.filter((q) => q.answer.trim()).length;
+  const fileCount = bundle.files.length;
+  const headerSummary = `${answeredCount} of ${bundle.questions.length} questions answered. ${fileCount} ${fileCount === 1 ? 'file' : 'files'}.`;
 
   const setAnswer = (id: string, answer: string) =>
     setBundle((prev) => ({
@@ -522,23 +599,25 @@ function KnowledgeDetail({
   return (
     <ViewShell title={title} onBack={onBack}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-        <SectionLabel>{isPersonal ? 'Personal' : 'Workspace'}</SectionLabel>
-        <div className="flex items-center gap-2">
-          <h1 className="text-[22px] lg:text-[26px] font-semibold tracking-[-0.025em] leading-tight">{title}</h1>
-          {!editable && <Lock size={16} strokeWidth={2} className="text-icon-muted" />}
-        </div>
-        <p className="text-[13.5px] leading-[1.5] text-foreground/55 mt-1.5 mb-6">{intro}</p>
+        <DetailHeader
+          iconSrc={headerIcon}
+          eyebrow={isPersonal ? 'Personal' : 'Workspace'}
+          title={title}
+          intro={intro}
+          summary={headerSummary}
+          locked={!editable}
+        />
 
+        <div className="flex flex-col gap-5 md:gap-6">
         {/* ── Questions ── */}
-        <div className="flex items-center gap-1.5 mb-3">
-          <MessageCircleQuestion size={14} strokeWidth={2} className="text-icon-muted" />
-          <span className="text-[13px] font-semibold text-foreground/80">Questions</span>
-        </div>
-        <div className="flex flex-col gap-3 mb-7" data-testid={`knowledge-${scope}-questions`}>
+        <section>
+        <SectionHeader count={bundle.questions.length}>Questions</SectionHeader>
+        <div className="flex flex-col gap-3" data-testid={`knowledge-${scope}-questions`}>
           {bundle.questions.map((q) => (
-            <div key={q.id} className="stilt-card rounded-2xl p-4" data-testid={`question-${q.id}`}>
+            <div key={q.id} className="stilt-card rounded-3xl p-4 lg:p-5" data-testid={`question-${q.id}`}>
               <div className="text-[14px] font-medium text-foreground leading-snug">{q.question}</div>
-              {q.hint && <div className="text-[12px] text-foreground/45 mt-0.5 mb-2.5">{q.hint}</div>}
+              {q.hint && <div className="text-[12px] text-foreground/45 mt-1">{q.hint}</div>}
+              <div className="mt-3">
               {editable ? (
                 <GlassTextarea
                   testId={`answer-${q.id}`}
@@ -548,50 +627,61 @@ function KnowledgeDetail({
                   rows={3}
                 />
               ) : (
-                <p className="text-[13.5px] leading-[1.5] text-foreground/80 mt-1 whitespace-pre-wrap">
+                <p className="text-[13.5px] leading-[1.5] text-foreground/80 whitespace-pre-wrap">
                   {q.answer || <span className="text-foreground/35">Not answered yet</span>}
                 </p>
               )}
+              </div>
             </div>
           ))}
         </div>
+        </section>
 
         {/* ── Files ── */}
-        <div className="flex items-center gap-1.5 mb-3">
-          <Files size={14} strokeWidth={2} className="text-icon-muted" />
-          <span className="text-[13px] font-semibold text-foreground/80">Files</span>
-        </div>
+        <section>
+        <SectionHeader count={bundle.files.length}>Files</SectionHeader>
         <div className="flex flex-col gap-2" data-testid={`knowledge-${scope}-files`}>
-          {bundle.files.map((doc) => {
-            const Icon = KNOWLEDGE_ICON[doc.kind];
-            return (
-              <div
-                key={doc.id}
-                data-testid={`file-${doc.id}`}
-                className="group stilt-card rounded-2xl px-3.5 py-3 flex items-center gap-3 hover-elevate"
-              >
-                <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
-                  <Icon size={16} strokeWidth={1.8} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-medium text-foreground truncate">{doc.title}</div>
-                  <div className="text-[12px] text-foreground/50 truncate">{doc.hint}</div>
-                </div>
-                <span className="text-[11.5px] text-foreground/40 shrink-0">{doc.meta}</span>
-                {editable && (
-                  <button
-                    type="button"
-                    aria-label="Remove document"
-                    data-testid={`file-remove-${doc.id}`}
-                    onClick={() => removeFile(doc.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
-                  >
-                    <Trash2 size={13} strokeWidth={1.8} />
-                  </button>
-                )}
-              </div>
-            );
-          })}
+          {/* File rows grouped into a single card cluster with hairline
+              dividers, the SAME pattern the inbox list uses for conversation
+              rows (stilt-card rounded-3xl overflow-hidden + ml divider). */}
+          {bundle.files.length > 0 && (
+            <div className="stilt-card rounded-3xl overflow-hidden">
+              {bundle.files.map((doc, i) => {
+                const Icon = KNOWLEDGE_ICON[doc.kind];
+                return (
+                  <div key={doc.id}>
+                    {i > 0 && (
+                      <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                    )}
+                    <div
+                      data-testid={`file-${doc.id}`}
+                      className="group px-4 py-3 flex items-center gap-3 hover-elevate active-elevate-2"
+                    >
+                      <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
+                        <Icon size={16} strokeWidth={1.8} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[14px] font-medium text-foreground truncate">{doc.title}</div>
+                        <div className="text-[12px] text-foreground/50 truncate">{doc.hint}</div>
+                      </div>
+                      <span className="text-[11.5px] text-foreground/40 shrink-0">{doc.meta}</span>
+                      {editable && (
+                        <button
+                          type="button"
+                          aria-label="Remove document"
+                          data-testid={`file-remove-${doc.id}`}
+                          onClick={() => removeFile(doc.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+                        >
+                          <Trash2 size={13} strokeWidth={1.8} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {editable ? (
             <button
               type="button"
@@ -611,6 +701,8 @@ function KnowledgeDetail({
               Only workspace admins can edit company knowledge.
             </div>
           )}
+        </div>
+        </section>
         </div>
 
         {editable && <SaveButton testId={`knowledge-${scope}-save`} onClick={onBack} />}

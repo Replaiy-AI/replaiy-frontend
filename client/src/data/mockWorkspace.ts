@@ -45,7 +45,7 @@ export const mockWorkspace: Workspace = {
       },
       {
         id: 'wq_for_whom',
-        question: 'Who is it for — and who is it not for?',
+        question: 'Who is it for, and who is it not for?',
         hint: 'A sharp boundary helps the AI qualify.',
         answer:
           'For: sales-driven companies, agencies, founders and solo operators up to ~250 employees. Not for: anyone chasing pure outreach volume who does not care about the conversation.',
@@ -55,7 +55,7 @@ export const mockWorkspace: Workspace = {
         question: 'What sets you apart from the competition?',
         hint: 'The core of the positioning.',
         answer:
-          'Most tools automate outreach. Replaiy strengthens the conversation that comes after — where deals are won or lost — while the user stays in control.',
+          'Most tools automate outreach. Replaiy strengthens the conversation that comes after, where deals are won or lost, while the user stays in control.',
       },
       {
         id: 'wq_objections',
@@ -77,7 +77,7 @@ export const mockWorkspace: Workspace = {
         id: 'wf_product',
         title: 'Product overview',
         kind: 'doc',
-        hint: 'What Replaiy does — features and use cases',
+        hint: 'What Replaiy does: features and use cases',
         meta: 'DOC · 2 pages',
       },
       {

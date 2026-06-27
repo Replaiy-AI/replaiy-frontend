@@ -82,7 +82,7 @@ export const mockPersona: Persona = {
     formality: 'informal',
     length: 'short',
     voice:
-      'Direct, warm and human. Talks like a founder who is genuinely interested — no sales talk, no clichés. Short sentences, the occasional wink.',
+      'Direct, warm and human. Talks like a founder who is genuinely interested, no sales talk, no clichés. Short sentences, the occasional wink.',
     dos: [
       'Lead with value and a genuine observation',
       'Ask one concrete, easy follow-up question',
@@ -97,11 +97,11 @@ export const mockPersona: Persona = {
   strategy: {
     stance: 'balanced',
     qualification:
-      'Surface fit and intent first with an open question about their current approach. Never qualify like an interrogation — let it flow naturally.',
+      'Surface fit and intent first with an open question about their current approach. Never qualify like an interrogation; let it flow naturally.',
     closing:
       'Only suggest a short call once there is real interest. Keep the bar low: 15 minutes, no obligation.',
     pushVsWait:
-      'When in doubt or met with silence: one light, valuable follow-up. After that, wait rather than keep pushing — protect the relationship.',
+      'When in doubt or met with silence: one light, valuable follow-up. After that, wait rather than keep pushing, and protect the relationship.',
   },
   knowledge: {
     questions: [
@@ -110,7 +110,7 @@ export const mockPersona: Persona = {
         question: 'What is your role, and why do you do this work?',
         hint: 'Gives your AI context about who is talking.',
         answer:
-          'Founder of Replaiy. I build the product myself and talk to sales teams every day — I know how it feels when good leads quietly die in the inbox.',
+          'Founder of Replaiy. I build the product myself and talk to sales teams every day, so I know how it feels when good leads quietly die in the inbox.',
       },
       {
         id: 'pq_diff',
