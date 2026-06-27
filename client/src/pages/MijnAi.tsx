@@ -57,6 +57,8 @@ import {
   type ToneFormality,
   type ToneLength,
   type StrategyStance,
+  type QualifyingDepth,
+  type ClosingStyle,
   type KnowledgeBundle,
   type KnowledgeDoc,
   type KnowledgeSource,
@@ -545,39 +547,43 @@ function PersonaDetail({
           </div>
           <div className="mb-3">
             <FieldLabel>Qualifying</FieldLabel>
-            <GlassTextarea
-              testId="strategy-qualification"
-              value={strategy.qualification}
-              onChange={(qualification) => patchStrategy({ qualification })}
-              placeholder="How do you surface fit and intent?"
-              rows={2}
+            <SegmentedPills
+              testId="strategy-qualifying"
+              value={strategy.qualifyingDepth}
+              onChange={(qualifyingDepth) =>
+                patchStrategy({ qualifyingDepth: qualifyingDepth as QualifyingDepth })
+              }
+              options={[
+                { key: 'light', label: 'Light' },
+                { key: 'thorough', label: 'Thorough' },
+              ]}
             />
-          </div>
-          <div className="mb-3">
-            <FieldLabel>Closing</FieldLabel>
-            <GlassTextarea
-              testId="strategy-closing"
-              value={strategy.closing}
-              onChange={(closing) => patchStrategy({ closing })}
-              placeholder="How and when do you suggest the next step?"
-              rows={2}
-            />
+            <p className="text-[12px] text-foreground/45 mt-1.5 px-0.5">
+              How much your AI digs into fit and intent before pitching.
+            </p>
           </div>
           <div>
-            <FieldLabel>Push vs. wait</FieldLabel>
-            <GlassTextarea
-              testId="strategy-pushwait"
-              value={strategy.pushVsWait}
-              onChange={(pushVsWait) => patchStrategy({ pushVsWait })}
-              placeholder="When would you rather wait than push?"
-              rows={2}
+            <FieldLabel>Closing</FieldLabel>
+            <SegmentedPills
+              testId="strategy-closing"
+              value={strategy.closingStyle}
+              onChange={(closingStyle) =>
+                patchStrategy({ closingStyle: closingStyle as ClosingStyle })
+              }
+              options={[
+                { key: 'soft', label: 'Soft suggest' },
+                { key: 'direct', label: 'Direct ask' },
+              ]}
             />
+            <p className="text-[12px] text-foreground/45 mt-1.5 px-0.5">
+              How your AI proposes the next step once there is interest.
+            </p>
           </div>
         </div>
         </section>
         </div>
 
-        <SaveButton testId="persona-save" onClick={onBack} />
+        {/* Auto-save: changes are kept live; no explicit Save button. */}
       </motion.div>
     </ViewShell>
   );
@@ -935,21 +941,6 @@ function SourceAdders({
         </button>
       )}
     </div>
-  );
-}
-
-function SaveButton({ testId, onClick }: { testId: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      data-testid={testId}
-      onClick={onClick}
-      className="mt-8 w-full pill h-12 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-white hover-elevate active-elevate-2"
-      style={{ background: 'linear-gradient(90deg, #1B3FA8 0%, #2F6BFF 100%)' }}
-    >
-      <Check size={15} strokeWidth={2.2} />
-      Save changes
-    </button>
   );
 }
 

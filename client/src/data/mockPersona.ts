@@ -29,9 +29,19 @@ export interface ToneProfile {
 }
 
 export type StrategyStance = 'push' | 'balanced' | 'patient';
+export type QualifyingDepth = 'light' | 'thorough';
+export type ClosingStyle = 'soft' | 'direct';
 
 export interface StrategyProfile {
+  /** Overall posture in the conversation. */
   stance: StrategyStance;
+  /** How deep the AI digs before pitching (simple toggle for everyone). */
+  qualifyingDepth: QualifyingDepth;
+  /** How the AI proposes the next step (simple toggle for everyone). */
+  closingStyle: ClosingStyle;
+  // ── Free-text detail below: hidden in the standard UI, surfaced in the
+  //    future paid "Custom agent". Kept so the data + backend behaviour stays
+  //    rich even when the standard user only flips toggles.
   qualification: string;
   closing: string;
   pushVsWait: string;
@@ -160,6 +170,8 @@ export const mockPersona: Persona = {
   },
   strategy: {
     stance: 'balanced',
+    qualifyingDepth: 'thorough',
+    closingStyle: 'soft',
     qualification:
       'Surface fit and intent first with an open question about their current approach. Never qualify like an interrogation; let it flow naturally.',
     closing:
@@ -240,6 +252,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     strategy: {
       stance: 'patient',
+      qualifyingDepth: 'thorough',
+      closingStyle: 'soft',
       qualification: 'Let fit emerge naturally over a few light exchanges. No interrogation.',
       closing: 'Only suggest a next step once they clearly lean in. Otherwise keep nurturing.',
       pushVsWait: 'Strongly favour waiting. One soft follow-up at most, then give space.',
@@ -269,6 +283,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     strategy: {
       stance: 'balanced',
+      qualifyingDepth: 'light',
+      closingStyle: 'soft',
       qualification:
         'Surface fit and intent first with an open question about their current approach. Let it flow naturally.',
       closing: 'Suggest a short call once there is real interest. Keep the bar low: 15 minutes, no obligation.',
@@ -295,6 +311,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     strategy: {
       stance: 'balanced',
+      qualifyingDepth: 'thorough',
+      closingStyle: 'soft',
       qualification: 'Qualify deeply through questions about their process, goals and current gaps.',
       closing: 'Propose a working session or call framed as solving a specific problem you uncovered.',
       pushVsWait: 'Follow up with new insight, not reminders. Earn the next step.',
@@ -320,6 +338,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     strategy: {
       stance: 'balanced',
+      qualifyingDepth: 'light',
+      closingStyle: 'direct',
       qualification: 'Confirm fit fast with one or two pointed questions.',
       closing: 'Propose a concrete time for a short call early once interest shows.',
       pushVsWait: 'Follow up promptly and clearly. Two nudges before easing off.',
@@ -345,6 +365,8 @@ export const personaPresets: PersonaPreset[] = [
     },
     strategy: {
       stance: 'push',
+      qualifyingDepth: 'light',
+      closingStyle: 'direct',
       qualification: 'Qualify in one line, then move to the ask.',
       closing: 'Ask for the meeting directly with a specific time. Make saying yes effortless.',
       pushVsWait: 'Push persistently with value-led follow-ups until you get a clear yes or no.',
