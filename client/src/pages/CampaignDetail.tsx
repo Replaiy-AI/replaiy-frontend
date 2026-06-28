@@ -84,6 +84,41 @@ import { conversionPct, replyRatePct } from '@/components/CampaignsList';
 import { ReplaiyLogo } from '@/components/Logo';
 import { APPLE_SPRING } from '@/lib/motion';
 
+// ── Per-campaign stats strip ────────────────────────────────────────
+// The same 4 headline metrics as the left "Active overview", but for THIS
+// campaign: a quick "how is it performing" glance at the top of the detail,
+// before the audience and settings. Mirrors the list rollup exactly (rp-card,
+// 4-col grid, hairline cells, tabular numerals). The Funnel below is the full
+// breakdown; this is just the headline.
+function CampaignStatStrip({ campaign }: { campaign: Campaign }) {
+  const s = campaign.stats;
+  const acceptRate = s.sent === 0 ? 0 : Math.round((s.accepted / s.sent) * 100);
+  const cells = [
+    { value: s.sent.toLocaleString('en-US'), label: 'Connection requests' },
+    { value: `${acceptRate}%`, label: 'Accept rate' },
+    { value: `${replyRatePct(campaign)}%`, label: 'Reply rate' },
+    { value: `${conversionPct(campaign)}%`, label: 'Goal achieved' },
+  ];
+  return (
+    <section data-testid="campaign-stat-strip">
+      <div className="rp-card rounded-3xl overflow-hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-4 [&>*]:border-foreground/[0.06] dark:[&>*]:border-white/[0.06] [&>*:nth-child(even)]:border-l [&>*:nth-child(n+3)]:border-t sm:[&>*]:border-l sm:[&>*:first-child]:border-l-0 sm:[&>*:nth-child(n+3)]:border-t-0">
+          {cells.map((c) => (
+            <div key={c.label} className="min-w-0 px-3 py-3.5 lg:px-4 lg:py-[18px]">
+              <div className="text-[22px] lg:text-[24px] font-semibold tracking-[-0.02em] leading-none tabular-nums text-foreground">
+                {c.value}
+              </div>
+              <div className="mt-2 text-[12px] lg:text-[12.5px] text-muted-foreground leading-snug">
+                {c.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // A small set of ready-made ICP templates for the "Start from a template"
 // picker. Mock only - picking one fills the editable ICP on local state.
 const ICP_TEMPLATES: { id: string; name: string; sub: string; icp: IcpCriteria }[] = [
@@ -399,40 +434,6 @@ function AudiencePoolCard({
   );
 }
 
-// ── A2) Enrichment - ALWAYS ON status card (no toggle, no providers) ─
-// Quiet, reassuring quality statement. Never names a source or a cost.
-function AudienceEnrichmentCard() {
-  return (
-    <section>
-      <AudienceHeader
-        label="Enrichment"
-        sub="Every lead is enriched before outreach."
-      />
-      <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-enrichment">
-        <div className="flex items-start gap-3">
-          <div className="h-9 w-9 shrink-0 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center">
-            <Sparkles size={16} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
-                Always on
-              </span>
-              <span className="glass-pill inline-flex items-center gap-1 h-[20px] px-2 rounded-full text-[10.5px] font-medium text-foreground/55">
-                <Check size={11} strokeWidth={2.6} style={{ color: AI_ACCENT }} />
-                enriched
-              </span>
-            </div>
-            <p className="mt-1 text-[13px] text-foreground/55 leading-snug">
-              Leads are auto-enriched with company data, recent activity and
-              buying signals, so every message lands personal.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 // ── B) Sources - toggle rows in ONE card, warmest first ─────────────
 function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
@@ -936,18 +937,26 @@ function AudienceSuppressCard({ audience }: { audience: CampaignAudience }) {
   );
 }
 
-// ── F) Smarter over time - subtle phase-2 self-learning teaser ──────
-function AudienceSmarterHint() {
+// ── F) Quiet "what Replaiy does automatically" notes ────────────────
+// Two light info lines (enrichment + self-learning). NOT heavy cards: these are
+// reassurances, not controls. Never names a provider or a cost. Grouped as the
+// calm closing of the audience section.
+function AudienceAutoNotes() {
+  const notes = [
+    'Every lead is auto-enriched with company data, recent activity and signals, so each message lands personal.',
+    'This audience gets smarter as you use it. Replaiy learns which leads convert and refines your ICP.',
+  ];
   return (
     <div
-      data-testid="audience-smarter-hint"
-      className="rounded-2xl px-4 py-3 flex items-center gap-2.5 bg-foreground/[0.03] dark:bg-white/[0.03]"
+      data-testid="audience-auto-notes"
+      className="rounded-2xl px-4 py-3 flex flex-col gap-2.5 bg-foreground/[0.03] dark:bg-white/[0.03]"
     >
-      <Sparkles size={14} strokeWidth={2} style={{ color: AI_ACCENT }} className="shrink-0" />
-      <p className="text-[12.5px] text-foreground/55 leading-snug">
-        This audience gets smarter as you use it. Replaiy learns which leads
-        convert and refines your ICP.
-      </p>
+      {notes.map((n) => (
+        <div key={n} className="flex items-start gap-2.5">
+          <Sparkles size={14} strokeWidth={2} style={{ color: AI_ACCENT }} className="shrink-0 mt-[2px]" />
+          <p className="text-[12.5px] text-foreground/55 leading-snug">{n}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1041,12 +1050,11 @@ function AudienceSection({ campaign }: { campaign: Campaign }) {
         threshold={threshold}
         onViewLeads={() => setLeadsOpen(true)}
       />
-      <AudienceEnrichmentCard />
       <AudienceSourcesCard audience={audience} />
       <AudienceIcpCard audience={audience} />
       <AudienceThresholdCard audience={audience} value={threshold} onChange={setThreshold} />
       <AudienceSuppressCard audience={audience} />
-      <AudienceSmarterHint />
+      <AudienceAutoNotes />
       <ViewLeadsSheet open={leadsOpen} onClose={() => setLeadsOpen(false)} leads={leads} />
     </div>
   );
@@ -2216,6 +2224,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
       {/* Order: Audience (the heart) and its enrichment, then how it reaches
           out (Language, Send timing), then what it drives toward (Goal,
           Funnel, Flow), then who it runs from (seats and their personas). */}
+      <CampaignStatStrip campaign={campaign} />
       <AudienceSection campaign={campaign} />
       <LanguageSection campaign={campaign} />
       <TimingSection campaign={campaign} />
