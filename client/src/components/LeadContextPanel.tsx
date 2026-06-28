@@ -23,7 +23,6 @@ import {
   Copy,
   Check,
   Linkedin,
-  ChevronRight,
 } from 'lucide-react';
 import type { Conversation } from '@/data/mockConversations';
 import { STAGE_META } from '@/data/mockConversations';
@@ -103,7 +102,7 @@ function CopyableRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function LeadContextPanel({ mail, onClose }: { mail: Conversation; onClose?: () => void }) {
+export function LeadContextPanel({ mail }: { mail: Conversation }) {
   const [revealed, setRevealed] = useState(false);
 
   const lead = mail.lead;
@@ -139,19 +138,6 @@ export function LeadContextPanel({ mail, onClose }: { mail: Conversation; onClos
               {[title, company].filter(Boolean).join(' · ') || 'Lead'}
             </div>
           </div>
-          {/* Collapse the panel from where it lives. The toolbar toggle
-             re-opens it. Hidden on mobile (the slide-over has its own close). */}
-          {onClose && (
-            <button
-              type="button"
-              aria-label="Collapse lead context"
-              data-testid="lead-panel-collapse"
-              onClick={onClose}
-              className="hidden lg:inline-flex shrink-0 -mr-1.5 -mt-0.5 h-7 w-7 items-center justify-center rounded-full text-foreground/35 hover:text-foreground/70 hover-elevate active-elevate-2 transition-colors"
-            >
-              <ChevronRight size={18} strokeWidth={2} />
-            </button>
-          )}
         </div>
         {fitLabel && (
           <span className="glass-pill pill inline-flex items-center gap-1.5 h-[24px] pl-2 pr-2.5 mt-3 text-[12px] font-medium text-foreground/80">
