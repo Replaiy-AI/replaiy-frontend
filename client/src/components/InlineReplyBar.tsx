@@ -313,6 +313,9 @@ export function InlineReplyBar({
   }, [expanded]);
   const [fullscreen, setFullscreen] = useState(false);
   const [userTouched, setUserTouched] = useState(false);
+  // AI revise chat overlay open-state (declared early: the click-outside
+  // collapse effect must read it to avoid dismissing the draft).
+  const [reviseChatOpen, setReviseChatOpen] = useState(false);
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
   const [visibleHeight, setVisibleHeight] = useState<number | null>(null);
@@ -491,6 +494,12 @@ export function InlineReplyBar({
       const t = e.target as Node | null;
       if (!t || !containerRef.current) return;
       if (containerRef.current.contains(t)) return;
+      // v-replaiy — When the AI revise chat is open the user is actively
+      // working on the draft through Replaiy. Clicks inside that panel (or
+      // the click that closes it) must NOT collapse the reply bar or dismiss
+      // the AI draft. The panel lives outside containerRef, so guard here.
+      if (reviseChatOpen) return;
+      if (t instanceof Element && t.closest('[data-testid="ai-revise-chat"]')) return;
       // In forward-mode collapsen we niet via click-outside — user moet
       // expliciet annuleren via de X in de forward-banner.
       if (forwardMode) return;
@@ -561,7 +570,7 @@ export function InlineReplyBar({
     // forwardMode/composeMode in deps zodat handler refresht bij mode-wissel.
     // userTouched in deps so the closure always reads the latest value
     // when deciding whether to drop the dismiss marker on close.
-  }, [expanded, aiDraft, mailId, forwardMode, composeMode, chromeless, userTouched]);
+  }, [expanded, aiDraft, mailId, forwardMode, composeMode, chromeless, userTouched, reviseChatOpen]);
 
   // v30.30 — Auto-save draft per toetsaanslag. innerHTML → localStorage.
   // Bij Send wordt de key geleegd. Bij re-open wordt 'm weer geladen.
@@ -1008,10 +1017,6 @@ export function InlineReplyBar({
   // leftwards to reveal B / I / U / list / link / attach.
   const [formatPillOpen, setFormatPillOpen] = useState(false);
 
-  // v-replaiy — AI revise: a wide "talk to Replaiy" chat overlay where the
-  // user reshapes the current draft in a back-and-forth. Every turn updates
-  // the live editor draft and (backend phase) feeds the agent learning loop.
-  const [reviseChatOpen, setReviseChatOpen] = useState(false);
 
   // v32.1 — "Has content" detector for the discard flow. Treats body as
   // empty when stripHtml(html) has no non-whitespace characters, and all

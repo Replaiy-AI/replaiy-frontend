@@ -89,15 +89,26 @@ export function AiReviseChat({
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
+  // Whether the user has sent at least one message this session. Drives the
+  // quick-chip visibility (chips show until the conversation gets going).
+  const [userHasSent, setUserHasSent] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
 
-  // Reset the thread each time the panel opens fresh.
+  // Reset the thread each time the panel opens fresh, seeded with a short
+  // Replaiy greeting so the panel never feels empty and invites a reply.
   useEffect(() => {
     if (open) {
-      setTurns([]);
+      setTurns([
+        {
+          id: ++idRef.current,
+          role: 'ai',
+          text: "Hi, I'm Replaiy. Want me to tweak this draft? Pick a quick option below or just tell me what to change.",
+        },
+      ]);
       setInput('');
       setThinking(false);
+      setUserHasSent(false);
     }
   }, [open]);
 
@@ -110,6 +121,7 @@ export function AiReviseChat({
     const trimmed = instruction.trim();
     if (!trimmed || thinking) return;
     setInput('');
+    setUserHasSent(true);
     const userTurn: ChatTurn = { id: ++idRef.current, role: 'user', text: trimmed };
     setTurns((t) => [...t, userTurn]);
     setThinking(true);
@@ -161,11 +173,10 @@ export function AiReviseChat({
             </button>
           </div>
 
-          {/* Thread — only takes height once a conversation has started, so an
-             empty panel stays compact. */}
+          {/* Thread (always shown — seeded with the Replaiy greeting). */}
           <div
             ref={scrollRef}
-            className={`${turns.length === 0 && !thinking ? 'hidden' : 'flex'} flex-1 min-h-0 max-h-[300px] overflow-y-auto no-scrollbar px-4 py-2 flex-col gap-2.5`}
+            className="flex flex-1 min-h-0 max-h-[300px] overflow-y-auto no-scrollbar px-4 py-2 flex-col gap-2.5"
           >
             {turns.map((t) =>
               t.role === 'user' ? (
@@ -205,8 +216,8 @@ export function AiReviseChat({
           </div>
 
           {/* Quick adjustments — sit just above the input. They disappear once
-             a conversation has started (the thread takes over). */}
-          {turns.length === 0 && !thinking && (
+             the user has sent their first message (the thread takes over). */}
+          {!userHasSent && (
             <div className="flex flex-wrap gap-1.5 px-3 pt-1 pb-1 shrink-0">
               {QUICK.map((q) => (
                 <button
