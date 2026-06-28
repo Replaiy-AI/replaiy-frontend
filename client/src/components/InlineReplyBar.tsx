@@ -25,7 +25,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Send,
+  ArrowUp,
   Sparkles,
   List,
   X,
@@ -35,7 +35,6 @@ import {
   ChevronDown,
   CornerUpRight,
   Paperclip,
-  WandSparkles,
   File as FileIcon,
   Image as ImageIcon,
   Video as VideoIcon,
@@ -1750,7 +1749,7 @@ export function InlineReplyBar({
               data-testid="button-approve-send"
               aria-label="Approve & send"
               onClick={handleSend}
-              className="h-10 pl-3.5 pr-4 rounded-full flex items-center gap-1.5 text-[13px] font-semibold active-elevate-2 transition-colors"
+              className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 active-elevate-2 transition-colors"
               style={{
                 color: '#fff',
                 background: 'var(--ai-accent, #2F6BFF)',
@@ -1764,8 +1763,7 @@ export function InlineReplyBar({
                 e.currentTarget.style.filter = 'none';
               }}
             >
-              <Send size={16} strokeWidth={2} />
-              Send
+              <ArrowUp size={18} strokeWidth={2.2} />
             </button>
           </div>
         )}
@@ -1865,11 +1863,16 @@ export function InlineReplyBar({
                 onClick={() => setFormatPillOpen((v) => !v)}
                 active={formatPillOpen}
               >
-                {formatPillOpen ? (
-                  <X size={16} strokeWidth={2} />
-                ) : (
-                  <WandSparkles size={15} strokeWidth={1.9} />
-                )}
+                {/* Plus that rotates 45° into a cross when the pill opens —
+                   one icon, one smooth morph (a rotated plus IS an x). */}
+                <motion.span
+                  className="inline-flex"
+                  initial={false}
+                  animate={{ rotate: formatPillOpen ? 45 : 0 }}
+                  transition={APPLE_SPRING}
+                >
+                  <Plus size={17} strokeWidth={2} />
+                </motion.span>
               </ReplyFormatBtn>
 
               <AnimatePresence initial={false}>
