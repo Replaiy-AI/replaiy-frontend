@@ -20,13 +20,65 @@ import { IdentityPill, ConversationActionPills, ConversationActionPillsCompact, 
 import { ConversationSummaryPanel, hasSummaryPanelValue } from './ConversationSummaryPanel';
 import { LeadContextPanel } from './LeadContextPanel';
 import { InlineReplyBar, type ForwardContext } from './InlineReplyBar';
-import { PanelRight, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import {
   ComposeSheetMobile,
   useComposeSheetRefs,
 } from './ComposeSheetMobile';
 import { ComposeColumnDesktop } from './ComposeColumnDesktop';
 import type { SnoozeKey } from './ConversationActionCluster';
+
+// ─────────────────────────────────────────────────────────────────
+// PanelToggleIcon — the lead-context toggle glyph. A rounded panel frame
+// with a right-hand column that animates to mirror the panel state:
+//  • open  → the right column is filled and the divider sits inset,
+//            reading as "the side panel is showing".
+//  • closed → the fill clears and the divider slides to the far edge,
+//            reading as "the side panel is tucked away".
+// Pure SVG + framer-motion so the stroke language matches lucide icons.
+// ─────────────────────────────────────────────────────────────────
+function PanelToggleIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-icon"
+      aria-hidden="true"
+    >
+      {/* Outer panel frame */}
+      <rect x={3} y={4} width={18} height={16} rx={3} />
+      {/* Right column fill — fades in when open. Inset so it sits inside
+          the rounded frame. */}
+      <motion.rect
+        x={15}
+        y={5}
+        width={5}
+        height={14}
+        rx={1.5}
+        stroke="none"
+        fill="currentColor"
+        initial={false}
+        animate={{ opacity: open ? 0.22 : 0 }}
+        transition={APPLE_SPRING}
+      />
+      {/* Divider line — slides between the far edge (closed) and the
+          column boundary (open). */}
+      <motion.line
+        y1={4}
+        y2={20}
+        initial={false}
+        animate={{ x1: open ? 15 : 19, x2: open ? 15 : 19 }}
+        transition={APPLE_SPRING}
+      />
+    </svg>
+  );
+}
 
 // v36 — Mobile breakpoint mirrors Compose.tsx (1024px). Anything below
 // the laptop tier gets the ComposeSheetMobile bottom-sheet host for the
@@ -1029,8 +1081,17 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
           </div>
         )}
         <div className="absolute top-0 right-4 lg:right-6 pointer-events-auto flex items-center gap-2">
+          {/* v30.30 — Desktop gebruikt nu hetzelfde compact-pattern als
+             mobile: Done + ••• overflow met Forward + Snooze + kalender.
+             Done staat links, panel-toggle rechts (aan de kant van het
+             paneel dat hij opent). */}
+          <ConversationActionPillsCompact
+            onDone={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
+            onSnooze={() => { setConversationStatus(mail.id, 'snoozed'); navigate('/'); }}
+          />
           {/* Lead context panel toggle — a small glass pill button that opens
-             / closes the right-hand column. Mirrors the clickable top chip. */}
+             / closes the right-hand column. The right column inside the icon
+             slides in / out to mirror the panel state. */}
           {hasLeadContext && (
             <ActionPill
               testId="lead-panel-toggle"
@@ -1039,15 +1100,9 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
               active={leadPanelOpen}
               onClick={toggleLeadPanel}
             >
-              <PanelRight size={20} strokeWidth={1.7} className="text-icon" />
+              <PanelToggleIcon open={leadPanelOpen} />
             </ActionPill>
           )}
-          {/* v30.30 — Desktop gebruikt nu hetzelfde compact-pattern als
-             mobile: Done + ••• overflow met Forward + Snooze + kalender. */}
-          <ConversationActionPillsCompact
-            onDone={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
-            onSnooze={() => { setConversationStatus(mail.id, 'snoozed'); navigate('/'); }}
-          />
         </div>
       </div>
 
