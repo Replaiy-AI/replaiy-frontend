@@ -30,7 +30,6 @@ import { APPLE_SPRING } from '@/lib/motion';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import {
-  Brain,
   Plus,
   FileText,
   StickyNote,
@@ -57,8 +56,6 @@ import { PersonaExperience, CUSTOM_AGENT_GOLD } from '@/components/PersonaExperi
 import { GlassPopover } from '@/components/GlassPopover';
 import mascotCustomGold from '@/assets/preset_custom_gold.png';
 import iconPersona from '@/assets/ai_icon_persona.png';
-import iconPersonal from '@/assets/ai_icon_personal.png';
-import iconWorkspace from '@/assets/ai_icon_workspace.png';
 import {
   LANGUAGE_LABELS,
   DRIVE_LABELS,
@@ -230,84 +227,9 @@ function ViewShell({
   );
 }
 
-// ── DetailHeader — the character-rich header at the top of each detail pane.
-// Mirrors the left PartCard's identity (same 3D brand icon) so the left list
-// and right detail tie together. A 3D icon, an uppercase eyebrow, the title,
-// and a single live summary line describing the part's current state. The
-// summary is the same flat blue accent the left cards use for their live tag.
-function DetailHeader({
-  iconSrc,
-  eyebrow,
-  title,
-  intro,
-  summary,
-  locked,
-}: {
-  iconSrc: string;
-  eyebrow: string;
-  title: string;
-  intro: string;
-  /** One-line live state, e.g. "Setup 80% complete. English, informal." */
-  summary: React.ReactNode;
-  locked?: boolean;
-}) {
-  return (
-    <div className="flex items-start gap-4 lg:gap-5 mb-7 lg:mb-8">
-      {/* Same prominent 3D brand icon as the matching left card. */}
-      <img
-        src={iconSrc}
-        alt=""
-        aria-hidden="true"
-        draggable={false}
-        className="shrink-0 w-16 h-16 lg:w-[72px] lg:h-[72px] object-contain select-none pointer-events-none -mt-1"
-      />
-      <div className="min-w-0 flex-1">
-        <div className="inline-flex items-center gap-1.5 mb-1.5">
-          <Brain size={12} strokeWidth={2.2} className="text-icon-muted" />
-          <span className="text-[10.5px] uppercase tracking-[0.12em] font-semibold text-foreground/70">
-            {eyebrow}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-[23px] lg:text-[28px] font-semibold tracking-[-0.025em] leading-tight text-foreground">
-            {title}
-          </h1>
-          {locked && <Lock size={16} strokeWidth={2} className="text-icon-muted shrink-0" />}
-        </div>
-        <p className="text-[13.5px] leading-[1.5] text-foreground/55 mt-1.5">{intro}</p>
-        {summary && (
-          <div
-            className="mt-3 text-[12.5px] font-medium leading-snug"
-            style={{ color: 'var(--ai-accent, #2F6BFF)' }}
-          >
-            {summary}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// In-pane section header — the SAME treatment the inbox/campaigns lists use
-// above each card cluster: a small semibold label and an optional muted count,
-// at px-2 mb-1.5 (see InboxList SmartInboxView "Needs your approval"). Reusing
-// this exact pattern keeps the detail panes pixel-consistent with the lists.
-function SectionHeader({
-  children,
-  count,
-}: {
-  children: React.ReactNode;
-  count?: number;
-}) {
-  return (
-    <div className="flex items-center gap-2 px-2 mb-1.5">
-      <span className="text-[12.5px] font-semibold tracking-[-0.005em]">{children}</span>
-      {count !== undefined && (
-        <span className="text-[12px] text-muted-foreground">{count}</span>
-      )}
-    </div>
-  );
-}
+// (DetailHeader and SectionHeader were removed: the knowledge detail now opens
+//  straight into its first section like the Persona detail, with a Persona-style
+//  label + sub instead of a heavy 3D-icon header.)
 
 // ════════════════════════════════════════════════════════════════
 // Fine-tune primitives — Languages, Voice, Anything-else.
@@ -1070,16 +992,11 @@ function KnowledgeDetail({
 }) {
   const isPersonal = scope === 'personal';
   const title = isPersonal ? 'Personal knowledge' : 'Workspace knowledge';
+  // Intro doubles as the Questions section sub-line (Persona-style opener). The
+  // read-only state is shown by a small badge next to the header, not in copy.
   const intro = isPersonal
     ? 'Only your AI uses this. Answer a few questions or add your own material.'
-    : 'Company-wide knowledge, shared with your whole team.' +
-      (editable ? '' : ' Read-only for your role.');
-  const headerIcon = isPersonal ? iconPersonal : iconWorkspace;
-
-  // Live one-line header summary. Counts answered questions + sources.
-  const answeredCount = bundle.questions.filter((q) => q.answer.trim()).length;
-  const srcCount = bundle.sources.length;
-  const headerSummary = `${answeredCount} of ${bundle.questions.length} questions answered. ${srcCount} ${srcCount === 1 ? 'source' : 'sources'}.`;
+    : 'Company-wide knowledge, shared with your whole team.';
 
   // ── Q&A ──
   const setAnswer = (id: string, answer: string) =>
@@ -1161,19 +1078,29 @@ function KnowledgeDetail({
   return (
     <ViewShell title={title} onBack={onBack}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-        <DetailHeader
-          iconSrc={headerIcon}
-          eyebrow={isPersonal ? 'Personal' : 'Workspace'}
-          title={title}
-          intro={intro}
-          summary={headerSummary}
-          locked={!editable}
-        />
-
+        {/* No heavy detail header: like the Persona detail, we open straight
+            into the first section. The left card already carries the title,
+            icon and progress, so repeating them here would be redundant. The
+            section label + sub mirror Persona's "Choose your AI's personality"
+            opener exactly. */}
         <div className="flex flex-col gap-6 md:gap-7">
         {/* ── Questions ── */}
         <section>
-        <SectionHeader count={bundle.questions.length}>Questions</SectionHeader>
+        <div className="px-2 mb-1 flex items-center justify-between gap-3">
+          <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
+            Questions
+          </span>
+          {!editable && (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground/45"
+              data-testid={`knowledge-${scope}-readonly-badge`}
+            >
+              <Lock size={11} strokeWidth={2.2} />
+              Read-only
+            </span>
+          )}
+        </div>
+        <p className="px-2 text-[11.5px] leading-[1.45] text-foreground/45 mb-3">{intro}</p>
         <div className="flex flex-col gap-3" data-testid={`knowledge-${scope}-questions`}>
           {bundle.questions.map((q) => (
             <div key={q.id} className="group rp-card rounded-3xl p-4 lg:p-5" data-testid={`question-${q.id}`}>
@@ -1239,7 +1166,16 @@ function KnowledgeDetail({
 
         {/* ── Sources (LinkedIn / website / files) ── */}
         <section>
-        <SectionHeader count={bundle.sources.length}>Sources</SectionHeader>
+        <div className="px-2 mb-1">
+          <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
+            Sources
+          </span>
+        </div>
+        <p className="px-2 text-[11.5px] leading-[1.45] text-foreground/45 mb-3">
+          {isPersonal
+            ? 'Connected profiles, files and links your AI draws on. Only your conversations use these.'
+            : 'Company files and links every teammate\u2019s AI shares.'}
+        </p>
         <div className="flex flex-col gap-3" data-testid={`knowledge-${scope}-sources`}>
           {bundle.sources.length > 0 && (
             <div className="rp-card rounded-3xl overflow-hidden">
