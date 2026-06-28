@@ -614,6 +614,8 @@ const CUSTOM_AGENT_PREVIEW = {
   approach: 'Balanced (push when there is real intent)',
   qualifying: 'Thorough',
   closing: 'Direct',
+  voice:
+    'Direct, warm and human. Talks like a founder who is genuinely interested, no sales talk, no cliches. Short sentences, the occasional wink.',
   dos: [
     'Lead with a specific, genuine observation',
     'Ask one sharp qualifying question',
@@ -732,6 +734,11 @@ function CustomAgentPanel({ open, onClose }: { open: boolean; onClose: () => voi
             <ReadOnlyRow label="Qualifying depth" value={CUSTOM_AGENT_PREVIEW.qualifying} />
           </div>
           <ReadOnlyRow label="Closing style" value={CUSTOM_AGENT_PREVIEW.closing} />
+          <ReadOnlyRow
+            label="Voice"
+            sub="How the agent sounds. Set by the chosen personality; editable in a custom agent."
+            value={CUSTOM_AGENT_PREVIEW.voice}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <ReadOnlyList label="Do's" items={CUSTOM_AGENT_PREVIEW.dos} />
@@ -882,22 +889,11 @@ function PersonaDetail({
             </div>
           </FineTuneSection>
 
-          {/* ── Voice ─────────────────────────────────────────────── */}
-          <FineTuneSection
-            label="Voice"
-            sub="A line or two on how you sound, so messages read like you and not a template."
-          >
-            <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-voice">
-              <GlassTextarea
-                bare
-                testId="tone-voice"
-                value={tone.voice}
-                onChange={(voice) => patchTone({ voice })}
-                placeholder="e.g. Direct and warm, like a founder who is genuinely curious. Short sentences, no sales talk."
-                rows={3}
-              />
-            </div>
-          </FineTuneSection>
+          {/* Voice is NOT a standard control: it is set by the chosen
+              personality (avatar) under the hood, and is editable only in the
+              paid Custom agent (shown read-only in its preview panel). Keeping
+              it out of the standard UI avoids a field that just mirrors the
+              preset. Personal style tweaks go in "Anything else?" below. */}
 
           {/* ── Anything else? ────────────────────────────────────── */}
           <FineTuneSection
