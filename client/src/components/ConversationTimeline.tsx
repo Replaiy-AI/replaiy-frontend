@@ -20,7 +20,6 @@ import { IdentityPill, ConversationActionPills, ConversationActionPillsCompact, 
 import { ConversationSummaryPanel, hasSummaryPanelValue } from './ConversationSummaryPanel';
 import { LeadContextPanel } from './LeadContextPanel';
 import { InlineReplyBar, type ForwardContext } from './InlineReplyBar';
-import { X } from 'lucide-react';
 import {
   ComposeSheetMobile,
   useComposeSheetRefs,
@@ -49,7 +48,6 @@ function PanelToggleIcon({ open }: { open: boolean }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       className="text-icon"
-      aria-hidden="true"
     >
       {/* Outer panel frame */}
       <rect x={3} y={4} width={18} height={16} rx={3} />
@@ -81,6 +79,24 @@ function useIsCompactViewport(): boolean {
     return () => mq.removeEventListener('change', update);
   }, []);
   return compact;
+}
+
+// True at >=1280px — the threshold where all three columns (inbox +
+// conversation + lead panel) fit at once. Below it the lead panel REPLACES
+// the inbox, so the conversation header behaves differently (left-aligned
+// identity, back-to-inbox affordance) vs the wide 3-column desktop.
+function useIsWideViewport(): boolean {
+  const [wide, setWide] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return window.matchMedia('(min-width: 1280px)').matches;
+  });
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const update = () => setWide(mq.matches);
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return wide;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -606,6 +622,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
   // On desktop the inline reply bar continues to live in the column
   // (unchanged from v35.x).
   const isCompact = useIsCompactViewport();
+  const isWide = useIsWideViewport();
   const [replySheetOpen, setReplySheetOpen] = useState(false);
   // Mobile sheet pill subject preview — live updated via onSubjectChange
   // when forwarding (the forward subject is editable). For reply the
@@ -1037,20 +1054,35 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
            verschoof. We reserveren nu aan beide zijden ruimte voor de
            action cluster (136px) zodat de Avatar+Subject groep precies
            in het midden van de viewport-column zit. */}
-        {/* The identity pill is the conversation header and stays visible
-           whether or not the lead panel is open.
-           • CLOSED: the center column is wide, so the pill is CENTERED. Both
-             sides reserve the same amount of room for the action cluster
-             (136px) so the pill sits in the true center of the column.
-           • OPEN: the center column is narrow and a centered pill would collide
-             with the top-right action cluster, so it LEFT-aligns and truncates
-             cleanly before the buttons. */}
-        {true && (
+        {/* Conversation header logic, by state:
+           • lead CLOSED → identity pill. Centered on wide (>=1280), left-aligned
+             below that (more stable on a narrow center column).
+           • lead OPEN + narrow (<1280) → inbox is REPLACED by the panel, so the
+             pill is redundant (identity shows in the panel) and would be
+             cropped. Show a back-to-inbox arrow instead — it closes the panel,
+             which brings the inbox back.
+           • lead OPEN + wide (>=1280) → inbox still visible, identity shows in the
+             panel, so the center stays empty (no cropped pill, no clutter). */}
+        {leadPanelOpen && !isWide && (
+          <div className="flex items-center justify-start" style={{ paddingLeft: 16 }}>
+            <button
+              type="button"
+              data-testid="lead-back-to-inbox"
+              aria-label="Back to inbox"
+              onClick={() => setLeadPanelOpen(false)}
+              className="glass-pill pointer-events-auto inline-flex items-center gap-1.5 h-[42px] pl-2.5 pr-3.5 rounded-full text-[13.5px] font-medium text-foreground/80 hover-elevate active-elevate-2"
+            >
+              <ArrowLeft size={18} strokeWidth={2} />
+              Inbox
+            </button>
+          </div>
+        )}
+        {!leadPanelOpen && (
           <div
-            className={`flex items-center ${leadPanelOpen ? 'justify-start' : 'justify-center'}`}
+            className={`flex items-center ${isWide ? 'justify-center' : 'justify-start'}`}
             style={{
-              paddingLeft: leadPanelOpen ? 24 : 136,
-              paddingRight: leadPanelOpen ? 150 : 136,
+              paddingLeft: isWide ? 136 : 24,
+              paddingRight: hasLeadContext ? 150 : 136,
             }}
           >
             <div className="pointer-events-auto flex items-center gap-3 min-w-0 max-w-[440px]">
@@ -1065,7 +1097,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
                 onMetaClick={undefined}
                 metaActive={summaryPanelOpen}
                 onIdentityClick={hasLeadContext ? toggleLeadPanel : undefined}
-                identityActive={leadPanelOpen}
+                identityActive={false}
               />
             </div>
           </div>
@@ -1461,48 +1493,40 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
         </AnimatePresence>
       )}
 
-      {/* MOBILE / compact slide-over — the lead panel slides in from the
-         right over the conversation, with a tap-to-dismiss scrim. */}
+      {/* PHONE (<768) full-screen push — no overlay, no scrim. The lead
+         context takes the whole screen (the conversation is too narrow for a
+         side panel here) and slides in from the right like opening a detail
+         view. A back arrow returns to the conversation. Mirrors the
+         inbox→conversation push so it feels native, not like a modal. */}
       {hasLeadContext && (
         <AnimatePresence>
           {leadPanelOpen && (
-            <div className="md:hidden">
-              <motion.div
-                key="lead-scrim"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                onClick={() => setLeadPanelOpen(false)}
-                className="absolute inset-0 z-40 bg-black/30"
-              />
-              <motion.aside
-                key="lead-panel-mobile"
-                data-testid="lead-panel-mobile"
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={APPLE_SPRING}
-                className="absolute top-0 right-0 bottom-0 z-50 w-[86%] max-w-[360px] lg-sheet"
-                style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
-              >
-                <div className="flex items-center justify-between px-4 pt-3 pb-1">
-                  <span className="text-[13px] font-semibold text-foreground">Lead context</span>
-                  <button
-                    type="button"
-                    aria-label="Close lead context"
-                    data-testid="lead-panel-close"
-                    onClick={() => setLeadPanelOpen(false)}
-                    className="h-8 w-8 inline-flex items-center justify-center rounded-full hover-elevate active-elevate-2"
-                  >
-                    <X size={18} strokeWidth={1.9} className="text-icon" />
-                  </button>
-                </div>
-                <div className="h-[calc(100%-44px)] min-h-0">
-                  <LeadContextPanel mail={mail} />
-                </div>
-              </motion.aside>
-            </div>
+            <motion.div
+              key="lead-panel-mobile"
+              data-testid="lead-panel-mobile"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={APPLE_SPRING}
+              className="md:hidden absolute inset-0 z-50 flex flex-col bg-background"
+              style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+            >
+              <div className="flex items-center gap-2 px-3 pt-3 pb-1 shrink-0">
+                <button
+                  type="button"
+                  aria-label="Back to conversation"
+                  data-testid="lead-panel-close"
+                  onClick={() => setLeadPanelOpen(false)}
+                  className="glass-pill h-10 w-10 inline-flex items-center justify-center rounded-full hover-elevate active-elevate-2 shrink-0"
+                >
+                  <ArrowLeft size={20} strokeWidth={1.9} className="text-icon" />
+                </button>
+                <span className="text-[14px] font-semibold text-foreground">Lead context</span>
+              </div>
+              <div className="flex-1 min-h-0">
+                <LeadContextPanel mail={mail} />
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
       )}
