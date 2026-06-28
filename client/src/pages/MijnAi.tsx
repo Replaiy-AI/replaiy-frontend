@@ -45,20 +45,22 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  Languages as LanguagesIcon,
+  Sparkles,
+  ChevronDown,
+  Search,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import { ReplaiyLogo } from '@/components/Logo';
 import { PersonaExperience } from '@/components/PersonaExperience';
+import { GlassPopover } from '@/components/GlassPopover';
 import iconPersona from '@/assets/ai_icon_persona.png';
 import iconPersonal from '@/assets/ai_icon_personal.png';
 import iconWorkspace from '@/assets/ai_icon_workspace.png';
 import {
+  LANGUAGE_LABELS,
   type Persona,
-  type ToneFormality,
-  type ToneLength,
-  type StrategyStance,
-  type QualifyingDepth,
-  type ClosingStyle,
+  type LanguageCode,
   type KnowledgeBundle,
   type KnowledgeDoc,
   type KnowledgeSource,
@@ -72,55 +74,6 @@ import {
 // ════════════════════════════════════════════════════════════════
 // Shared small primitives
 // ════════════════════════════════════════════════════════════════
-
-function SegmentedPills<K extends string>({
-  value,
-  options,
-  onChange,
-  testId,
-}: {
-  value: K;
-  options: { key: K; label: string }[];
-  onChange: (k: K) => void;
-  testId?: string;
-}) {
-  return (
-    <div data-testid={testId} className="glass-pill pill inline-flex items-center p-1 gap-1 w-full">
-      {options.map((o) => {
-        const active = o.key === value;
-        return (
-          <button
-            key={o.key}
-            type="button"
-            data-testid={testId ? `${testId}-${o.key}` : undefined}
-            aria-pressed={active}
-            onClick={() => onChange(o.key)}
-            className={`flex-1 h-8 rounded-full text-[13px] font-medium transition-colors ${
-              active ? 'text-foreground active-elevate-2' : 'text-foreground/55 hover-elevate'
-            }`}
-            style={
-              active
-                ? {
-                    background: 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.60))',
-                    boxShadow:
-                      'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 0 0 1px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.06)',
-                  }
-                : undefined
-            }
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="block text-[12px] font-semibold text-foreground/65 mb-1.5">{children}</span>
-  );
-}
 
 function GlassTextarea({
   value,
@@ -184,78 +137,6 @@ function GlassTextarea({
       className="w-full resize-none rounded-2xl bg-foreground/[0.035] dark:bg-white/[0.04] px-3.5 py-2.5 text-[14px] leading-[1.5] text-foreground/90 placeholder:text-foreground/35 outline-none focus:bg-foreground/[0.06] dark:focus:bg-white/[0.06] transition-colors overflow-hidden"
       style={{ boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.05)' }}
     />
-  );
-}
-
-function EditableList({
-  items,
-  onChange,
-  placeholder,
-  accent,
-  testId,
-}: {
-  items: string[];
-  onChange: (items: string[]) => void;
-  placeholder: string;
-  accent: boolean;
-  testId?: string;
-}) {
-  const [draft, setDraft] = useState('');
-  const add = () => {
-    const v = draft.trim();
-    if (!v) return;
-    onChange([...items, v]);
-    setDraft('');
-  };
-  return (
-    <div data-testid={testId} className="flex flex-col gap-1.5">
-      {items.map((it, i) => (
-        <div
-          key={i}
-          className="group flex items-start gap-2.5 rounded-xl px-3 py-2 bg-foreground/[0.03] dark:bg-white/[0.03]"
-        >
-          <span
-            className="mt-[7px] h-1.5 w-1.5 rounded-full shrink-0"
-            style={{ background: accent ? 'var(--ai-accent, #2F6BFF)' : 'rgba(120,120,130,0.5)' }}
-          />
-          <span className="flex-1 text-[13.5px] leading-[1.45] text-foreground/85">{it}</span>
-          <button
-            type="button"
-            aria-label="Remove"
-            data-testid={testId ? `${testId}-remove-${i}` : undefined}
-            onClick={() => onChange(items.filter((_, j) => j !== i))}
-            className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 -mr-1 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
-          >
-            <Trash2 size={13} strokeWidth={1.8} />
-          </button>
-        </div>
-      ))}
-      <div className="flex items-center gap-2 mt-0.5">
-        <input
-          value={draft}
-          data-testid={testId ? `${testId}-input` : undefined}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              add();
-            }
-          }}
-          placeholder={placeholder}
-          className="flex-1 rounded-xl bg-foreground/[0.035] dark:bg-white/[0.04] px-3 py-2 text-[13.5px] text-foreground/90 placeholder:text-foreground/35 outline-none focus:bg-foreground/[0.06] transition-colors"
-          style={{ boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.05)' }}
-        />
-        <button
-          type="button"
-          aria-label="Add"
-          data-testid={testId ? `${testId}-add` : undefined}
-          onClick={add}
-          className="h-8 w-8 shrink-0 rounded-full glass-pill flex items-center justify-center text-icon hover-elevate active-elevate-2"
-        >
-          <Plus size={15} strokeWidth={2} />
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -414,7 +295,327 @@ function SectionHeader({
 }
 
 // ════════════════════════════════════════════════════════════════
-// PERSONA detail — tone of voice + strategy
+// Fine-tune primitives — Languages, Voice, Anything-else.
+// Built only on design-system glass (glass, glass-pill, glass-strong,
+// hover-elevate, active-elevate-2) and Apple springs. The ONE accent is
+// blue #2F6BFF (--ai-accent). No native <select>.
+// ════════════════════════════════════════════════════════════════
+
+const AI_ACCENT = '#2F6BFF';
+
+// The curated set of POPULAR languages shown as quick-tap chips, in order.
+// Any other language is reachable through the searchable "More languages"
+// popover, and any selected non-popular language is also surfaced as a chip.
+const POPULAR_LANGUAGES: LanguageCode[] = ['en', 'nl', 'de', 'fr', 'es', 'it', 'pt'];
+
+// A small, restated section header that matches the top of the pane
+// (PersonaExperience): a semibold label + a muted sub-line.
+function FineTuneSection({
+  label,
+  sub,
+  children,
+}: {
+  label: string;
+  sub: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <div className="px-2 mb-1">
+        <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
+          {label}
+        </span>
+      </div>
+      <p className="px-2 text-[11.5px] leading-[1.45] text-foreground/45 mb-3">{sub}</p>
+      {children}
+    </section>
+  );
+}
+
+// One selectable language chip. Toggles on/off. Selected = blue accent fill
+// + check; unselected = quiet glass pill that lifts on hover.
+function LanguageChip({
+  label,
+  active,
+  onToggle,
+  testId,
+}: {
+  label: string;
+  active: boolean;
+  onToggle: () => void;
+  testId?: string;
+}) {
+  return (
+    <motion.button
+      type="button"
+      data-testid={testId}
+      aria-pressed={active}
+      onClick={onToggle}
+      whileTap={{ scale: 0.95 }}
+      transition={APPLE_SPRING}
+      className={`relative inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[13px] font-medium transition-colors ${
+        active
+          ? 'text-white active-elevate-2'
+          : 'glass-pill text-foreground/70 hover-elevate active-elevate-2'
+      }`}
+      style={
+        active
+          ? {
+              background: AI_ACCENT,
+              boxShadow:
+                'inset 0 1px 0 rgba(255,255,255,0.28), 0 4px 14px -6px rgba(47,107,255,0.7)',
+            }
+          : undefined
+      }
+    >
+      <AnimatePresence initial={false} mode="wait">
+        {active && (
+          <motion.span
+            key="check"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 13, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={APPLE_SPRING}
+            className="inline-flex items-center justify-center overflow-hidden"
+          >
+            <Check size={13} strokeWidth={2.6} className="text-white" />
+          </motion.span>
+        )}
+      </AnimatePresence>
+      {label}
+    </motion.button>
+  );
+}
+
+// The fallback-language picker. A glass-pill trigger that opens a compact
+// floating glass popover of options (NOT a native select), built on the shared
+// GlassPopover (same glass-pill surface as SnoozePopover). Chooses the single
+// language used when a lead speaks something the user does not.
+function FallbackPicker({
+  value,
+  onChange,
+}: {
+  value: LanguageCode;
+  onChange: (code: LanguageCode) => void;
+}) {
+  const codes = Object.keys(LANGUAGE_LABELS) as LanguageCode[];
+
+  return (
+    <GlassPopover
+      anchor="bottom"
+      width="w-44"
+      surfaceClassName="max-h-64 overflow-y-auto no-scrollbar"
+      testId="fallback-language-menu"
+      trigger={({ open, toggle }) => (
+        <button
+          type="button"
+          data-testid="fallback-language-trigger"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={toggle}
+          className="glass-pill inline-flex items-center gap-1.5 h-9 pl-3.5 pr-3 rounded-full text-[13px] font-medium text-foreground/80 hover-elevate active-elevate-2"
+        >
+          {LANGUAGE_LABELS[value]}
+          <motion.span animate={{ rotate: open ? 180 : 0 }} transition={APPLE_SPRING} className="inline-flex">
+            <ChevronDown size={14} strokeWidth={2} className="text-icon-muted" />
+          </motion.span>
+        </button>
+      )}
+    >
+      {({ close }) => (
+        <div role="listbox">
+          {codes.map((code) => {
+            const selected = code === value;
+            return (
+              <button
+                key={code}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                data-testid={`fallback-language-${code}`}
+                onClick={() => {
+                  onChange(code);
+                  close();
+                }}
+                className={`w-full flex items-center justify-between gap-2 h-9 px-2.5 rounded-xl text-[13px] text-left transition-colors hover-elevate active-elevate-2 ${
+                  selected ? 'font-semibold text-foreground' : 'text-foreground/70'
+                }`}
+              >
+                {LANGUAGE_LABELS[code]}
+                {selected && <Check size={14} strokeWidth={2.6} style={{ color: AI_ACCENT }} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </GlassPopover>
+  );
+}
+
+// The "More languages" picker. A glass-pill trigger (styled exactly like the
+// FallbackPicker trigger) that opens a SEARCHABLE popover listing every
+// language. Built on the shared GlassPopover (same floating glass-pill surface
+// as SnoozePopover, no hard border/fill/shadow). It opens UPWARD (anchor 'top')
+// so it never falls over the Fallback row below. Each row toggles that language
+// on/off via onToggle and shows a blue Check when selected; the popover stays
+// open after a toggle so several languages can be added in one go and the chips
+// row updates live.
+function MoreLanguagesPicker({
+  selected,
+  onToggle,
+}: {
+  selected: LanguageCode[];
+  onToggle: (code: LanguageCode) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const codes = Object.keys(LANGUAGE_LABELS) as LanguageCode[];
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? codes.filter((code) => LANGUAGE_LABELS[code].toLowerCase().includes(q))
+    : codes;
+
+  return (
+    <GlassPopover
+      anchor="top"
+      width="w-60"
+      testId="more-languages-menu"
+      onOpenChange={(next) => {
+        if (next) {
+          requestAnimationFrame(() => inputRef.current?.focus());
+        } else {
+          setQuery('');
+        }
+      }}
+      trigger={({ open, toggle }) => (
+        <button
+          type="button"
+          data-testid="more-languages-trigger"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={toggle}
+          className="glass-pill inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[13px] font-medium text-foreground/80 hover-elevate active-elevate-2"
+        >
+          <Plus size={14} strokeWidth={2.2} className="text-icon-muted" />
+          More languages
+        </button>
+      )}
+    >
+      <div className="flex items-center gap-2 h-9 px-2.5 mb-1">
+        <Search size={15} strokeWidth={1.8} className="shrink-0 text-foreground/75" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search languages"
+          data-testid="more-languages-search"
+          className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[13px] text-foreground placeholder:text-foreground/40"
+        />
+      </div>
+      <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] mx-1 mb-1" />
+      <div className="max-h-64 overflow-y-auto no-scrollbar" role="listbox">
+        {filtered.length === 0 ? (
+          <div className="px-2.5 py-3 text-[12.5px] text-foreground/45">
+            No languages found
+          </div>
+        ) : (
+          filtered.map((code) => {
+            const isOn = selected.includes(code);
+            return (
+              <button
+                key={code}
+                type="button"
+                role="option"
+                aria-selected={isOn}
+                data-testid={`more-language-${code}`}
+                onClick={() => onToggle(code)}
+                className={`w-full flex items-center justify-between gap-2 h-9 px-2.5 rounded-xl text-[13px] text-left transition-colors hover-elevate active-elevate-2 ${
+                  isOn ? 'font-semibold text-foreground' : 'text-foreground/70'
+                }`}
+              >
+                {LANGUAGE_LABELS[code]}
+                {isOn && <Check size={14} strokeWidth={2.6} style={{ color: AI_ACCENT }} />}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </GlassPopover>
+  );
+}
+
+// "Anything else?" is an optional, collapsed-by-default expandable row for
+// personal STYLE preferences. Steers users away from dumping facts here.
+function AnythingElse({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  // Open by default if there is already content, so existing notes are not hidden.
+  const [open, setOpen] = useState(value.trim().length > 0);
+  return (
+    <div className="rp-card rounded-3xl overflow-hidden" data-testid="tone-extra">
+      <button
+        type="button"
+        data-testid="tone-extra-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-5 lg:px-6 py-4 text-left hover-elevate active-elevate-2"
+      >
+        <Sparkles
+          size={18}
+          strokeWidth={1.9}
+          className="shrink-0"
+          style={{ color: AI_ACCENT }}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="text-[13.5px] font-semibold text-foreground leading-tight">
+            Anything else?
+          </div>
+          <div className="text-[11.5px] text-foreground/45 leading-tight mt-0.5">
+            Optional. A few personal style rules for how your AI writes.
+          </div>
+        </div>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={APPLE_SPRING} className="inline-flex shrink-0">
+          <ChevronDown size={16} strokeWidth={2} className="text-icon-muted" />
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={APPLE_SPRING}
+            className="overflow-hidden"
+          >
+            <div className="px-5 lg:px-6 pb-5 pt-0">
+              <GlassTextarea
+                testId="tone-extra-notes"
+                value={value}
+                onChange={onChange}
+                placeholder="e.g. no em-dashes, keep it casual, never use exclamation marks"
+                rows={3}
+              />
+              <p className="text-[11.5px] leading-[1.5] text-foreground/45 mt-2 px-0.5">
+                Style only, like "no em-dashes" or "keep it casual". For facts about your
+                product or pricing, use Workspace knowledge.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// PERSONA detail — personality preset + fine-tune (languages, voice, more)
 // ════════════════════════════════════════════════════════════════
 function PersonaDetail({
   persona,
@@ -426,13 +627,34 @@ function PersonaDetail({
   onBack: () => void;
 }) {
   const tone = persona.tone;
-  const strategy = persona.strategy;
   // Fine-tuning any control moves the persona off its preset into "custom"
   // (activePresetId = null), so the preset cards no longer show as selected.
   const patchTone = (p: Partial<typeof tone>) =>
     setPersona((prev) => ({ ...prev, activePresetId: null, tone: { ...prev.tone, ...p } }));
-  const patchStrategy = (p: Partial<typeof strategy>) =>
-    setPersona((prev) => ({ ...prev, activePresetId: null, strategy: { ...prev.strategy, ...p } }));
+
+  // The languages the user can hold a meeting in. Toggling never empties the
+  // set below one (you must speak at least one language). All ~15 labels.
+  const toggleLanguage = (code: LanguageCode) => {
+    const has = tone.languages.includes(code);
+    if (has && tone.languages.length === 1) return; // keep at least one
+    const next = has
+      ? tone.languages.filter((c) => c !== code)
+      : [...tone.languages, code];
+    // If the fallback is no longer a spoken language, move it to the first one.
+    const fallbackOk = next.includes(tone.fallbackLanguage);
+    patchTone({
+      languages: next,
+      fallbackLanguage: fallbackOk ? tone.fallbackLanguage : next[0],
+    });
+  };
+
+  // The chips shown in the row = popular set + any selected non-popular
+  // languages (e.g. Japanese), de-duplicated. Popular order first, then any
+  // extra selected ones after, so newly added languages stay visible/removable.
+  const visibleLanguageCodes = useMemo(() => {
+    const extras = tone.languages.filter((c) => !POPULAR_LANGUAGES.includes(c));
+    return [...POPULAR_LANGUAGES, ...extras];
+  }, [tone.languages]);
 
   return (
     <ViewShell title="Persona" onBack={onBack}>
@@ -440,147 +662,83 @@ function PersonaDetail({
         {/* Living top: preset personalities + live mascot preview. */}
         <PersonaExperience persona={persona} setPersona={setPersona} />
 
-        {/* Optional fine-tuning, for users who want to go beyond a preset. */}
-        <div className="flex items-center gap-3 mt-8 mb-1 px-2">
+        {/* Fine-tune — the small, deliberate set of things the user controls by
+            hand. Everything else (length, formality, approach, ...) is set by
+            the chosen personality under the hood. */}
+        <div className="flex items-center gap-3 mt-8 mb-5 px-2">
           <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground/80">
             Fine-tune
           </span>
-          <span className="text-[12px] text-foreground/45">Optional, adjust anything by hand</span>
+          <span className="text-[12px] text-foreground/45">Optional, a few personal touches</span>
           <div className="flex-1 h-px bg-foreground/[0.08] dark:bg-white/[0.08]" />
         </div>
-        <div className="flex flex-col gap-5 md:gap-6">
-        {/* Tone of voice */}
-        <section>
-        <SectionHeader>Tone of voice</SectionHeader>
-        <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-tone">
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <FieldLabel>Language</FieldLabel>
-              <SegmentedPills
-                testId="tone-language"
-                value={tone.language}
-                onChange={(language) => patchTone({ language })}
-                options={[
-                  { key: 'nl', label: 'Dutch' },
-                  { key: 'en', label: 'English' },
-                ]}
-              />
-            </div>
-            <div>
-              <FieldLabel>Length</FieldLabel>
-              <SegmentedPills
-                testId="tone-length"
-                value={tone.length}
-                onChange={(length) => patchTone({ length: length as ToneLength })}
-                options={[
-                  { key: 'short', label: 'Short' },
-                  { key: 'medium', label: 'Med.' },
-                  { key: 'long', label: 'Long' },
-                ]}
-              />
-            </div>
-          </div>
-          <div className="mb-3">
-            <FieldLabel>Formality</FieldLabel>
-            <SegmentedPills
-              testId="tone-formality"
-              value={tone.formality}
-              onChange={(formality) => patchTone({ formality: formality as ToneFormality })}
-              options={[
-                { key: 'informal', label: 'Informal' },
-                { key: 'neutral', label: 'Neutral' },
-                { key: 'formal', label: 'Formal' },
-              ]}
-            />
-          </div>
-          <div className="mb-4">
-            <FieldLabel>Voice</FieldLabel>
-            <GlassTextarea
-              testId="tone-voice"
-              value={tone.voice}
-              onChange={(voice) => patchTone({ voice })}
-              placeholder="Describe how you want to sound…"
-              rows={4}
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <FieldLabel>Do's</FieldLabel>
-              <EditableList
-                testId="tone-dos"
-                accent
-                items={tone.dos}
-                onChange={(dos) => patchTone({ dos })}
-                placeholder="Add a do…"
-              />
-            </div>
-            <div>
-              <FieldLabel>Don'ts</FieldLabel>
-              <EditableList
-                testId="tone-donts"
-                accent={false}
-                items={tone.donts}
-                onChange={(donts) => patchTone({ donts })}
-                placeholder="Add a don't…"
-              />
-            </div>
-          </div>
-        </div>
-        </section>
 
-        {/* Strategy */}
-        <section>
-        <SectionHeader>Strategy</SectionHeader>
-        <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-strategy">
-          <div className="mb-3">
-            <FieldLabel>Approach</FieldLabel>
-            <SegmentedPills
-              testId="strategy-stance"
-              value={strategy.stance}
-              onChange={(stance) => patchStrategy({ stance: stance as StrategyStance })}
-              options={[
-                { key: 'patient', label: 'Patient' },
-                { key: 'balanced', label: 'Balanced' },
-                { key: 'push', label: 'Push' },
-              ]}
-            />
-          </div>
-          <div className="mb-3">
-            <FieldLabel>Qualifying</FieldLabel>
-            <SegmentedPills
-              testId="strategy-qualifying"
-              value={strategy.qualifyingDepth}
-              onChange={(qualifyingDepth) =>
-                patchStrategy({ qualifyingDepth: qualifyingDepth as QualifyingDepth })
-              }
-              options={[
-                { key: 'light', label: 'Light' },
-                { key: 'thorough', label: 'Thorough' },
-              ]}
-            />
-            <p className="text-[12px] text-foreground/45 mt-1.5 px-0.5">
-              How much your AI digs into fit and intent before pitching.
-            </p>
-          </div>
-          <div>
-            <FieldLabel>Closing</FieldLabel>
-            <SegmentedPills
-              testId="strategy-closing"
-              value={strategy.closingStyle}
-              onChange={(closingStyle) =>
-                patchStrategy({ closingStyle: closingStyle as ClosingStyle })
-              }
-              options={[
-                { key: 'soft', label: 'Soft suggest' },
-                { key: 'direct', label: 'Direct ask' },
-              ]}
-            />
-            <p className="text-[12px] text-foreground/45 mt-1.5 px-0.5">
-              How your AI proposes the next step once there is interest.
-            </p>
-          </div>
-        </div>
-        </section>
+        <div className="flex flex-col gap-6 md:gap-7">
+          {/* ── Languages ─────────────────────────────────────────── */}
+          <FineTuneSection
+            label="Languages you speak"
+            sub="Your AI replies in each lead's own language automatically. It only moves a lead to a live conversation in a language you speak, so you are never booked into one you cannot hold."
+          >
+            <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-languages">
+              <div className="flex items-center gap-2 mb-3">
+                <LanguagesIcon size={15} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
+                <span className="text-[12px] font-semibold text-foreground/65">
+                  I can hold a live conversation in
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2" data-testid="tone-languages">
+                {visibleLanguageCodes.map((code) => (
+                  <LanguageChip
+                    key={code}
+                    testId={`tone-language-${code}`}
+                    label={LANGUAGE_LABELS[code]}
+                    active={tone.languages.includes(code)}
+                    onToggle={() => toggleLanguage(code)}
+                  />
+                ))}
+                <MoreLanguagesPicker selected={tone.languages} onToggle={toggleLanguage} />
+              </div>
+
+              <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
+
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                <div className="min-w-0">
+                  <div className="text-[12px] font-semibold text-foreground/65">
+                    Fallback language
+                  </div>
+                  <div className="text-[11.5px] leading-[1.45] text-foreground/45 mt-0.5 max-w-sm">
+                    Used when a lead speaks a language you have not selected above.
+                  </div>
+                </div>
+                <FallbackPicker
+                  value={tone.fallbackLanguage}
+                  onChange={(fallbackLanguage) => patchTone({ fallbackLanguage })}
+                />
+              </div>
+            </div>
+          </FineTuneSection>
+
+          {/* ── Voice ─────────────────────────────────────────────── */}
+          <FineTuneSection
+            label="Voice"
+            sub="Optional. A line or two on how you sound, so messages read like you and not a template."
+          >
+            <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-voice">
+              <GlassTextarea
+                testId="tone-voice"
+                value={tone.voice}
+                onChange={(voice) => patchTone({ voice })}
+                placeholder="e.g. Direct and warm, like a founder who is genuinely curious. Short sentences, no sales talk."
+                rows={3}
+              />
+            </div>
+          </FineTuneSection>
+
+          {/* ── Anything else? (optional, collapsed) ──────────────── */}
+          <AnythingElse
+            value={tone.extraNotes}
+            onChange={(extraNotes) => patchTone({ extraNotes })}
+          />
         </div>
 
         {/* Auto-save: changes are kept live; no explicit Save button. */}

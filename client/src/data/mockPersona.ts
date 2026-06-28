@@ -18,15 +18,38 @@
 export type ToneFormality = 'informal' | 'neutral' | 'formal';
 export type ToneLength = 'short' | 'medium' | 'long';
 
+// Languages the user personally speaks (ISO-ish codes). The AI auto-matches a
+// lead's language at runtime, but only advances a lead to a live conversation
+// (whatever the campaign goal is) in a language the user actually speaks;
+// otherwise it uses `fallbackLanguage`.
+export type LanguageCode =
+  | 'en' | 'nl' | 'de' | 'fr' | 'es' | 'it' | 'pt' | 'sv' | 'da' | 'no'
+  | 'pl' | 'tr' | 'ar' | 'zh' | 'ja';
+
 export interface ToneProfile {
-  language: 'nl' | 'en';
+  /** Which languages the USER can actually hold a live conversation in. */
+  languages: LanguageCode[];
+  /** Used when a lead's language is not one the user speaks. */
+  fallbackLanguage: LanguageCode;
+  /** Free-form description of the voice — "sounds like the user". Optional. */
+  voice: string;
+  /** Optional personal STYLE preferences ("no em-dashes", "keep it casual").
+   *  Style only — facts/policy belong in Workspace knowledge. */
+  extraNotes: string;
+  // ── Under-the-hood (set by the avatar/preset, hidden in the standard UI,
+  //    editable later in the paid Custom agent). Kept so behaviour stays rich.
   formality: ToneFormality;
   length: ToneLength;
-  /** Free-form description of the voice — "sounds like the user". */
-  voice: string;
   dos: string[];
   donts: string[];
 }
+
+// Human labels for the language picker.
+export const LANGUAGE_LABELS: Record<LanguageCode, string> = {
+  en: 'English', nl: 'Dutch', de: 'German', fr: 'French', es: 'Spanish',
+  it: 'Italian', pt: 'Portuguese', sv: 'Swedish', da: 'Danish', no: 'Norwegian',
+  pl: 'Polish', tr: 'Turkish', ar: 'Arabic', zh: 'Chinese', ja: 'Japanese',
+};
 
 export type StrategyStance = 'push' | 'balanced' | 'patient';
 export type QualifyingDepth = 'light' | 'thorough';
@@ -152,11 +175,13 @@ export const mockPersona: Persona = {
   role: 'Founder · Replaiy',
   activePresetId: 'warm',
   tone: {
-    language: 'en',
+    languages: ['en', 'nl'],
+    fallbackLanguage: 'en',
     formality: 'informal',
     length: 'short',
     voice:
       'Direct, warm and human. Talks like a founder who is genuinely interested, no sales talk, no clichés. Short sentences, the occasional wink.',
+    extraNotes: '',
     dos: [
       'Lead with value and a genuine observation',
       'Ask one concrete, easy follow-up question',
@@ -261,7 +286,7 @@ export const personaPresets: PersonaPreset[] = [
     sample:
       'Hey Emma, really enjoyed your take on rep ramp time. No agenda here, just following along. Curious what is working for your team lately?',
     behavior:
-      'Act as a patient relationship-builder. Lead every message with genuine interest in the person and their work, never with a pitch. Ask one thoughtful question at a time and give them room to reply. Never create urgency, never chase. If they go quiet, send at most one light, valuable follow-up, then wait. Optimise for long-term trust over a fast meeting. Keep it warm, human and unhurried.',
+      'Act as a patient relationship-builder. Lead every message with genuine interest in the person and their work, never with a pitch. Ask one thoughtful question at a time and give them room to reply. Never create urgency, never chase. If they go quiet, send at most one light, valuable follow-up, then wait. Optimise for long-term trust over a fast win. Keep it warm, human and unhurried.',
   },
   {
     id: 'warm',
@@ -320,7 +345,7 @@ export const personaPresets: PersonaPreset[] = [
     sample:
       'Hi Emma, quick question on your outbound setup, are dead threads the bottleneck, or is it reply quality? Seeing both slow teams down lately, curious where it bites for you.',
     behavior:
-      'Act as a sharp consultant who diagnoses before prescribing. Ask precise, qualifying questions to surface the real bottleneck and intent. Reflect back what you hear, add a relevant insight, and only then connect it to a possible next step. Be credible and concise, never pushy. Earn the meeting by being genuinely useful first.',
+      'Act as a sharp consultant who diagnoses before prescribing. Ask precise, qualifying questions to surface the real bottleneck and intent. Reflect back what you hear, add a relevant insight, and only then connect it to a possible next step. Be credible and concise, never pushy. Earn the next step by being genuinely useful first.',
   },
   {
     id: 'sharp',
@@ -345,14 +370,14 @@ export const personaPresets: PersonaPreset[] = [
       pushVsWait: 'Follow up promptly and clearly. Two nudges before easing off.',
     },
     sample:
-      'Hey Emma, we help teams like yours turn dead LinkedIn threads into booked meetings. Worth a quick 15 min this week to see if it fits?',
+      'Hey Emma, we help teams like yours turn dead LinkedIn threads into real conversations. Worth a quick 15 min this week to see if it fits?',
     behavior:
-      'Act as a crisp, effective closer who still respects the person. State the value clearly, qualify quickly, and propose a concrete short call as soon as interest shows. Follow up promptly and clearly — about two nudges — before easing off. Be confident and to the point without being pushy or salesy.',
+      'Act as a crisp, effective closer who still respects the person. State the value clearly, qualify quickly, and propose a concrete short call as soon as interest shows. Follow up promptly and clearly, about two nudges, before easing off. Be confident and to the point without being pushy or salesy.',
   },
   {
     id: 'direct',
     name: 'Direct Closer',
-    blurb: 'Most assertive. Pushes firmly for the meeting.',
+    blurb: 'Most assertive. Pushes firmly toward your goal.',
     color: '#F43F5E',
     mascot: 'direct',
     tone: {
@@ -368,11 +393,11 @@ export const personaPresets: PersonaPreset[] = [
       qualifyingDepth: 'light',
       closingStyle: 'direct',
       qualification: 'Qualify in one line, then move to the ask.',
-      closing: 'Ask for the meeting directly with a specific time. Make saying yes effortless.',
+      closing: 'Ask for the next step directly with a specific time. Make saying yes effortless.',
       pushVsWait: 'Push persistently with value-led follow-ups until you get a clear yes or no.',
     },
     sample:
-      'Emma, straight to it: we book qualified meetings from your existing LinkedIn conversations. I have Thursday 11:00 or Friday 14:00, which works to take a look?',
+      'Emma, straight to it: we turn your existing LinkedIn conversations into real opportunities. I have Thursday 11:00 or Friday 14:00, which works to take a look?',
     behavior:
       'Act as a confident, decisive closer. Lead with the value and the ask in the same breath. Qualify in one line, then drive to a specific next step with concrete time options that make saying yes effortless. Project conviction, stay respectful, never hedge or leave the next step open. Follow up persistently with value until you get a clear yes or no.',
   },
