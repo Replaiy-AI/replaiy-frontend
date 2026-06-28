@@ -1409,7 +1409,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
               className="hidden lg:block h-full min-h-0 shrink-0 overflow-hidden border-l border-foreground/[0.06] dark:border-white/[0.06]"
             >
               <div style={{ width: 340 }} className="h-full min-h-0">
-                <LeadContextPanel mail={mail} />
+                <LeadContextPanel mail={mail} onClose={() => setLeadPanelOpen(false)} />
               </div>
             </motion.aside>
           )}
