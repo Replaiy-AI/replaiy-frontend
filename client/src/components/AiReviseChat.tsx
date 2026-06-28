@@ -135,7 +135,7 @@ export function AiReviseChat({
             ['--ai-accent' as never]: accent,
             ...surfaceStyle(),
           }}
-          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-3 z-40 w-[min(560px,calc(100%-24px))] flex flex-col rounded-[26px] overflow-hidden"
+          className="absolute left-3 right-3 bottom-2 z-40 flex flex-col rounded-[26px] overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-3 shrink-0">
@@ -148,9 +148,6 @@ export function AiReviseChat({
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-semibold text-foreground leading-tight">
                 Revise with Replaiy
-              </div>
-              <div className="text-[11.5px] text-foreground/45 leading-tight">
-                Talk it through — your draft updates live
               </div>
             </div>
             <button
