@@ -26,7 +26,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowUp,
-  Sparkles,
   List,
   X,
   Maximize2,
@@ -1859,25 +1858,7 @@ export function InlineReplyBar({
             className="absolute z-10 pointer-events-none flex items-center gap-2"
             style={{ bottom: 12, left: 12 }}
           >
-            {/* AI revise — opens the wide "talk to Replaiy" chat overlay. */}
-            <button
-              type="button"
-              data-testid="ai-revise-toggle"
-              onClick={() => setReviseChatOpen((v) => !v)}
-              onMouseDown={(e) => e.preventDefault()}
-              aria-label="Revise with Replaiy"
-              aria-pressed={reviseChatOpen}
-              className="pointer-events-auto h-10 w-10 rounded-full flex items-center justify-center active-elevate-2 transition-colors"
-              style={{ ...replyPillStyle() }}
-            >
-              <Sparkles
-                size={17}
-                strokeWidth={2}
-                style={{ color: reviseChatOpen ? persona.color : undefined }}
-                className={reviseChatOpen ? '' : 'text-icon'}
-              />
-            </button>
-
+            {/* + (formatting) on the LEFT. */}
             <div
               className="pointer-events-auto flex items-center rounded-full overflow-hidden"
               style={{ ...replyPillStyle(), height: 40, padding: 2 }}
@@ -1941,6 +1922,26 @@ export function InlineReplyBar({
                 )}
               </AnimatePresence>
             </div>
+
+            {/* AI revise on the RIGHT of the + — opens the wide "talk to
+               Replaiy" chat overlay. Uses the persona mascot as its icon. */}
+            <button
+              type="button"
+              data-testid="ai-revise-toggle"
+              onClick={() => setReviseChatOpen((v) => !v)}
+              onMouseDown={(e) => e.preventDefault()}
+              aria-label="Revise with Replaiy"
+              aria-pressed={reviseChatOpen}
+              className="pointer-events-auto h-10 w-10 rounded-full flex items-center justify-center active-elevate-2 transition-transform hover:scale-[1.04]"
+              style={{ ...replyPillStyle() }}
+            >
+              <img
+                src={persona.mascot}
+                alt=""
+                aria-hidden
+                className="w-[26px] h-[26px] object-contain select-none pointer-events-none"
+              />
+            </button>
           </div>
         )}
 

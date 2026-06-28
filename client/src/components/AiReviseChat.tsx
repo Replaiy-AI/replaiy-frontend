@@ -161,32 +161,12 @@ export function AiReviseChat({
             </button>
           </div>
 
-          {/* Quick adjustments */}
-          <div className="flex flex-wrap gap-1.5 px-4 pb-2 shrink-0">
-            {QUICK.map((q) => (
-              <button
-                key={q}
-                type="button"
-                data-testid={`ai-revise-quick-${q.replace(/\s+/g, '-').toLowerCase()}`}
-                onClick={() => send(q)}
-                className="glass-pill pill h-[28px] px-2.5 text-[12px] font-medium text-foreground/80 hover-elevate active-elevate-2"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-
-          {/* Thread */}
+          {/* Thread — only takes height once a conversation has started, so an
+             empty panel stays compact. */}
           <div
             ref={scrollRef}
-            className="flex-1 min-h-0 max-h-[300px] overflow-y-auto no-scrollbar px-4 py-2 flex flex-col gap-2.5"
+            className={`${turns.length === 0 && !thinking ? 'hidden' : 'flex'} flex-1 min-h-0 max-h-[300px] overflow-y-auto no-scrollbar px-4 py-2 flex-col gap-2.5`}
           >
-            {turns.length === 0 && !thinking && (
-              <div className="text-[12.5px] text-foreground/45 leading-snug py-1">
-                Pick a quick adjustment above, or tell Replaiy exactly what to change —
-                for example "mention our case study" or "make it less salesy".
-              </div>
-            )}
             {turns.map((t) =>
               t.role === 'user' ? (
                 <div key={t.id} className="self-end max-w-[78%]">
@@ -224,13 +204,31 @@ export function AiReviseChat({
             )}
           </div>
 
+          {/* Quick adjustments — sit just above the input. They disappear once
+             a conversation has started (the thread takes over). */}
+          {turns.length === 0 && !thinking && (
+            <div className="flex flex-wrap gap-1.5 px-3 pt-1 pb-1 shrink-0">
+              {QUICK.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  data-testid={`ai-revise-quick-${q.replace(/\s+/g, '-').toLowerCase()}`}
+                  onClick={() => send(q)}
+                  className="glass-pill pill h-[28px] px-2.5 text-[12px] font-medium text-foreground/80 hover-elevate active-elevate-2"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Input */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
               send(input);
             }}
-            className="flex items-center gap-2 m-3 mt-2 rounded-full px-3 py-1.5 shrink-0 glass-pill"
+            className="flex items-center gap-2 m-3 mt-1.5 rounded-full px-3 py-1.5 shrink-0 glass-pill"
           >
             <input
               data-testid="ai-revise-chat-input"
