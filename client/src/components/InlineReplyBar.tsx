@@ -316,6 +316,26 @@ export function InlineReplyBar({
   // AI revise chat overlay open-state (declared early: the click-outside
   // collapse effect must read it to avoid dismissing the draft).
   const [reviseChatOpen, setReviseChatOpen] = useState(false);
+  // Snapshot of the editor HTML taken when the AI revise chat opens, so the
+  // prepared draft can be restored if anything clears it while the chat is
+  // open / on close (belt-and-suspenders against the draft-loss bug).
+  const reviseDraftSnapshot = useRef<string | null>(null);
+  const openReviseChat = () => {
+    reviseDraftSnapshot.current = editorRef.current?.innerHTML ?? '';
+    setReviseChatOpen(true);
+  };
+  const closeReviseChat = () => {
+    setReviseChatOpen(false);
+    // If the editor was emptied while the chat was open but we had a real
+    // snapshot, restore it on the next tick (after any collapse effects run).
+    const snap = reviseDraftSnapshot.current;
+    window.setTimeout(() => {
+      const el = editorRef.current;
+      if (el && snap && !stripHtml(el.innerHTML).trim() && stripHtml(snap).trim()) {
+        el.innerHTML = snap;
+      }
+    }, 60);
+  };
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
   const [visibleHeight, setVisibleHeight] = useState<number | null>(null);
@@ -1864,89 +1884,88 @@ export function InlineReplyBar({
             style={{ bottom: 12, left: 12 }}
           >
             {/* + (formatting) on the LEFT. */}
-            <div
-              className="pointer-events-auto flex items-center rounded-full overflow-hidden"
-              style={{ ...replyPillStyle(), height: 40, padding: 2 }}
-            >
-              <ReplyFormatBtn
-                label={formatPillOpen ? 'Hide formatting' : 'Show formatting'}
-                testId="reply-fmt-toggle"
+            <div className="pointer-events-auto">
+              <VadikGlass
+                width={40}
+                height={40}
+                shape="circle"
+                data-testid="reply-fmt-toggle"
+                aria-label={formatPillOpen ? 'Hide formatting' : 'Show formatting'}
+                aria-pressed={formatPillOpen}
                 onClick={() => setFormatPillOpen((v) => !v)}
-                active={formatPillOpen}
+                onMouseDown={(e) => e.preventDefault()}
               >
-                {/* Plus that rotates 45° into a cross when the pill opens —
-                   one icon, one smooth morph (a rotated plus IS an x). */}
                 <motion.span
-                  className="inline-flex"
+                  className="inline-flex text-icon"
                   initial={false}
                   animate={{ rotate: formatPillOpen ? 45 : 0 }}
                   transition={APPLE_SPRING}
                 >
                   <Plus size={17} strokeWidth={2} />
                 </motion.span>
-              </ReplyFormatBtn>
-
-              <AnimatePresence initial={false}>
-                {formatPillOpen && (
-                  <motion.div
-                    key="reply-fmt-expanded"
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: 'auto', opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={APPLE_SPRING}
-                    className="flex items-center overflow-hidden"
-                  >
-                    <div className="flex items-center pr-1">
-                      {/* v-replaiy-2 — Rich-text removed (LinkedIn has none).
-                         Media row mirrors LinkedIn's composer: Photo, Video
-                         and generic File. Each opens its own pre-filtered
-                         OS picker. */}
-                      <ReplyFormatBtn
-                        label="Add photo"
-                        testId="reply-fmt-photo"
-                        onClick={() => photoInputRef.current?.click()}
-                      >
-                        <ImageIcon size={16} strokeWidth={2} />
-                      </ReplyFormatBtn>
-                      <ReplyFormatBtn
-                        label="Add video"
-                        testId="reply-fmt-video"
-                        onClick={() => videoInputRef.current?.click()}
-                      >
-                        <VideoIcon size={16} strokeWidth={2} />
-                      </ReplyFormatBtn>
-                      <ReplyFormatBtn
-                        label="Attach file"
-                        testId="reply-fmt-attach"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <Paperclip size={16} strokeWidth={2} />
-                      </ReplyFormatBtn>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              </VadikGlass>
             </div>
+
+            {/* Media row (photo / video / attach) expands to the right of the
+               + as its own glass pill when formatting is open. */}
+            <AnimatePresence initial={false}>
+              {formatPillOpen && (
+                <motion.div
+                  key="reply-fmt-expanded"
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 'auto', opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={APPLE_SPRING}
+                  className="pointer-events-auto flex items-center overflow-hidden rounded-full"
+                  style={{ ...replyPillStyle(), height: 40, padding: 2 }}
+                >
+                  <ReplyFormatBtn
+                    label="Add photo"
+                    testId="reply-fmt-photo"
+                    onClick={() => photoInputRef.current?.click()}
+                  >
+                    <ImageIcon size={16} strokeWidth={2} />
+                  </ReplyFormatBtn>
+                  <ReplyFormatBtn
+                    label="Add video"
+                    testId="reply-fmt-video"
+                    onClick={() => videoInputRef.current?.click()}
+                  >
+                    <VideoIcon size={16} strokeWidth={2} />
+                  </ReplyFormatBtn>
+                  <ReplyFormatBtn
+                    label="Attach file"
+                    testId="reply-fmt-attach"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Paperclip size={16} strokeWidth={2} />
+                  </ReplyFormatBtn>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* AI revise on the RIGHT of the + — opens the wide "talk to
                Replaiy" chat overlay. Uses the persona mascot as its icon. */}
-            <button
-              type="button"
-              data-testid="ai-revise-toggle"
-              onClick={() => setReviseChatOpen((v) => !v)}
-              onMouseDown={(e) => e.preventDefault()}
-              aria-label="Revise with Replaiy"
-              aria-pressed={reviseChatOpen}
-              className="pointer-events-auto h-10 w-10 rounded-full flex items-center justify-center active-elevate-2 transition-transform hover:scale-[1.04]"
-              style={{ ...replyPillStyle() }}
-            >
-              <img
-                src={persona.mascot}
-                alt=""
-                aria-hidden
-                className="w-[26px] h-[26px] object-contain select-none pointer-events-none"
-              />
-            </button>
+            <div className="pointer-events-auto">
+              <VadikGlass
+                width={40}
+                height={40}
+                shape="circle"
+                data-testid="ai-revise-toggle"
+                aria-label="Revise with Replaiy"
+                aria-pressed={reviseChatOpen}
+                onClick={() => (reviseChatOpen ? closeReviseChat() : openReviseChat())}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <img
+                  src={persona.mascot}
+                  alt=""
+                  aria-hidden
+                  data-glass-content
+                  className="w-[26px] h-[26px] object-contain select-none pointer-events-none"
+                />
+              </VadikGlass>
+            </div>
           </div>
         )}
 
@@ -1955,7 +1974,7 @@ export function InlineReplyBar({
         {!chromeless && (
           <AiReviseChat
             open={reviseChatOpen}
-            onClose={() => setReviseChatOpen(false)}
+            onClose={closeReviseChat}
             accent={persona.color}
             mascot={persona.mascot}
             getDraft={() => editorRef.current?.innerText.trim() ?? ''}
