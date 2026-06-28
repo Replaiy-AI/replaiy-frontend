@@ -93,7 +93,7 @@ export function MobileBottomNav() {
 
 
   return (
-    <div className="lg:hidden fixed bottom-4 inset-x-0 z-30 pointer-events-none flex items-center px-4 gap-2.5">
+    <div className="md:hidden fixed bottom-4 inset-x-0 z-30 pointer-events-none flex items-center px-4 gap-2.5">
       <AnimatePresence>
         {!sheetOpen && (
           <motion.div

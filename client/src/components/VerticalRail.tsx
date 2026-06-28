@@ -90,8 +90,9 @@ export function VerticalRail() {
       data-testid="vertical-rail"
       // Floating column: fixed on the left, vertical stack of independent
       // glass pills. No container background, no border, no attached bar.
-      // hidden below lg so mobile/tablet keeps using MobileBottomNav.
-      className="hidden lg:flex flex-col items-center fixed left-4 top-4 bottom-4 z-30 gap-2 pointer-events-none"
+      // hidden below md so only phone keeps using MobileBottomNav; from md
+      // (768) the rail shows so iPad/tablet gets the real desktop layout.
+      className="hidden md:flex flex-col items-center fixed left-4 top-4 bottom-4 z-30 gap-2 pointer-events-none"
       style={{ width: 64 }}
     >
       {/* 1. Tab pill — v23.1 Vadik Matveev's Liquid Glass Switcher.

@@ -216,12 +216,22 @@ function useListColumnWidth(shrink: boolean) {
   const INBOX_FLOOR = 360; // inbox stays readable; greeting on 2 clean lines
   let width = base;
   if (shrink) {
-    const leftover = winW - RAIL - LEAD - GUTTERS - CONV_FLOOR;
-    // Inbox takes the leftover, but never wider than its base and never below
-    // its comfortable floor. On 1440+ leftover (~428) keeps it near full width;
-    // on lg (1280) leftover (~268) is below the floor so it lands on the floor
-    // and the conversation gives the rest.
-    width = Math.max(INBOX_FLOOR, Math.min(base, leftover));
+    if (winW < 1280) {
+      // TABLET / narrow-desktop (768–1279): too narrow for 3 comfortable
+      // columns, so when the lead panel opens it REPLACES the inbox column —
+      // the inbox animates to width 0 (overflow-hidden + APPLE_SPRING) leaving
+      // conversation + lead panel side by side. The toolbar toggle swaps back.
+      // No scrim, no overlay, no stacking.
+      width = 0;
+    } else {
+      // WIDE desktop (≥1280): existing 3-column shrink — inbox takes the
+      // leftover, but never wider than its base and never below its comfortable
+      // floor. On 1440+ leftover (~428) keeps it near full width; on 1280
+      // leftover (~268) is below the floor so it lands on the floor and the
+      // conversation gives the rest.
+      const leftover = winW - RAIL - LEAD - GUTTERS - CONV_FLOOR;
+      width = Math.max(INBOX_FLOOR, Math.min(base, leftover));
+    }
   }
   return { width, isDesktop };
 }
@@ -258,6 +268,10 @@ function LayoutShell() {
   // panel is open on a conversation — desktop only.
   const shrinkList = showingConversation && leadPanelOpen;
   const { width: listWidth, isDesktop } = useListColumnWidth(shrinkList);
+  // When the lead panel REPLACES the inbox on tablet/narrow-desktop the list
+  // animates to width 0. Its `lg:pr-2` (8px) would otherwise leave a visible
+  // sliver, so drop the horizontal padding the moment the column is collapsed.
+  const listCollapsed = isDesktop && listWidth === 0;
 
   return (
     <div className="h-screen w-full flex relative">
@@ -277,7 +291,7 @@ function LayoutShell() {
 
       {/* MAIN AREA — desktop reserves left padding for the floating sidebar
           (rail is fixed-positioned and overlays this padding). */}
-      <main className="flex-1 flex min-w-0 relative lg:pl-[88px]">
+      <main className="flex-1 flex min-w-0 relative md:pl-[88px]">
         {/* List column. Inbox shows InboxList; Campaigns shows CampaignsList;
             My AI shows AiList (the three parts as rows) — all share ONE
             list+detail architecture and the SAME fixed-width column.
@@ -294,7 +308,7 @@ function LayoutShell() {
                   : 'flex'
             }
             flex-col w-full md:shrink-0
-            relative lg:pr-2 overflow-hidden
+            relative ${listCollapsed ? '' : 'lg:pr-2'} overflow-hidden
           `}
           // Desktop: spring-animate the width so the column can shrink when the
           // lead panel opens. Mobile (< md): full-width via w-full, width unset.

@@ -149,7 +149,7 @@ export function MobileTopChromeShell() {
           by each pill's own backdrop-filter. Visible whitespace gaps
           between the three elements expose the canvas/content behind. */}
       <div
-        className="lg:hidden fixed inset-x-0 z-40 pointer-events-none flex items-center justify-between px-4 gap-3"
+        className="md:hidden fixed inset-x-0 z-40 pointer-events-none flex items-center justify-between px-4 gap-3"
         style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
       >
       {/* LEFT — custom or default ••• */}

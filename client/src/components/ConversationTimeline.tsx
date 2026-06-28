@@ -1022,7 +1022,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
          do NOT affect the centered group's position. */}
       <div
         data-testid="desktop-pill-row"
-        className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none"
+        className="hidden md:block absolute top-3 inset-x-0 z-30 pointer-events-none"
       >
         {/* Inner band reserves space for the action pills on the RIGHT
            (`pr-[136px]` = 24px right edge + ~112px action cluster + gap),
@@ -1037,16 +1037,20 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
            verschoof. We reserveren nu aan beide zijden ruimte voor de
            action cluster (136px) zodat de Avatar+Subject groep precies
            in het midden van de viewport-column zit. */}
-        {/* The centered identity pill is hidden while the lead panel is open:
-           the panel header already shows the lead's identity, and in the
-           narrower center column the floating pill would otherwise collide
-           with the top-right action cluster (toggle + Done). */}
-        {!(hasLeadContext && leadPanelOpen) && (
+        {/* The identity pill is the conversation header and stays visible
+           whether or not the lead panel is open.
+           • CLOSED: the center column is wide, so the pill is CENTERED. Both
+             sides reserve the same amount of room for the action cluster
+             (136px) so the pill sits in the true center of the column.
+           • OPEN: the center column is narrow and a centered pill would collide
+             with the top-right action cluster, so it LEFT-aligns and truncates
+             cleanly before the buttons. */}
+        {true && (
           <div
-            className="flex justify-center items-center"
+            className={`flex items-center ${leadPanelOpen ? 'justify-start' : 'justify-center'}`}
             style={{
-              paddingLeft: 136,
-              paddingRight: hasLeadContext ? 150 : 136,
+              paddingLeft: leadPanelOpen ? 24 : 136,
+              paddingRight: leadPanelOpen ? 150 : 136,
             }}
           >
             <div className="pointer-events-auto flex items-center gap-3 min-w-0 max-w-[440px]">
@@ -1111,7 +1115,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
       {summaryPanelOpen && (
         <div
           data-testid="floating-summary-wrapper"
-          className="hidden lg:block absolute top-[78px] inset-x-0 z-20 pointer-events-none px-4 lg:px-6"
+          className="hidden md:block absolute top-[78px] inset-x-0 z-20 pointer-events-none px-4 lg:px-6"
         >
           <div
             ref={summaryPanelRef}
@@ -1447,7 +1451,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
               animate={{ width: 340, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={APPLE_SPRING}
-              className="hidden lg:block h-full min-h-0 shrink-0 overflow-hidden border-l border-foreground/[0.06] dark:border-white/[0.06]"
+              className="hidden md:block h-full min-h-0 shrink-0 overflow-hidden border-l border-foreground/[0.06] dark:border-white/[0.06]"
             >
               <div style={{ width: 340 }} className="h-full min-h-0">
                 <LeadContextPanel mail={mail} />
@@ -1462,7 +1466,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
       {hasLeadContext && (
         <AnimatePresence>
           {leadPanelOpen && (
-            <div className="lg:hidden">
+            <div className="md:hidden">
               <motion.div
                 key="lead-scrim"
                 initial={{ opacity: 0 }}
