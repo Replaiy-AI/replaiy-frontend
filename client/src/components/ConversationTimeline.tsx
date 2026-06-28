@@ -30,11 +30,11 @@ import type { SnoozeKey } from './ConversationActionCluster';
 
 // ─────────────────────────────────────────────────────────────────
 // PanelToggleIcon — the lead-context toggle glyph. A rounded panel frame
-// with a right-hand column that animates to mirror the panel state:
-//  • open  → the right column is filled and the divider sits inset,
-//            reading as "the side panel is showing".
-//  • closed → the fill clears and the divider slides to the far edge,
-//            reading as "the side panel is tucked away".
+// whose vertical divider slides symmetrically to mirror the panel state:
+//  • open  → divider sits to the right (right column).
+//  • closed → divider slides to the left, mirrored about the centre with
+//             the exact same margin on the opposite side.
+// Frame spans x=3..21 (centre 12); divider rests 4px in from each side.
 // Pure SVG + framer-motion so the stroke language matches lucide icons.
 // ─────────────────────────────────────────────────────────────────
 function PanelToggleIcon({ open }: { open: boolean }) {
@@ -53,27 +53,13 @@ function PanelToggleIcon({ open }: { open: boolean }) {
     >
       {/* Outer panel frame */}
       <rect x={3} y={4} width={18} height={16} rx={3} />
-      {/* Right column fill — fades in when open. Inset so it sits inside
-          the rounded frame. */}
-      <motion.rect
-        x={15}
-        y={5}
-        width={5}
-        height={14}
-        rx={1.5}
-        stroke="none"
-        fill="currentColor"
-        initial={false}
-        animate={{ opacity: open ? 0.22 : 0 }}
-        transition={APPLE_SPRING}
-      />
-      {/* Divider line — slides between the far edge (closed) and the
-          column boundary (open). */}
+      {/* Vertical divider — slides left↔right, mirrored about the frame
+          centre (12) so the margin is identical on both sides. */}
       <motion.line
         y1={4}
         y2={20}
         initial={false}
-        animate={{ x1: open ? 15 : 19, x2: open ? 15 : 19 }}
+        animate={{ x1: open ? 16 : 8, x2: open ? 16 : 8 }}
         transition={APPLE_SPRING}
       />
     </svg>
