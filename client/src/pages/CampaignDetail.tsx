@@ -42,6 +42,14 @@ import {
   CornerUpLeft,
   PlayCircle,
   Sparkles,
+  Users2,
+  Radar,
+  Activity,
+  Linkedin,
+  Upload,
+  SlidersHorizontal,
+  ShieldCheck,
+  Copy,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import {
@@ -49,9 +57,14 @@ import {
   WORKSPACE_MEMBERS,
   DEFAULT_FLOW,
   FLOW_STEP_META,
+  LEAD_SOURCE_META,
+  WARMTH_META,
   type Campaign,
+  type CampaignAudience,
   type CampaignGoalType,
   type FlowStepKind,
+  type LeadSourceKind,
+  type LeadWarmth,
 } from '@/data/mockCampaigns';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
@@ -79,6 +92,478 @@ const GOAL_ICONS: Record<CampaignGoalType, typeof Target> = {
   reply: CornerUpLeft,
   custom: Sparkles,
 };
+
+
+// The single blue accent, used as a RARE micro-detail only (never the fill of
+// large surfaces). Mirrors the Persona/Knowledge gold standard exactly.
+const AI_ACCENT = '#2F6BFF';
+
+// ====================================================================
+// AUDIENCE — who this campaign reaches. Rendered at the TOP of the detail.
+// Built as Persona-style sub-blocks: a FineTuneSection-style header (a
+// `text-[12.5px] font-semibold` label + a `text-[11.5px] text-foreground/45`
+// sub at px-2) followed by content in an `rp-card rounded-3xl`. No
+// block-in-block; warmth is carried by label + accent opacity, not colour.
+// ====================================================================
+
+// Lucide glyph per discovery source.
+const SOURCE_ICONS: Record<LeadSourceKind, typeof Send> = {
+  salesnav: Radar,
+  signal: Activity,
+  engagement: Linkedin,
+  import: Upload,
+};
+
+// Warmth order for the whole section: warmest first (the source-priority
+// story). Used to sort the source rows and the pool pills.
+const WARMTH_ORDER: LeadWarmth[] = ['warmest', 'warm', 'cold'];
+
+const fmtNum = (n: number) => n.toLocaleString('en-US');
+
+// ── Section header — the EXACT FineTuneSection pattern (label + sub) ─
+// A trailing slot keeps an optional quiet affordance (Edit / template) on the
+// header baseline, like the Goal card's Edit pill.
+function AudienceHeader({
+  label,
+  sub,
+  trailing,
+}: {
+  label: string;
+  sub: string;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <>
+      <div className="px-2 mb-1 flex items-center justify-between gap-3">
+        <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
+          {label}
+        </span>
+        {trailing}
+      </div>
+      <p className="px-2 text-[11.5px] leading-[1.45] text-foreground/45 mb-3">
+        {sub}
+      </p>
+    </>
+  );
+}
+
+// Small read-only chip — quiet glass pill. Used for ICP criteria. `muted`
+// renders exclusions distinctly (lower contrast + a small minus), no red.
+function IcpChip({ label, muted = false }: { label: string; muted?: boolean }) {
+  return (
+    <span
+      className={`glass-pill inline-flex items-center gap-1 h-[28px] px-3 rounded-full text-[12.5px] font-medium ${
+        muted ? 'text-foreground/45' : 'text-foreground/80'
+      }`}
+    >
+      {muted && (
+        <span aria-hidden="true" className="text-foreground/35 leading-none">
+          &minus;
+        </span>
+      )}
+      {label}
+    </span>
+  );
+}
+
+// One labelled ICP group: a small caption + a wrap of chips. Sits DIRECTLY in
+// the parent card (no inner box) so there is no block-in-block.
+function IcpGroup({
+  caption,
+  values,
+  muted = false,
+}: {
+  caption: string;
+  values: string[];
+  muted?: boolean;
+}) {
+  if (values.length === 0) return null;
+  return (
+    <div>
+      <div className="text-[12px] font-semibold text-foreground/65 mb-2">
+        {caption}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {values.map((v) => (
+          <IcpChip key={v} label={v} muted={muted} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── A) Audience pool — live breakdown + score histogram ─────────────
+function AudiencePoolCard({ audience }: { audience: CampaignAudience }) {
+  const { pool, scoreBuckets } = audience;
+  const total = pool.cold + pool.warm + pool.warmest;
+  const maxBucket = Math.max(1, ...scoreBuckets.map((b) => b.count));
+
+  return (
+    <section>
+      <AudienceHeader label="Audience" sub="Who this campaign reaches." />
+      <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-pool">
+        {/* Big live total + warmth breakdown pills (warmest first). */}
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[34px] font-semibold tracking-[-0.02em] tabular-nums text-foreground leading-none">
+                {fmtNum(total)}
+              </span>
+              <span className="text-[13px] text-foreground/45">in pool</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2" data-testid="audience-warmth">
+            {WARMTH_ORDER.map((w) => (
+              <span
+                key={w}
+                className="glass-pill inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[12px] font-medium text-foreground/70"
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-[7px] w-[7px] rounded-full"
+                  style={{ background: AI_ACCENT, opacity: WARMTH_META[w].tint }}
+                />
+                <span className="tabular-nums text-foreground/85">{fmtNum(pool[w])}</span>
+                {WARMTH_META[w].label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
+
+        {/* Tiny match-score distribution — quality, not just quantity. One
+            hue (accent) deepening with score; a quiet horizontal histogram. */}
+        <div className="flex items-center justify-between gap-3 mb-2.5">
+          <span className="text-[12px] font-semibold text-foreground/65">
+            Match-score spread
+          </span>
+          <span className="text-[11.5px] text-foreground/45">higher is a better fit</span>
+        </div>
+        <div className="flex flex-col gap-1.5" data-testid="audience-histogram">
+          {scoreBuckets.map((b, i) => {
+            // Accent opacity deepens toward the top bucket (best fit first).
+            const opacity = 0.85 - i * 0.13;
+            return (
+              <div key={b.range} className="flex items-center gap-2.5">
+                <span className="w-[52px] shrink-0 text-[11px] tabular-nums text-foreground/55">
+                  {b.range}
+                </span>
+                <div className="flex-1 h-[8px] rounded-full bg-foreground/[0.06] dark:bg-white/[0.06] overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${(b.count / maxBucket) * 100}%`,
+                      background: AI_ACCENT,
+                      opacity: Math.max(0.22, opacity),
+                    }}
+                  />
+                </div>
+                <span className="w-[40px] shrink-0 text-right text-[11px] tabular-nums text-foreground/55">
+                  {fmtNum(b.count)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── B) Sources — toggle rows in ONE card, warmest first ─────────────
+function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
+  // Representational: local toggle state, no backend write this round.
+  const [sources, setSources] = useState(audience.sources);
+  // Warmest first, then warm, then cold; import (cold) naturally lands last.
+  const ordered = useMemo(
+    () =>
+      [...sources].sort(
+        (a, b) =>
+          WARMTH_ORDER.indexOf(LEAD_SOURCE_META[a.kind].warmth) -
+          WARMTH_ORDER.indexOf(LEAD_SOURCE_META[b.kind].warmth),
+      ),
+    [sources],
+  );
+
+  const toggle = (kind: LeadSourceKind, on: boolean) =>
+    setSources((prev) =>
+      prev.map((s) => (s.kind === kind ? { ...s, enabled: on } : s)),
+    );
+
+  return (
+    <section>
+      <AudienceHeader label="Sources" sub="Where leads come from, warmest first." />
+      <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-sources">
+        {ordered.map((src, i) => {
+          const meta = LEAD_SOURCE_META[src.kind];
+          const Icon = SOURCE_ICONS[src.kind];
+          return (
+            <div key={src.kind}>
+              {i > 0 && (
+                <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+              )}
+              <div
+                data-testid={`source-row-${src.kind}`}
+                className="px-4 py-3.5 flex items-center gap-3"
+              >
+                <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
+                  <Icon size={16} strokeWidth={1.8} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px] font-medium text-foreground truncate">
+                      {meta.label}
+                    </span>
+                    <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0">
+                      {WARMTH_META[meta.warmth].label}
+                    </span>
+                  </div>
+                  <div className="text-[12px] text-foreground/50 truncate">{meta.hint}</div>
+                </div>
+                {src.enabled && src.found > 0 && (
+                  <span className="text-[11.5px] tabular-nums text-foreground/40 shrink-0">
+                    {fmtNum(src.found)} found
+                  </span>
+                )}
+                <GlassToggle
+                  on={src.enabled}
+                  onChange={(v) => toggle(src.kind, v)}
+                  testId={`source-toggle-${src.kind}`}
+                  ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
+                />
+              </div>
+              {/* Manual import, when on, offers a quiet upload affordance. */}
+              {src.kind === 'import' && src.enabled && (
+                <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
+                  <button
+                    type="button"
+                    data-testid="source-import-upload"
+                    className="glass-pill pill inline-flex items-center gap-1.5 h-[30px] px-3 text-[12.5px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+                  >
+                    <Upload size={13} strokeWidth={2} className="text-foreground/55" />
+                    Upload CSV or paste URLs
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ── C) Ideal customer (ICP) — labelled chip groups, read-only ───────
+function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
+  const { icp } = audience;
+  const empty =
+    icp.titles.length === 0 &&
+    icp.industries.length === 0 &&
+    !icp.companySize &&
+    icp.locations.length === 0 &&
+    icp.seniority.length === 0 &&
+    icp.exclusions.length === 0;
+
+  return (
+    <section>
+      <AudienceHeader
+        label="Ideal customer"
+        sub="The profile we match leads against."
+        trailing={
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              data-testid="button-icp-template"
+              className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+            >
+              <Copy size={12} strokeWidth={2} className="text-foreground/55" />
+              Start from a template
+            </button>
+            <button
+              type="button"
+              data-testid="button-icp-edit"
+              className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+            >
+              <Pencil size={12} strokeWidth={2} className="text-foreground/55" />
+              Edit
+            </button>
+          </div>
+        }
+      />
+      <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-icp">
+        {empty ? (
+          <p className="text-[13px] text-foreground/45 leading-snug">
+            No ideal customer defined yet. Start from a template or clone another
+            campaign to set who this reaches.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-5">
+            <IcpGroup caption="Titles" values={icp.titles} />
+            <IcpGroup caption="Industries" values={icp.industries} />
+            {icp.companySize && (
+              <IcpGroup caption="Company size" values={[icp.companySize]} />
+            )}
+            <IcpGroup caption="Locations" values={icp.locations} />
+            <IcpGroup caption="Seniority" values={icp.seniority} />
+            {icp.exclusions.length > 0 && (
+              <>
+                <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07]" />
+                <IcpGroup caption="Exclusions" values={icp.exclusions} muted />
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── D) Match quality — representational threshold slider ────────────
+function AudienceThresholdCard({ audience }: { audience: CampaignAudience }) {
+  const value = audience.matchThreshold;
+  return (
+    <section>
+      <AudienceHeader
+        label="Match quality"
+        sub="Only contact leads above your bar."
+      />
+      <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-threshold">
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal size={15} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
+            <span className="text-[12px] font-semibold text-foreground/65">
+              Minimum match score
+            </span>
+          </div>
+          <span className="text-[15px] font-semibold tabular-nums text-foreground">
+            {value}%
+          </span>
+        </div>
+        {/* Representational slider — a filled track to the threshold with a
+            quiet knob. Read-only this round (no drag logic). */}
+        <div
+          className="relative h-[8px] rounded-full bg-foreground/[0.06] dark:bg-white/[0.06]"
+          role="img"
+          aria-label={`${value}% minimum match`}
+        >
+          <div
+            className="absolute inset-y-0 left-0 rounded-full"
+            style={{ width: `${value}%`, background: AI_ACCENT, opacity: 0.8 }}
+          />
+          <span
+            aria-hidden="true"
+            className="absolute top-1/2 h-[16px] w-[16px] -translate-y-1/2 -translate-x-1/2 rounded-full bg-white"
+            style={{
+              left: `${value}%`,
+              boxShadow:
+                '0 1px 1px rgba(0,0,0,0.05), 0 2px 6px rgba(8,10,18,0.22), inset 0 1px 0.5px rgba(255,255,255,0.95)',
+            }}
+          />
+        </div>
+        <p className="mt-3.5 text-[12.5px] text-foreground/50 leading-snug">
+          Leads below {value}% are still sourced and enriched, but never
+          contacted. Source broad, reach out to the best fits only.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// ── E) Auto-suppress — three toggles in ONE card ────────────────────
+const SUPPRESS_ROWS: {
+  key: keyof CampaignAudience['suppress'];
+  label: string;
+  hint: string;
+}[] = [
+  {
+    key: 'inOtherCampaigns',
+    label: 'Already in another campaign',
+    hint: 'Never approach a lead two teammates are working at once',
+  },
+  {
+    key: 'alreadyContacted',
+    label: 'Already contacted',
+    hint: 'Skip anyone your team has reached before',
+  },
+  {
+    key: 'existingConnections',
+    label: 'Existing connections',
+    hint: 'Leave people you already know out of cold outreach',
+  },
+];
+
+function AudienceSuppressCard({ audience }: { audience: CampaignAudience }) {
+  const [suppress, setSuppress] = useState(audience.suppress);
+  const toggle = (key: keyof CampaignAudience['suppress'], on: boolean) =>
+    setSuppress((prev) => ({ ...prev, [key]: on }));
+
+  return (
+    <section>
+      <AudienceHeader
+        label="Skip the wrong people"
+        sub="Avoid double or awkward outreach."
+      />
+      <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-suppress">
+        {SUPPRESS_ROWS.map((row, i) => (
+          <div key={row.key}>
+            {i > 0 && (
+              <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+            )}
+            <div
+              data-testid={`suppress-row-${row.key}`}
+              className="px-4 py-3.5 flex items-center gap-3"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] font-medium text-foreground">{row.label}</div>
+                <div className="text-[12px] text-foreground/50 leading-snug">{row.hint}</div>
+              </div>
+              <GlassToggle
+                on={suppress[row.key]}
+                onChange={(v) => toggle(row.key, v)}
+                testId={`suppress-toggle-${row.key}`}
+                ariaLabel={`${suppress[row.key] ? 'Disable' : 'Enable'} ${row.label}`}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ── F) Smarter over time — subtle phase-2 self-learning teaser ──────
+function AudienceSmarterHint() {
+  return (
+    <div
+      data-testid="audience-smarter-hint"
+      className="rounded-2xl px-4 py-3 flex items-center gap-2.5 bg-foreground/[0.03] dark:bg-white/[0.03]"
+    >
+      <Sparkles size={14} strokeWidth={2} style={{ color: AI_ACCENT }} className="shrink-0" />
+      <p className="text-[12.5px] text-foreground/55 leading-snug">
+        This audience gets smarter as you use it. Replaiy learns which leads
+        convert and refines your ICP.
+      </p>
+    </div>
+  );
+}
+
+// ── The whole Audience section, in agreed order ─────────────────────
+function AudienceSection({ campaign }: { campaign: Campaign }) {
+  const audience = campaign.audience;
+  if (!audience) return null;
+  return (
+    <div className="flex flex-col gap-6 md:gap-7">
+      <AudiencePoolCard audience={audience} />
+      <AudienceSourcesCard audience={audience} />
+      <AudienceIcpCard audience={audience} />
+      <AudienceThresholdCard audience={audience} />
+      <AudienceSuppressCard audience={audience} />
+      <AudienceSmarterHint />
+    </div>
+  );
+}
+
 
 // ════════════════════════════════════════════════════════════════════
 // Dispatcher — keep universal hooks at the top (rules-of-hooks safe),
@@ -395,7 +880,7 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
                 data-testid="input-edit-goal-description"
                 value={goalDescription}
                 onChange={(e) => setGoalDescription(e.target.value)}
-                placeholder="Short description — e.g. Book a 20-min intro call"
+                placeholder="Short description, e.g. Book a 20-min intro call"
                 className="w-full bg-transparent outline-none text-[14px] text-foreground placeholder:text-muted-foreground"
               />
             </div>
@@ -760,7 +1245,7 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
               <Users size={16} strokeWidth={1.8} className="text-foreground/55" />
             </div>
             <p className="text-[13px] text-muted-foreground leading-snug">
-              No seats assigned yet — add a teammate to run this campaign.
+              No seats assigned yet. Add a teammate to run this campaign.
             </p>
           </div>
         ) : (
@@ -982,6 +1467,10 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
       {/* Name lives ONLY in the top chrome (mobile) / floating header
           (desktop) — never duplicated in the body, exactly like the inbox
           conversation. Rename on mobile is reached via the ··· menu. */}
+      {/* Audience — who this campaign reaches. The big one; sits at the TOP.
+          (Round 1: the Funnel/Goal/Flow/Running-from blocks below are left
+          as-is and restyled next round.) */}
+      <AudienceSection campaign={campaign} />
       <FunnelCard campaign={campaign} />
       <GoalCard campaign={campaign} />
       <FlowCard campaign={campaign} />
@@ -1119,7 +1608,7 @@ function CampaignCreate() {
             data-testid="input-campaign-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Q3 — Series-B founders"
+            placeholder="e.g. Q3, Series-B founders"
             className="w-full bg-transparent outline-none text-[16px] text-foreground placeholder:text-muted-foreground"
           />
         </div>

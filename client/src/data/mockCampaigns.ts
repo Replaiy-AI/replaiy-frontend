@@ -15,6 +15,90 @@ export type CampaignGoalType =
 
 export type CampaignStatus = 'draft' | 'active' | 'paused' | 'archived';
 
+// ── Audience model ───────────────────────────────────────────────────
+// An ICP definition + lead discovery scoped to THIS campaign. Each campaign
+// can target a different audience. Leads come from four discovery sources,
+// ordered cold -> warmest, plus a per-campaign match threshold and
+// auto-suppress (exclusion) intelligence. The pool breakdown and score
+// buckets make audience QUALITY visible, not just quantity.
+export type LeadSourceKind = 'salesnav' | 'signal' | 'engagement' | 'import';
+export type LeadWarmth = 'cold' | 'warm' | 'warmest';
+
+// The profile we match leads against. Read-only display for now.
+export interface IcpCriteria {
+  titles: string[]; // e.g. ['Head of Sales','VP Sales','Founder']
+  industries: string[]; // e.g. ['SaaS','Fintech']
+  companySize: string; // e.g. '11-200'
+  locations: string[]; // e.g. ['Netherlands','DACH']
+  seniority: string[]; // e.g. ['Head','VP','C-level']
+  exclusions: string[]; // e.g. ['Current customers','Competitors']
+}
+
+// One discovery source. `found` is the live count it currently contributes
+// to the pool; `enabled` is whether the campaign uses it.
+export interface LeadSource {
+  kind: LeadSourceKind;
+  enabled: boolean;
+  found: number;
+}
+
+export interface CampaignAudience {
+  icp: IcpCriteria;
+  // The 4 sources (salesnav / signal / engagement / import).
+  sources: LeadSource[];
+  // 0-100: only contact leads at or above this match score. Source broad,
+  // contact the best.
+  matchThreshold: number;
+  // Auto-suppress toggles (exclusion intelligence) — avoid double or awkward
+  // outreach across the team.
+  suppress: {
+    inOtherCampaigns: boolean;
+    alreadyContacted: boolean;
+    existingConnections: boolean;
+  };
+  // Live audience pool, split by warmth (warmest first in the UI).
+  pool: { cold: number; warm: number; warmest: number };
+  // Simple match-score distribution for a tiny histogram.
+  scoreBuckets: { range: string; count: number }[];
+}
+
+// Label + hint + warmth per discovery source. Warmth drives the UI order
+// (warmest first) and the source priority story (contact warmest first).
+export const LEAD_SOURCE_META: Record<
+  LeadSourceKind,
+  { label: string; hint: string; warmth: LeadWarmth }
+> = {
+  salesnav: {
+    label: 'Sales Navigator',
+    hint: 'Cold prospects matched to your ICP',
+    warmth: 'cold',
+  },
+  signal: {
+    label: 'Buying signals',
+    hint: 'Job changes, growth and relevant posts',
+    warmth: 'warm',
+  },
+  engagement: {
+    label: 'Post engagement',
+    hint: 'People who engage with your team posts',
+    warmth: 'warmest',
+  },
+  import: {
+    label: 'Manual import',
+    hint: 'Upload a CSV or paste LinkedIn URLs',
+    warmth: 'cold',
+  },
+};
+
+// Warmth label + a subtle tint. Blue stays the only strong accent; warmth is
+// carried by label + opacity rather than a rainbow of colours. `tint` is an
+// opacity applied to the single accent for the pool dots.
+export const WARMTH_META: Record<LeadWarmth, { label: string; tint: number }> = {
+  warmest: { label: 'warmest', tint: 1 },
+  warm: { label: 'warm', tint: 0.55 },
+  cold: { label: 'cold', tint: 0.24 },
+};
+
 // Workspace members (seats). A campaign runs from one or more seats — each
 // seat = a teammate with their own LinkedIn account (backend: members +
 // linked_accounts). You assign which seats run a campaign.
@@ -80,6 +164,8 @@ export interface Campaign {
   memberIds: string[];
   // Action sequence per lead. Falls back to DEFAULT_FLOW if omitted.
   flow?: FlowStep[];
+  // Who this campaign reaches: ICP + lead discovery + match quality.
+  audience?: CampaignAudience;
   // Full outbound funnel, aligned with the backend lead_state machine
   // (sourced -> connect_requested -> connected -> in_conversation -> replied
   // -> goal_achieved). The list shows only conversion% (derived); the detail
@@ -112,7 +198,7 @@ export const GOAL_META: Record<
     label: 'Qualified lead',
     achieved: 'Leads qualified',
     achievedShort: 'Qualified',
-    hint: 'Qualify the lead — surface fit and intent.',
+    hint: 'Qualify the lead, surface fit and intent.',
   },
   reply: {
     label: 'Reply',
@@ -144,11 +230,41 @@ export const STATUS_META: Record<CampaignStatus, { label: string }> = {
 export const MOCK_CAMPAIGNS: Campaign[] = [
   {
     id: 'c1',
-    name: 'Q3 — Series-B founders',
+    name: 'Q3, Series-B founders',
     goalType: 'meeting',
     goalDescription: 'Book a 20-min intro call about reply quality',
     status: 'active',
     memberIds: ['m1', 'm2'],
+    audience: {
+      icp: {
+        titles: ['Founder', 'CEO', 'VP Sales'],
+        industries: ['SaaS', 'Fintech'],
+        companySize: '11-200',
+        locations: ['Netherlands', 'DACH'],
+        seniority: ['Founder', 'C-level', 'VP'],
+        exclusions: ['Current customers', 'Competitors'],
+      },
+      sources: [
+        { kind: 'engagement', enabled: true, found: 80 },
+        { kind: 'signal', enabled: true, found: 180 },
+        { kind: 'salesnav', enabled: true, found: 420 },
+        { kind: 'import', enabled: false, found: 0 },
+      ],
+      matchThreshold: 80,
+      suppress: {
+        inOtherCampaigns: true,
+        alreadyContacted: true,
+        existingConnections: false,
+      },
+      pool: { cold: 420, warm: 180, warmest: 80 },
+      scoreBuckets: [
+        { range: '90-100', count: 120 },
+        { range: '80-89', count: 240 },
+        { range: '70-79', count: 180 },
+        { range: '60-69', count: 90 },
+        { range: '0-59', count: 50 },
+      ],
+    },
     stats: {
       found: 680,
       sent: 420,
@@ -161,11 +277,41 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
   },
   {
     id: 'c2',
-    name: 'RevOps leaders — NL/BE',
+    name: 'RevOps leaders, NL/BE',
     goalType: 'demo',
     goalDescription: 'Get them into a live product demo',
     status: 'active',
     memberIds: ['m3'],
+    audience: {
+      icp: {
+        titles: ['Head of RevOps', 'Sales Operations Manager', 'VP Revenue'],
+        industries: ['SaaS', 'B2B Services'],
+        companySize: '51-500',
+        locations: ['Netherlands', 'Belgium'],
+        seniority: ['Head', 'VP', 'Manager'],
+        exclusions: ['Current customers'],
+      },
+      sources: [
+        { kind: 'engagement', enabled: true, found: 40 },
+        { kind: 'signal', enabled: true, found: 90 },
+        { kind: 'salesnav', enabled: true, found: 280 },
+        { kind: 'import', enabled: false, found: 0 },
+      ],
+      matchThreshold: 75,
+      suppress: {
+        inOtherCampaigns: true,
+        alreadyContacted: true,
+        existingConnections: true,
+      },
+      pool: { cold: 280, warm: 90, warmest: 40 },
+      scoreBuckets: [
+        { range: '90-100', count: 60 },
+        { range: '80-89', count: 130 },
+        { range: '70-79', count: 120 },
+        { range: '60-69', count: 60 },
+        { range: '0-59', count: 40 },
+      ],
+    },
     stats: {
       found: 410,
       sent: 260,
@@ -178,11 +324,41 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
   },
   {
     id: 'c3',
-    name: 'Newsletter signups — warm',
+    name: 'Newsletter signups, warm',
     goalType: 'reply',
     goalDescription: 'Earn a genuine reply from warm signups',
     status: 'active',
     memberIds: ['m2', 'm4'],
+    audience: {
+      icp: {
+        titles: ['Marketing Manager', 'Growth Lead', 'Founder'],
+        industries: ['SaaS', 'E-commerce', 'Agencies'],
+        companySize: '1-50',
+        locations: ['Netherlands', 'Europe'],
+        seniority: ['Manager', 'Lead', 'Founder'],
+        exclusions: ['Current customers', 'Unsubscribed'],
+      },
+      sources: [
+        { kind: 'engagement', enabled: true, found: 260 },
+        { kind: 'signal', enabled: true, found: 140 },
+        { kind: 'salesnav', enabled: false, found: 0 },
+        { kind: 'import', enabled: true, found: 420 },
+      ],
+      matchThreshold: 65,
+      suppress: {
+        inOtherCampaigns: true,
+        alreadyContacted: true,
+        existingConnections: false,
+      },
+      pool: { cold: 420, warm: 140, warmest: 260 },
+      scoreBuckets: [
+        { range: '90-100', count: 200 },
+        { range: '80-89', count: 280 },
+        { range: '70-79', count: 200 },
+        { range: '60-69', count: 90 },
+        { range: '0-59', count: 50 },
+      ],
+    },
     stats: {
       found: 820,
       sent: 540,
@@ -201,6 +377,36 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     goalDescription: 'Intro call with their head of partnerships',
     status: 'paused',
     memberIds: ['m1'],
+    audience: {
+      icp: {
+        titles: ['Head of Partnerships', 'Agency Owner'],
+        industries: ['Marketing Agencies'],
+        companySize: '11-200',
+        locations: ['Netherlands'],
+        seniority: ['Head', 'Owner'],
+        exclusions: ['Current partners'],
+      },
+      sources: [
+        { kind: 'engagement', enabled: false, found: 0 },
+        { kind: 'signal', enabled: true, found: 40 },
+        { kind: 'salesnav', enabled: true, found: 140 },
+        { kind: 'import', enabled: false, found: 0 },
+      ],
+      matchThreshold: 70,
+      suppress: {
+        inOtherCampaigns: true,
+        alreadyContacted: false,
+        existingConnections: false,
+      },
+      pool: { cold: 140, warm: 40, warmest: 0 },
+      scoreBuckets: [
+        { range: '90-100', count: 20 },
+        { range: '80-89', count: 50 },
+        { range: '70-79', count: 60 },
+        { range: '60-69', count: 30 },
+        { range: '0-59', count: 20 },
+      ],
+    },
     stats: {
       found: 180,
       sent: 110,
@@ -213,11 +419,41 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
   },
   {
     id: 'c5',
-    name: 'Inbound waitlist — qualify',
+    name: 'Inbound waitlist, qualify',
     goalType: 'qualified',
     goalDescription: 'Qualify fit and intent before sales',
     status: 'draft',
     memberIds: [],
+    audience: {
+      icp: {
+        titles: [],
+        industries: [],
+        companySize: '',
+        locations: [],
+        seniority: [],
+        exclusions: [],
+      },
+      sources: [
+        { kind: 'engagement', enabled: false, found: 0 },
+        { kind: 'signal', enabled: false, found: 0 },
+        { kind: 'salesnav', enabled: false, found: 0 },
+        { kind: 'import', enabled: false, found: 0 },
+      ],
+      matchThreshold: 70,
+      suppress: {
+        inOtherCampaigns: true,
+        alreadyContacted: true,
+        existingConnections: false,
+      },
+      pool: { cold: 0, warm: 0, warmest: 0 },
+      scoreBuckets: [
+        { range: '90-100', count: 0 },
+        { range: '80-89', count: 0 },
+        { range: '70-79', count: 0 },
+        { range: '60-69', count: 0 },
+        { range: '0-59', count: 0 },
+      ],
+    },
     stats: {
       found: 0,
       sent: 0,
