@@ -45,8 +45,8 @@ import VadikGlass from './VadikGlass';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useLocation } from 'wouter';
 import { DiscardDraftPopover } from './DiscardDraftPopover';
-import { GlassPopover } from './GlassPopover';
-import { activePersona, personaPresets } from '@/data/mockPersona';
+import { AiReviseChat } from './AiReviseChat';
+import { activePersona } from '@/data/mockPersona';
 import { useReplaiy } from '@/state/ReplaiyContext';
 
 /** v30.30 — Forward state: leeg To-veld, pre-filled editor met forward-block.
@@ -292,10 +292,6 @@ export function InlineReplyBar({
   // moment the user changes the persona (preset or fine-tune) in My AI.
   const { persona: livePersona } = useReplaiy();
   const persona = activePersona(livePersona);
-  // Active persona display name (for the AI revise header — makes clear the
-  // adjustments are tuned WITHIN your persona, not against it).
-  const activePresetName =
-    personaPresets.find((p) => p.id === livePersona.activePresetId)?.name ?? 'Custom';
   // v36.3 — sheetMode unifies composeMode and initialExpanded for the
   // "this bar runs as the body of a 92vh bottom sheet" use case. Both
   // share the same rendering needs: edge-to-edge container (no nested
@@ -1013,41 +1009,10 @@ export function InlineReplyBar({
   // leftwards to reveal B / I / U / list / link / attach.
   const [formatPillOpen, setFormatPillOpen] = useState(false);
 
-  // v-replaiy — AI revise: talk to Replaiy to rewrite the current draft, or
-  // pick a quick adjustment. Every revision is also a learning signal for the
-  // agent (RL loop) — wired silently, no UI noise. The actual rewrite is a
-  // backend call later; for now we apply a light, believable local transform
-  // so the interaction + flow can be designed and felt.
-  const [revising, setRevising] = useState(false);
-  const [reviseInstruction, setReviseInstruction] = useState('');
-  const applyRevision = useCallback(
-    (instruction: string, close: () => void) => {
-      const trimmed = instruction.trim();
-      if (!trimmed) return;
-      setRevising(true);
-      close();
-      // Mock rewrite: keep the user's draft, prepend a short marker so the
-      // change is visible during design. Replaced by the real model call in
-      // the backend phase.
-      window.setTimeout(() => {
-        const el = editorRef.current;
-        if (el) {
-          const current = el.innerText.trim();
-          el.innerHTML = `<p>${current}</p>`;
-          el.focus();
-        }
-        setRevising(false);
-        setReviseInstruction('');
-      }, 750);
-    },
-    [],
-  );
-  const QUICK_REVISIONS = [
-    'Make it shorter',
-    'Make it warmer',
-    'Make it more direct',
-    'Strengthen the call to action',
-  ];
+  // v-replaiy — AI revise: a wide "talk to Replaiy" chat overlay where the
+  // user reshapes the current draft in a back-and-forth. Every turn updates
+  // the live editor draft and (backend phase) feeds the agent learning loop.
+  const [reviseChatOpen, setReviseChatOpen] = useState(false);
 
   // v32.1 — "Has content" detector for the discard flow. Treats body as
   // empty when stripHtml(html) has no non-whitespace characters, and all
@@ -1894,102 +1859,24 @@ export function InlineReplyBar({
             className="absolute z-10 pointer-events-none flex items-center gap-2"
             style={{ bottom: 12, left: 12 }}
           >
-            {/* AI revise — talk to Replaiy / quick adjustments. Sits left of the
-               + pill as its own glass pill. */}
-            <GlassPopover
-              anchor="top"
-              align="left"
-              width="w-[300px]"
-              testId="ai-revise-popover"
-              trigger={({ open, toggle }) => (
-                <button
-                  type="button"
-                  data-testid="ai-revise-toggle"
-                  onClick={toggle}
-                  onMouseDown={(e) => e.preventDefault()}
-                  aria-label="Revise with Replaiy"
-                  aria-pressed={open}
-                  className="pointer-events-auto h-10 w-10 rounded-full flex items-center justify-center active-elevate-2 transition-colors"
-                  style={{ ...replyPillStyle() }}
-                >
-                  <Sparkles
-                    size={17}
-                    strokeWidth={2}
-                    style={{ color: revising ? persona.color : undefined }}
-                    className={revising ? 'animate-pulse' : 'text-icon'}
-                  />
-                </button>
-              )}
+            {/* AI revise — opens the wide "talk to Replaiy" chat overlay. */}
+            <button
+              type="button"
+              data-testid="ai-revise-toggle"
+              onClick={() => setReviseChatOpen((v) => !v)}
+              onMouseDown={(e) => e.preventDefault()}
+              aria-label="Revise with Replaiy"
+              aria-pressed={reviseChatOpen}
+              className="pointer-events-auto h-10 w-10 rounded-full flex items-center justify-center active-elevate-2 transition-colors"
+              style={{ ...replyPillStyle() }}
             >
-              {({ close }) => (
-                <div
-                  className="p-2.5"
-                  // Scope the accent to the active persona colour so the submit
-                  // button + chips read as "this is YOUR persona's AI".
-                  style={{ ['--ai-accent' as any]: persona.color }}
-                >
-                  {/* Header: persona mascot + name make explicit these are
-                     adjustments tuned WITHIN your persona, not against it. */}
-                  <div className="flex items-center gap-2 px-1 pb-2">
-                    <img
-                      src={persona.mascot}
-                      alt=""
-                      aria-hidden
-                      className="w-7 h-7 object-contain shrink-0 select-none pointer-events-none"
-                    />
-                    <div className="min-w-0">
-                      <div className="text-[12.5px] font-semibold text-foreground leading-tight">
-                        Revise with Replaiy
-                      </div>
-                      <div className="text-[11px] text-foreground/45 leading-tight truncate">
-                        Tuned to your {activePresetName} persona
-                      </div>
-                    </div>
-                  </div>
-                  {/* Quick adjustments — one tap. */}
-                  <div className="flex flex-wrap gap-1.5 px-1 pb-2.5">
-                    {QUICK_REVISIONS.map((q) => (
-                      <button
-                        key={q}
-                        type="button"
-                        data-testid={`ai-revise-quick-${q.replace(/\s+/g, '-').toLowerCase()}`}
-                        onClick={() => applyRevision(q, close)}
-                        className="glass-pill pill h-[28px] px-2.5 text-[12px] font-medium text-foreground/80 hover-elevate active-elevate-2"
-                      >
-                        {q.replace(/^Make it /, '').replace(/^Strengthen the /, '')}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Free instruction — talk to the AI. */}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      applyRevision(reviseInstruction, close);
-                    }}
-                    className="flex items-center gap-1.5 rounded-2xl px-2.5 py-1.5"
-                    style={{ ...replyPillStyle() }}
-                  >
-                    <input
-                      data-testid="ai-revise-input"
-                      value={reviseInstruction}
-                      onChange={(e) => setReviseInstruction(e.target.value)}
-                      placeholder="Tell Replaiy what to change…"
-                      className="flex-1 min-w-0 bg-transparent outline-none text-[13px] text-foreground placeholder:text-foreground/40"
-                    />
-                    <button
-                      type="submit"
-                      data-testid="ai-revise-submit"
-                      aria-label="Send instruction"
-                      disabled={!reviseInstruction.trim()}
-                      className="h-7 w-7 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 transition-opacity"
-                      style={{ color: '#fff', background: 'var(--ai-accent, #2F6BFF)' }}
-                    >
-                      <ArrowUp size={15} strokeWidth={2.4} />
-                    </button>
-                  </form>
-                </div>
-              )}
-            </GlassPopover>
+              <Sparkles
+                size={17}
+                strokeWidth={2}
+                style={{ color: reviseChatOpen ? persona.color : undefined }}
+                className={reviseChatOpen ? '' : 'text-icon'}
+              />
+            </button>
 
             <div
               className="pointer-events-auto flex items-center rounded-full overflow-hidden"
@@ -2055,6 +1942,24 @@ export function InlineReplyBar({
               </AnimatePresence>
             </div>
           </div>
+        )}
+
+        {/* AI revise chat — wide overlay over the conversation. Lives inside
+           the reply bar so it has access to the live editor draft. */}
+        {!chromeless && (
+          <AiReviseChat
+            open={reviseChatOpen}
+            onClose={() => setReviseChatOpen(false)}
+            accent={persona.color}
+            mascot={persona.mascot}
+            getDraft={() => editorRef.current?.innerText.trim() ?? ''}
+            setDraft={(text) => {
+              const el = editorRef.current;
+              if (el) {
+                el.innerHTML = `<p>${text.replace(/\n+/g, '</p><p>')}</p>`;
+              }
+            }}
+          />
         )}
       </div>
     </>
