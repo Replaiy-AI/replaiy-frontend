@@ -46,7 +46,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useLocation } from 'wouter';
 import { DiscardDraftPopover } from './DiscardDraftPopover';
 import { GlassPopover } from './GlassPopover';
-import { activePersona } from '@/data/mockPersona';
+import { activePersona, personaPresets } from '@/data/mockPersona';
 import { useReplaiy } from '@/state/ReplaiyContext';
 
 /** v30.30 — Forward state: leeg To-veld, pre-filled editor met forward-block.
@@ -292,6 +292,10 @@ export function InlineReplyBar({
   // moment the user changes the persona (preset or fine-tune) in My AI.
   const { persona: livePersona } = useReplaiy();
   const persona = activePersona(livePersona);
+  // Active persona display name (for the AI revise header — makes clear the
+  // adjustments are tuned WITHIN your persona, not against it).
+  const activePresetName =
+    personaPresets.find((p) => p.id === livePersona.activePresetId)?.name ?? 'Custom';
   // v36.3 — sheetMode unifies composeMode and initialExpanded for the
   // "this bar runs as the body of a 92vh bottom sheet" use case. Both
   // share the same rendering needs: edge-to-edge container (no nested
@@ -1911,16 +1915,36 @@ export function InlineReplyBar({
                   <Sparkles
                     size={17}
                     strokeWidth={2}
-                    style={{ color: revising ? 'var(--ai-accent, #2F6BFF)' : undefined }}
+                    style={{ color: revising ? persona.color : undefined }}
                     className={revising ? 'animate-pulse' : 'text-icon'}
                   />
                 </button>
               )}
             >
               {({ close }) => (
-                <div className="p-2.5">
-                  <div className="px-1 pb-2 text-[12.5px] font-semibold text-foreground">
-                    Revise with Replaiy
+                <div
+                  className="p-2.5"
+                  // Scope the accent to the active persona colour so the submit
+                  // button + chips read as "this is YOUR persona's AI".
+                  style={{ ['--ai-accent' as any]: persona.color }}
+                >
+                  {/* Header: persona mascot + name make explicit these are
+                     adjustments tuned WITHIN your persona, not against it. */}
+                  <div className="flex items-center gap-2 px-1 pb-2">
+                    <img
+                      src={persona.mascot}
+                      alt=""
+                      aria-hidden
+                      className="w-7 h-7 object-contain shrink-0 select-none pointer-events-none"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[12.5px] font-semibold text-foreground leading-tight">
+                        Revise with Replaiy
+                      </div>
+                      <div className="text-[11px] text-foreground/45 leading-tight truncate">
+                        Tuned to your {activePresetName} persona
+                      </div>
+                    </div>
                   </div>
                   {/* Quick adjustments — one tap. */}
                   <div className="flex flex-wrap gap-1.5 px-1 pb-2.5">
