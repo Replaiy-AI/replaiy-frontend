@@ -925,39 +925,24 @@ function AudienceSuppressCard({ audience }: { audience: CampaignAudience }) {
           </div>
         ))}
       </div>
-      {/* Subtle compliance hint - quiet single line, no banner. */}
+      {/* Subtle notes under Sources - same quiet style as the compliance line
+          (no blue Sparkles block). Enrichment sits here because it is what
+          happens to leads as they come in via the sources above. */}
+      <p
+        data-testid="audience-enrichment-note"
+        className="px-2 mt-2.5 flex items-center gap-1.5 text-[11.5px] text-foreground/45 leading-snug"
+      >
+        <Sparkles size={13} strokeWidth={1.9} className="shrink-0 text-foreground/35" />
+        Every lead is auto-enriched with company data, recent activity and signals.
+      </p>
       <p
         data-testid="audience-compliance"
-        className="px-2 mt-2.5 flex items-center gap-1.5 text-[11.5px] text-foreground/45 leading-snug"
+        className="px-2 mt-1.5 flex items-center gap-1.5 text-[11.5px] text-foreground/45 leading-snug"
       >
         <ShieldCheck size={13} strokeWidth={1.9} className="shrink-0 text-foreground/35" />
         Outreach stays within safe, human limits. No private data, no spam.
       </p>
     </section>
-  );
-}
-
-// ── F) Quiet "what Replaiy does automatically" notes ────────────────
-// Two light info lines (enrichment + self-learning). NOT heavy cards: these are
-// reassurances, not controls. Never names a provider or a cost. Grouped as the
-// calm closing of the audience section.
-function AudienceAutoNotes() {
-  const notes = [
-    'Every lead is auto-enriched with company data, recent activity and signals, so each message lands personal.',
-    'This audience gets smarter as you use it. Replaiy learns which leads convert and refines your ICP.',
-  ];
-  return (
-    <div
-      data-testid="audience-auto-notes"
-      className="rounded-2xl px-4 py-3 flex flex-col gap-2.5 bg-foreground/[0.03] dark:bg-white/[0.03]"
-    >
-      {notes.map((n) => (
-        <div key={n} className="flex items-start gap-2.5">
-          <Sparkles size={14} strokeWidth={2} style={{ color: AI_ACCENT }} className="shrink-0 mt-[2px]" />
-          <p className="text-[12.5px] text-foreground/55 leading-snug">{n}</p>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -1054,7 +1039,6 @@ function AudienceSection({ campaign }: { campaign: Campaign }) {
       <AudienceIcpCard audience={audience} />
       <AudienceThresholdCard audience={audience} value={threshold} onChange={setThreshold} />
       <AudienceSuppressCard audience={audience} />
-      <AudienceAutoNotes />
       <ViewLeadsSheet open={leadsOpen} onClose={() => setLeadsOpen(false)} leads={leads} />
     </div>
   );
