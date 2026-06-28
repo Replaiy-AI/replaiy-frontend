@@ -124,9 +124,7 @@ export function SubjectIdentityPill({
             onClick={onIdentityClick}
             aria-pressed={!!identityActive}
             aria-label="Toggle lead context"
-            className={`inline-flex items-center gap-2.5 h-[42px] px-2.5 rounded-full shrink-0 transition-transform hover:scale-[1.02] active:scale-[0.98] hover-elevate active-elevate-2 ${
-              identityActive ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
-            }`}
+            className="inline-flex items-center gap-2.5 h-[42px] px-2.5 rounded-full shrink-0 transition-transform hover:scale-[1.02] active:scale-[0.98] hover-elevate active-elevate-2"
           >
             <ReplaiyAvatar name={name} src={avatar} size={32} />
             <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate max-w-[160px]">
