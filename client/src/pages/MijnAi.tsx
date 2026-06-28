@@ -60,8 +60,11 @@ import iconPersonal from '@/assets/ai_icon_personal.png';
 import iconWorkspace from '@/assets/ai_icon_workspace.png';
 import {
   LANGUAGE_LABELS,
+  DRIVE_LABELS,
+  DRIVE_SUBLINES,
   type Persona,
   type LanguageCode,
+  type Drive,
   type KnowledgeBundle,
   type KnowledgeDoc,
   type KnowledgeSource,
@@ -605,15 +608,20 @@ function MoreLanguagesPicker({
 // used ONLY here and on the Custom agent card; blue stays the single UI accent
 // everywhere else.
 
-// The example configuration shown in the read-only panel. Local to this surface.
+// The example configuration shown in the read-only panel. Local to this
+// surface, and structured into the four agreed groups: Identity, Strategy,
+// Guardrails, Advanced. It reflects a custom agent CLONED from the user's
+// selected personality (Warm & Personal), then ready to fine-tune.
 const CUSTOM_AGENT_PREVIEW = {
-  formality: 'Neutral',
-  length: 'Short',
-  approach: 'Balanced (push when there is real intent)',
-  qualifying: 'Thorough',
-  closing: 'Direct',
+  // ── Identity ──────────────────────────────────────────────────
   voice:
     'Direct, warm and human. Talks like a founder who is genuinely interested, no sales talk, no cliches. Short sentences, the occasional wink.',
+  formality: 'neutral' as 'informal' | 'neutral' | 'formal',
+  length: 'short' as 'short' | 'medium',
+  // ── Strategy ──────────────────────────────────────────────────
+  drive: 'balanced' as Drive,
+  qualifying: 'thorough' as 'light' | 'thorough',
+  // ── Guardrails ────────────────────────────────────────────────
   dos: [
     'Lead with a specific, genuine observation',
     'Ask one sharp qualifying question',
@@ -624,39 +632,66 @@ const CUSTOM_AGENT_PREVIEW = {
     'No pitching before understanding fit',
     'No pressure when intent is unclear',
   ],
-  behavior:
-    'Act as a precise, founder-style operator. Open with a specific observation, qualify fast, and drive to the next step the moment intent is real. Stay warm and human, never templated. Adapt tone to the lead.',
+  // ── Advanced ──────────────────────────────────────────────────
+  customInstructions:
+    'Optional. Add precise instructions that layer on top of the settings above, e.g. "Always reference their latest funding round if relevant."',
 } as const;
 
-// One labelled read-only row: semibold label + optional muted sub-line, value
-// in a quiet rp-card row, clearly non-interactive (no focus ring, no input).
-function ReadOnlyRow({ label, sub, value }: { label: string; sub?: string; value: string }) {
+// A small gold lock chip used near custom-agent group headers and on locked
+// controls. Gold (#C59011) is the ONLY non-blue accent, reserved for custom.
+function LockBadge({ label = 'Locked' }: { label?: string }) {
   return (
-    <div>
-      <div className="text-[12.5px] font-semibold text-foreground">{label}</div>
-      {sub && <div className="text-[11.5px] leading-[1.4] text-foreground/45 mt-0.5">{sub}</div>}
-      <div className="rp-card rounded-2xl px-3.5 py-2.5 mt-1.5 text-[13px] leading-[1.45] text-foreground/75">
-        {value}
-      </div>
-    </div>
+    <span
+      className="inline-flex items-center gap-1 text-[11px] font-semibold"
+      style={{ color: CUSTOM_AGENT_GOLD }}
+    >
+      <Lock size={10} strokeWidth={2.6} />
+      {label}
+    </span>
   );
 }
 
-// A read-only list of short rules (do's / don'ts), rendered as quiet chips.
-function ReadOnlyList({ label, items }: { label: string; items: readonly string[] }) {
+// A DISABLED segmented control that looks like the real future toggle: glass
+// track, the active segment filled in blue, the rest quiet. Non-interactive
+// (cursor-default, no focus ring, reduced opacity) so it reads as "this is
+// what you will be able to configure", premium, not greyed-out-broken.
+function LockedSegmented({
+  options,
+  activeValue,
+  testId,
+}: {
+  options: { value: string; label: string }[];
+  activeValue: string;
+  testId?: string;
+}) {
   return (
-    <div>
-      <div className="text-[12.5px] font-semibold text-foreground">{label}</div>
-      <div className="flex flex-col gap-1.5 mt-1.5">
-        {items.map((item) => (
-          <div
-            key={item}
-            className="rp-card rounded-2xl px-3.5 py-2 text-[13px] leading-[1.4] text-foreground/75"
+    <div
+      data-testid={testId}
+      aria-disabled="true"
+      className="glass-pill inline-flex items-center gap-1 p-1 rounded-full cursor-default select-none opacity-75"
+    >
+      {options.map((opt) => {
+        const active = opt.value === activeValue;
+        return (
+          <span
+            key={opt.value}
+            className={`inline-flex items-center justify-center h-8 px-4 rounded-full text-[13px] font-medium transition-colors ${
+              active ? 'text-white' : 'text-foreground/55'
+            }`}
+            style={
+              active
+                ? {
+                    background: AI_ACCENT,
+                    boxShadow:
+                      'inset 0 1px 0 rgba(255,255,255,0.28), 0 4px 14px -6px rgba(47,107,255,0.7)',
+                  }
+                : undefined
+            }
           >
-            {item}
-          </div>
-        ))}
-      </div>
+            {opt.label}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -815,72 +850,168 @@ function PersonaDetail({
                   Coming soon
                 </span>
                 <span className="text-[11.5px] leading-[1.45] text-foreground/45">
-                  This is the full custom agent. Building your own from scratch is coming soon.
+                  Your custom agent starts from your selected personality, then you fine-tune every detail.
                 </span>
               </div>
 
-              {/* Languages — same live card as the standard view. */}
+              {/* Languages: same live card as the standard view (the
+                  languages are the user's own, so they stay editable here). */}
               {languagesSection}
 
-              {/* Voice — read-only under-the-hood field. */}
-              <FineTuneSection label="Voice" sub="How the agent sounds.">
+              {/* GROUP A: Identity, who your agent is. One rp-card, fields
+                  separated by hairline dividers (same rhythm as the standard
+                  Languages card). No block-in-block. */}
+              <FineTuneSection label="Identity" sub="Who your agent is.">
                 <div className="rp-card rounded-3xl p-5 lg:p-6">
-                  <div className="text-[13px] leading-[1.5] text-foreground/75">
+                  {/* Voice: read-only text straight in the card (the card IS
+                      the field, exactly like the bare GlassTextarea). */}
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-[12px] font-semibold text-foreground/65">Voice</span>
+                    <LockBadge />
+                  </div>
+                  <div className="text-[14px] leading-[1.5] text-foreground/90">
                     {CUSTOM_AGENT_PREVIEW.voice}
                   </div>
-                </div>
-              </FineTuneSection>
 
-              {/* Tone — formality + length, read-only in a 2-col grid. */}
-              <FineTuneSection label="Tone" sub="How formal and how long the messages are.">
-                <div className="rp-card rounded-3xl p-5 lg:p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <ReadOnlyRow label="Formality" value={CUSTOM_AGENT_PREVIEW.formality} />
-                    <ReadOnlyRow label="Length" value={CUSTOM_AGENT_PREVIEW.length} />
+                  <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
+
+                  {/* Formality: label + disabled segmented control on one row. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                    <span className="text-[12px] font-semibold text-foreground/65">Formality</span>
+                    <LockedSegmented
+                      testId="custom-formality"
+                      activeValue={CUSTOM_AGENT_PREVIEW.formality}
+                      options={[
+                        { value: 'informal', label: 'Informal' },
+                        { value: 'neutral', label: 'Neutral' },
+                        { value: 'formal', label: 'Formal' },
+                      ]}
+                    />
+                  </div>
+
+                  <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
+
+                  {/* Message length: label + disabled segmented control. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                    <span className="text-[12px] font-semibold text-foreground/65">Message length</span>
+                    <LockedSegmented
+                      testId="custom-length"
+                      activeValue={CUSTOM_AGENT_PREVIEW.length}
+                      options={[
+                        { value: 'short', label: 'Short' },
+                        { value: 'medium', label: 'Medium' },
+                      ]}
+                    />
                   </div>
                 </div>
               </FineTuneSection>
 
-              {/* Strategy — approach + qualifying + closing, read-only. */}
-              <FineTuneSection label="Strategy" sub="How the agent pushes, qualifies and closes.">
+              {/* GROUP B: Strategy, how it works toward your goal. The Drive
+                  axis replaces the old approach + closing + push rows. One
+                  rp-card, hairline divider between the two controls. */}
+              <FineTuneSection label="Strategy" sub="How it works toward your goal.">
                 <div className="rp-card rounded-3xl p-5 lg:p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <ReadOnlyRow label="Approach / stance" value={CUSTOM_AGENT_PREVIEW.approach} />
-                    <ReadOnlyRow label="Qualifying depth" value={CUSTOM_AGENT_PREVIEW.qualifying} />
+                  {/* Drive: the KEY simplification, one 3-segment control. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                    <div className="min-w-0">
+                      <span className="text-[12px] font-semibold text-foreground/65">Drive</span>
+                      <div className="text-[11.5px] leading-[1.45] text-foreground/45 mt-0.5">
+                        {DRIVE_SUBLINES[CUSTOM_AGENT_PREVIEW.drive]}
+                      </div>
+                    </div>
+                    <LockedSegmented
+                      testId="custom-drive"
+                      activeValue={CUSTOM_AGENT_PREVIEW.drive}
+                      options={[
+                        { value: 'patient', label: DRIVE_LABELS.patient },
+                        { value: 'balanced', label: DRIVE_LABELS.balanced },
+                        { value: 'assertive', label: DRIVE_LABELS.assertive },
+                      ]}
+                    />
                   </div>
-                  <div className="mt-3">
-                    <ReadOnlyRow label="Closing style" value={CUSTOM_AGENT_PREVIEW.closing} />
+
+                  <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
+
+                  {/* Qualifying depth: label + disabled segmented control. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                    <span className="text-[12px] font-semibold text-foreground/65">Qualifying depth</span>
+                    <LockedSegmented
+                      testId="custom-qualifying"
+                      activeValue={CUSTOM_AGENT_PREVIEW.qualifying}
+                      options={[
+                        { value: 'light', label: 'Light' },
+                        { value: 'thorough', label: 'Thorough' },
+                      ]}
+                    />
                   </div>
                 </div>
               </FineTuneSection>
 
-              {/* Do's and Don'ts — two read-only lists side by side. */}
-              <FineTuneSection label="Do's and Don'ts" sub="The rules the agent always follows.">
+              {/* GROUP C: Guardrails, the rules it always follows. One rp-card,
+                  two columns of plain text rules (no inner cards). */}
+              <FineTuneSection label="Guardrails" sub="The rules it always follows.">
                 <div className="rp-card rounded-3xl p-5 lg:p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <ReadOnlyList label="Do's" items={CUSTOM_AGENT_PREVIEW.dos} />
-                    <ReadOnlyList label="Don'ts" items={CUSTOM_AGENT_PREVIEW.donts} />
-                  </div>
-                </div>
-              </FineTuneSection>
-
-              {/* Behavior (system prompt) — read-only text block with a lock. */}
-              <FineTuneSection label="Behavior (system prompt)" sub="The instruction the agent runs on.">
-                <div className="rp-card rounded-3xl p-5 lg:p-6">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Lock size={11} strokeWidth={2.4} style={{ color: CUSTOM_AGENT_GOLD }} />
-                    <span className="text-[11.5px] font-medium" style={{ color: CUSTOM_AGENT_GOLD }}>
-                      Locked
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <span className="text-[12px] font-semibold text-foreground/65">
+                      Always do, never do
                     </span>
+                    <LockBadge />
                   </div>
-                  <div className="text-[13px] leading-[1.55] text-foreground/75">
-                    {CUSTOM_AGENT_PREVIEW.behavior}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+                    <div>
+                      <div className="text-[12px] font-semibold text-foreground/65 mb-2">Always do</div>
+                      <ul className="flex flex-col gap-2">
+                        {CUSTOM_AGENT_PREVIEW.dos.map((item) => (
+                          <li
+                            key={item}
+                            className="flex items-start gap-2 text-[14px] leading-[1.5] text-foreground/90"
+                          >
+                            <Check
+                              size={14}
+                              strokeWidth={2.4}
+                              className="mt-0.5 shrink-0"
+                              style={{ color: AI_ACCENT }}
+                            />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <div className="text-[12px] font-semibold text-foreground/65 mb-2">Never do</div>
+                      <ul className="flex flex-col gap-2">
+                        {CUSTOM_AGENT_PREVIEW.donts.map((item) => (
+                          <li
+                            key={item}
+                            className="flex items-start gap-2 text-[14px] leading-[1.5] text-foreground/90"
+                          >
+                            <span
+                              className="mt-[7px] h-[3px] w-[3px] rounded-full shrink-0 bg-foreground/40"
+                            />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </FineTuneSection>
 
-              {/* Anything else — same live section as the standard view. */}
-              {anythingElseSection}
+              {/* GROUP D: Advanced, optional, for fine control. One rp-card,
+                  the instructions text straight in the card (no inner block). */}
+              <FineTuneSection label="Advanced" sub="Optional, for fine control.">
+                <div className="rp-card rounded-3xl p-5 lg:p-6">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-[12px] font-semibold text-foreground/65">
+                      Custom instructions
+                    </span>
+                    <LockBadge />
+                  </div>
+                  <div className="text-[14px] leading-[1.5] text-foreground/55">
+                    {CUSTOM_AGENT_PREVIEW.customInstructions}
+                  </div>
+                </div>
+              </FineTuneSection>
 
               {/* Single gold upgrade button. Tasteful, does nothing yet. */}
               <div className="px-2">

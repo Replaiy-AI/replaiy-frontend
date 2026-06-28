@@ -78,8 +78,16 @@ export type StrategyStance = 'push' | 'balanced' | 'patient';
 export type QualifyingDepth = 'light' | 'thorough';
 export type ClosingStyle = 'soft' | 'direct';
 
+// The single user-facing strategy axis. One control replaces the old
+// overlapping stance + closingStyle + pushVsWait: how hard the agent pushes
+// toward the campaign goal / next step.
+export type Drive = 'patient' | 'balanced' | 'assertive';
+
 export interface StrategyProfile {
-  /** Overall posture in the conversation. */
+  /** PRIMARY user-facing axis (one segmented control: Patient -> Balanced ->
+   *  Assertive). Replaces the old approach + closing + push overlap. */
+  drive: Drive;
+  /** Overall posture in the conversation. Kept for backward-compat / backend. */
   stance: StrategyStance;
   /** How deep the AI digs before pitching (simple toggle for everyone). */
   qualifyingDepth: QualifyingDepth;
@@ -87,11 +95,25 @@ export interface StrategyProfile {
   closingStyle: ClosingStyle;
   // ── Free-text detail below: hidden in the standard UI, surfaced in the
   //    future paid "Custom agent". Kept so the data + backend behaviour stays
-  //    rich even when the standard user only flips toggles.
+  //    rich even when the standard user only flips toggles. These remain the
+  //    under-the-hood quality base that feeds the backend prompt.
   qualification: string;
   closing: string;
   pushVsWait: string;
 }
+
+// Human labels + one-line sublines for the Drive axis (custom-agent UI).
+export const DRIVE_LABELS: Record<Drive, string> = {
+  patient: 'Patient',
+  balanced: 'Balanced',
+  assertive: 'Assertive',
+};
+
+export const DRIVE_SUBLINES: Record<Drive, string> = {
+  patient: 'Nurtures, never pushes',
+  balanced: 'Pushes when intent is real',
+  assertive: 'Drives firmly to the next step',
+};
 
 // ── Knowledge: questions + files ──────────────────────────────────
 export interface KnowledgeQA {
@@ -217,6 +239,7 @@ export const mockPersona: Persona = {
     ],
   },
   strategy: {
+    drive: 'balanced',
     stance: 'balanced',
     qualifyingDepth: 'thorough',
     closingStyle: 'soft',
@@ -299,6 +322,7 @@ export const personaPresets: PersonaPreset[] = [
       donts: ["Don't ask for time early", 'No urgency or pressure', 'No pitching'],
     },
     strategy: {
+      drive: 'patient',
       stance: 'patient',
       qualifyingDepth: 'thorough',
       closingStyle: 'soft',
@@ -330,6 +354,7 @@ export const personaPresets: PersonaPreset[] = [
       donts: ["Don't pitch in the first message", 'No over-the-top enthusiasm', 'No generic openers'],
     },
     strategy: {
+      drive: 'balanced',
       stance: 'balanced',
       qualifyingDepth: 'light',
       closingStyle: 'soft',
@@ -358,6 +383,7 @@ export const personaPresets: PersonaPreset[] = [
       donts: ['No pitching before understanding', 'No hype', 'No assumptions about their needs'],
     },
     strategy: {
+      drive: 'balanced',
       stance: 'balanced',
       qualifyingDepth: 'thorough',
       closingStyle: 'soft',
@@ -385,6 +411,7 @@ export const personaPresets: PersonaPreset[] = [
       donts: ['No rambling', 'No over-softening', 'No vague endings'],
     },
     strategy: {
+      drive: 'assertive',
       stance: 'balanced',
       qualifyingDepth: 'light',
       closingStyle: 'direct',
@@ -412,6 +439,7 @@ export const personaPresets: PersonaPreset[] = [
       donts: ['No hedging', 'No long warm-ups', 'No leaving the next step open'],
     },
     strategy: {
+      drive: 'assertive',
       stance: 'push',
       qualifyingDepth: 'light',
       closingStyle: 'direct',
