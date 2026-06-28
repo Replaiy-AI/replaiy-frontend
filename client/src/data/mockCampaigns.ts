@@ -1,10 +1,12 @@
-// Replaiy — Campaigns mock data.
+// Replaiy - Campaigns mock data.
 //
 // Mirrors the backend campaign model (migratie 0032): each campaign carries a
 // conversion goal (goal_type + optional goal_label) that drives persona tone,
 // the funnel endpoint, and the RL learning signal. The UI adds lightweight
 // stats (leads / in conversation / goal achieved) so the screen feels real;
 // those come from the funnel in production.
+
+import type { LanguageCode } from './mockPersona';
 
 export type CampaignGoalType =
   | 'meeting'
@@ -49,17 +51,37 @@ export interface CampaignAudience {
   // 0-100: only contact leads at or above this match score. Source broad,
   // contact the best.
   matchThreshold: number;
-  // Auto-suppress toggles (exclusion intelligence) — avoid double or awkward
+  // Auto-suppress toggles (exclusion intelligence) - avoid double or awkward
   // outreach across the team.
   suppress: {
     inOtherCampaigns: boolean;
     alreadyContacted: boolean;
     existingConnections: boolean;
+    // Softer than "in another campaign": if a teammate is in an ACTIVE
+    // conversation with a lead, others may still connect / like / view, but
+    // will not start a competing conversation.
+    inActiveConversation: boolean;
   };
   // Live audience pool, split by warmth (warmest first in the UI).
   pool: { cold: number; warm: number; warmest: number };
   // Simple match-score distribution for a tiny histogram.
   scoreBuckets: { range: string; count: number }[];
+  // A few representative enriched leads, shown in the "View leads" preview.
+  // Real leads come from the backend later; this makes the preview feel real.
+  sampleLeads?: SampleLead[];
+}
+
+// One representative enriched lead for the "View leads" preview. The insight is
+// the kind of thing enrichment surfaces (recent activity, a buying signal),
+// never a provider name.
+export interface SampleLead {
+  name: string;
+  title: string;
+  company: string;
+  warmth: LeadWarmth;
+  matchScore: number;
+  insight: string;
+  avatar: string;
 }
 
 // Label + hint + warmth per discovery source. Warmth drives the UI order
@@ -99,7 +121,7 @@ export const WARMTH_META: Record<LeadWarmth, { label: string; tint: number }> = 
   cold: { label: 'cold', tint: 0.24 },
 };
 
-// Workspace members (seats). A campaign runs from one or more seats — each
+// Workspace members (seats). A campaign runs from one or more seats - each
 // seat = a teammate with their own LinkedIn account (backend: members +
 // linked_accounts). You assign which seats run a campaign.
 export interface WorkspaceMember {
@@ -107,13 +129,17 @@ export interface WorkspaceMember {
   name: string;
   role: string;
   avatar: string;
+  // The persona this teammate runs their outreach with. This is the visible
+  // user -> persona link: each seat brings their own tone, the campaign does
+  // not pick one. Maps to a PersonaPreset name (see mockPersona).
+  personaName?: string;
 }
 
 export const WORKSPACE_MEMBERS: WorkspaceMember[] = [
-  { id: 'm1', name: 'Simon van Basten', role: 'Founder', avatar: 'https://i.pravatar.cc/120?img=68' },
-  { id: 'm2', name: 'Lotte Visser', role: 'SDR', avatar: 'https://i.pravatar.cc/120?img=5' },
-  { id: 'm3', name: 'Daan Bakker', role: 'SDR', avatar: 'https://i.pravatar.cc/120?img=13' },
-  { id: 'm4', name: 'Nora Lindqvist', role: 'Account Exec', avatar: 'https://i.pravatar.cc/120?img=20' },
+  { id: 'm1', name: 'Simon van Basten', role: 'Founder', avatar: 'https://i.pravatar.cc/120?img=68', personaName: 'Warm & Personal' },
+  { id: 'm2', name: 'Lotte Visser', role: 'SDR', avatar: 'https://i.pravatar.cc/120?img=5', personaName: 'Consultative' },
+  { id: 'm3', name: 'Daan Bakker', role: 'SDR', avatar: 'https://i.pravatar.cc/120?img=13', personaName: 'Sharp Closer' },
+  { id: 'm4', name: 'Nora Lindqvist', role: 'Account Exec', avatar: 'https://i.pravatar.cc/120?img=20', personaName: 'Patient Nurturer' },
 ];
 
 // Flow = the sequence of actions Replaiy runs per lead in a campaign. Read-only
@@ -166,6 +192,13 @@ export interface Campaign {
   flow?: FlowStep[];
   // Who this campaign reaches: ICP + lead discovery + match quality.
   audience?: CampaignAudience;
+  // Outreach language. Default: match each lead's language automatically. When
+  // fixed, it runs only on seats who speak that language (ties to Persona
+  // "Languages you speak"). Defaults to auto when omitted.
+  language?: { mode: 'auto' | 'fixed'; fixed?: LanguageCode };
+  // Send timing for AUTOMATED actions only. Manual approvals always send when
+  // the user approves. Representational this round (no real scheduling).
+  timing?: { enabled: boolean; window: string };
   // Full outbound funnel, aligned with the backend lead_state machine
   // (sourced -> connect_requested -> connected -> in_conversation -> replied
   // -> goal_achieved). The list shows only conversion% (derived); the detail
@@ -255,6 +288,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
         inOtherCampaigns: true,
         alreadyContacted: true,
         existingConnections: false,
+        inActiveConversation: true,
       },
       pool: { cold: 420, warm: 180, warmest: 80 },
       scoreBuckets: [
@@ -264,7 +298,56 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
         { range: '60-69', count: 90 },
         { range: '0-59', count: 50 },
       ],
+      sampleLeads: [
+        {
+          name: 'Emma Chen',
+          title: 'VP Sales',
+          company: 'Northwind SaaS',
+          warmth: 'warmest',
+          matchScore: 94,
+          insight: 'Posted about reply quality on outbound last week',
+          avatar: 'https://i.pravatar.cc/120?img=47',
+        },
+        {
+          name: 'Tomas Vega',
+          title: 'Founder & CEO',
+          company: 'Loopr',
+          warmth: 'warm',
+          matchScore: 91,
+          insight: 'Company just closed a Series B round',
+          avatar: 'https://i.pravatar.cc/120?img=12',
+        },
+        {
+          name: 'Hannah Weber',
+          title: 'Co-founder',
+          company: 'Klar Fintech',
+          warmth: 'warm',
+          matchScore: 88,
+          insight: 'Hiring two SDRs, scaling the outbound team',
+          avatar: 'https://i.pravatar.cc/120?img=32',
+        },
+        {
+          name: 'Marco Rossi',
+          title: 'VP Sales',
+          company: 'Cadence',
+          warmth: 'warmest',
+          matchScore: 86,
+          insight: 'Engaged with your team post on follow-ups',
+          avatar: 'https://i.pravatar.cc/120?img=15',
+        },
+        {
+          name: 'Sara Lindholm',
+          title: 'CEO',
+          company: 'Tend',
+          warmth: 'cold',
+          matchScore: 83,
+          insight: 'Recently moved into a new leadership role',
+          avatar: 'https://i.pravatar.cc/120?img=23',
+        },
+      ],
     },
+    language: { mode: 'auto' },
+    timing: { enabled: true, window: 'Weekdays, 8:00 to 18:00' },
     stats: {
       found: 680,
       sent: 420,
@@ -302,6 +385,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
         inOtherCampaigns: true,
         alreadyContacted: true,
         existingConnections: true,
+        inActiveConversation: true,
       },
       pool: { cold: 280, warm: 90, warmest: 40 },
       scoreBuckets: [
@@ -349,6 +433,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
         inOtherCampaigns: true,
         alreadyContacted: true,
         existingConnections: false,
+        inActiveConversation: true,
       },
       pool: { cold: 420, warm: 140, warmest: 260 },
       scoreBuckets: [
@@ -397,6 +482,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
         inOtherCampaigns: true,
         alreadyContacted: false,
         existingConnections: false,
+        inActiveConversation: false,
       },
       pool: { cold: 140, warm: 40, warmest: 0 },
       scoreBuckets: [
@@ -406,7 +492,38 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
         { range: '60-69', count: 30 },
         { range: '0-59', count: 20 },
       ],
+      sampleLeads: [
+        {
+          name: 'Ruben de Vries',
+          title: 'Head of Partnerships',
+          company: 'Studio Noord',
+          warmth: 'warm',
+          matchScore: 89,
+          insight: 'Announced a new partner programme this month',
+          avatar: 'https://i.pravatar.cc/120?img=51',
+        },
+        {
+          name: 'Ines Bakker',
+          title: 'Agency Owner',
+          company: 'Bright Collective',
+          warmth: 'cold',
+          matchScore: 81,
+          insight: 'Recently expanded into outbound services',
+          avatar: 'https://i.pravatar.cc/120?img=44',
+        },
+        {
+          name: 'Pieter Smit',
+          title: 'Head of Partnerships',
+          company: 'Kanttekening',
+          warmth: 'cold',
+          matchScore: 76,
+          insight: 'Looking for tooling partners on LinkedIn',
+          avatar: 'https://i.pravatar.cc/120?img=60',
+        },
+      ],
     },
+    language: { mode: 'fixed', fixed: 'nl' },
+    timing: { enabled: false, window: 'Weekdays, 9:00 to 17:00' },
     stats: {
       found: 180,
       sent: 110,
@@ -444,6 +561,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
         inOtherCampaigns: true,
         alreadyContacted: true,
         existingConnections: false,
+        inActiveConversation: true,
       },
       pool: { cold: 0, warm: 0, warmest: 0 },
       scoreBuckets: [

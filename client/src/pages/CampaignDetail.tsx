@@ -1,4 +1,4 @@
-// Replaiy — Campaign detail + create pane (right column of the split view).
+// Replaiy - Campaign detail + create pane (right column of the split view).
 //
 // Mirrors ConversationDetail.tsx structure exactly:
 //   • A floating desktop pill row at top-3 (name + on/off + ... overflow).
@@ -6,12 +6,12 @@
 //   • Mobile top-chrome registered via useMobileTopChromeSlot (priority 100):
 //     leftSlot = ArrowLeft ActionPill → navigate('/campaigns').
 //   • Surfaces are real design-system classes only (.rp-card, .glass-pill,
-//     .glass-strong). Blue (var(--ai-accent)) is a RARE micro-accent only —
+//     .glass-strong). Blue (var(--ai-accent)) is a RARE micro-accent only -
 //     not the fill of large controls. Delete is the single allowed exception
 //     using hsl(var(--destructive)).
 //
-// The detail is ONLY about (1) how the campaign performs — the funnel + key
-// metrics, and (2) finetuning it — editable name + editable goal — and (3)
+// The detail is ONLY about (1) how the campaign performs - the funnel + key
+// metrics, and (2) finetuning it - editable name + editable goal - and (3)
 // management (on/off + delete). There is no conversations/messages
 // block here: threads live in the Inbox, not in Campaigns.
 //
@@ -50,6 +50,11 @@ import {
   SlidersHorizontal,
   ShieldCheck,
   Copy,
+  ChevronDown,
+  ChevronRight,
+  Languages as LanguagesIcon,
+  Clock,
+  Globe,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import {
@@ -65,14 +70,63 @@ import {
   type FlowStepKind,
   type LeadSourceKind,
   type LeadWarmth,
+  type IcpCriteria,
+  type SampleLead,
 } from '@/data/mockCampaigns';
+import { LANGUAGE_LABELS, type LanguageCode } from '@/data/mockPersona';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { GlassToggle } from '@/components/GlassToggle';
+import { GlassPopover } from '@/components/GlassPopover';
+import { ResponsiveSheet } from '@/components/ResponsiveSheet';
 import { conversionPct, replyRatePct } from '@/components/CampaignsList';
 import { ReplaiyLogo } from '@/components/Logo';
 import { APPLE_SPRING } from '@/lib/motion';
+
+// A small set of ready-made ICP templates for the "Start from a template"
+// picker. Mock only - picking one fills the editable ICP on local state.
+const ICP_TEMPLATES: { id: string; name: string; sub: string; icp: IcpCriteria }[] = [
+  {
+    id: 'founders',
+    name: 'SaaS founders',
+    sub: 'Early-stage software leaders',
+    icp: {
+      titles: ['Founder', 'CEO', 'Co-founder'],
+      industries: ['SaaS', 'Fintech'],
+      companySize: '1-50',
+      locations: ['Netherlands', 'Europe'],
+      seniority: ['Founder', 'C-level'],
+      exclusions: ['Current customers', 'Competitors'],
+    },
+  },
+  {
+    id: 'revops',
+    name: 'RevOps leaders',
+    sub: 'Revenue and sales operations',
+    icp: {
+      titles: ['Head of RevOps', 'VP Revenue', 'Sales Operations Manager'],
+      industries: ['SaaS', 'B2B Services'],
+      companySize: '51-500',
+      locations: ['Netherlands', 'Belgium', 'DACH'],
+      seniority: ['Head', 'VP', 'Manager'],
+      exclusions: ['Current customers'],
+    },
+  },
+  {
+    id: 'agencies',
+    name: 'Agency partnerships',
+    sub: 'Owners and partnership leads',
+    icp: {
+      titles: ['Agency Owner', 'Head of Partnerships'],
+      industries: ['Marketing Agencies'],
+      companySize: '11-200',
+      locations: ['Netherlands'],
+      seniority: ['Owner', 'Head'],
+      exclusions: ['Current partners'],
+    },
+  },
+];
 
 // Lucide icon per flow-step kind.
 const FLOW_ICONS: Record<FlowStepKind, typeof Send> = {
@@ -99,7 +153,7 @@ const GOAL_ICONS: Record<CampaignGoalType, typeof Target> = {
 const AI_ACCENT = '#2F6BFF';
 
 // ====================================================================
-// AUDIENCE — who this campaign reaches. Rendered at the TOP of the detail.
+// AUDIENCE - who this campaign reaches. Rendered at the TOP of the detail.
 // Built as Persona-style sub-blocks: a FineTuneSection-style header (a
 // `text-[12.5px] font-semibold` label + a `text-[11.5px] text-foreground/45`
 // sub at px-2) followed by content in an `rp-card rounded-3xl`. No
@@ -120,7 +174,33 @@ const WARMTH_ORDER: LeadWarmth[] = ['warmest', 'warm', 'cold'];
 
 const fmtNum = (n: number) => n.toLocaleString('en-US');
 
-// ── Section header — the EXACT FineTuneSection pattern (label + sub) ─
+// Approximate how many leads qualify at a threshold, from the score buckets.
+// A bucket counts fully when its whole range sits at or above the threshold,
+// partially (linear) when the threshold cuts through it, and not at all below.
+function qualifiedCount(
+  buckets: { range: string; count: number }[],
+  threshold: number,
+): number {
+  let total = 0;
+  for (const b of buckets) {
+    const parts = b.range.split('-').map((p) => parseInt(p, 10));
+    const lo = Number.isNaN(parts[0]) ? 0 : parts[0];
+    const hi = parts.length === 2 && !Number.isNaN(parts[1]) ? parts[1] : lo;
+    if (threshold <= lo) {
+      total += b.count;
+    } else if (threshold > hi) {
+      // none
+    } else {
+      // Threshold cuts through this bucket: take the share at or above it.
+      const span = Math.max(1, hi - lo + 1);
+      const share = (hi - threshold + 1) / span;
+      total += Math.round(b.count * Math.max(0, Math.min(1, share)));
+    }
+  }
+  return total;
+}
+
+// ── Section header - the EXACT FineTuneSection pattern (label + sub) ─
 // A trailing slot keeps an optional quiet affordance (Edit / template) on the
 // header baseline, like the Goal card's Edit pill.
 function AudienceHeader({
@@ -147,7 +227,7 @@ function AudienceHeader({
   );
 }
 
-// Small read-only chip — quiet glass pill. Used for ICP criteria. `muted`
+// Small read-only chip - quiet glass pill. Used for ICP criteria. `muted`
 // renders exclusions distinctly (lower contrast + a small minus), no red.
 function IcpChip({ label, muted = false }: { label: string; muted?: boolean }) {
   return (
@@ -192,11 +272,27 @@ function IcpGroup({
   );
 }
 
-// ── A) Audience pool — live breakdown + score histogram ─────────────
-function AudiencePoolCard({ audience }: { audience: CampaignAudience }) {
+// ── A) Audience pool - live breakdown + score histogram + health line ─
+// Takes the live (local-state) threshold so the health one-liner and the
+// "View leads" affordance stay in sync with the slider below.
+function AudiencePoolCard({
+  audience,
+  threshold,
+  onViewLeads,
+}: {
+  audience: CampaignAudience;
+  threshold: number;
+  onViewLeads: () => void;
+}) {
   const { pool, scoreBuckets } = audience;
   const total = pool.cold + pool.warm + pool.warmest;
   const maxBucket = Math.max(1, ...scoreBuckets.map((b) => b.count));
+
+  // Audience-health one-liner: warmest count + share of the pool that sits at
+  // or above the live match bar. Computed from the score buckets.
+  const bucketTotal = Math.max(1, scoreBuckets.reduce((a, b) => a + b.count, 0));
+  const abovePct = Math.round((qualifiedCount(scoreBuckets, threshold) / bucketTotal) * 100);
+  const hasLeads = total > 0;
 
   return (
     <section>
@@ -230,9 +326,25 @@ function AudiencePoolCard({ audience }: { audience: CampaignAudience }) {
           </div>
         </div>
 
+        {/* Audience-health one-liner - quality at a glance, single line. */}
+        {hasLeads && (
+          <p
+            data-testid="audience-health"
+            className="mt-3 text-[12.5px] text-foreground/55 leading-snug"
+          >
+            Strong audience:{' '}
+            <span className="font-semibold text-foreground/75 tabular-nums">
+              {fmtNum(pool.warmest)}
+            </span>{' '}
+            warmest leads,{' '}
+            <span className="font-semibold text-foreground/75 tabular-nums">{abovePct}%</span>{' '}
+            above your match bar.
+          </p>
+        )}
+
         <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
 
-        {/* Tiny match-score distribution — quality, not just quantity. One
+        {/* Tiny match-score distribution - quality, not just quantity. One
             hue (accent) deepening with score; a quiet horizontal histogram. */}
         <div className="flex items-center justify-between gap-3 mb-2.5">
           <span className="text-[12px] font-semibold text-foreground/65">
@@ -266,15 +378,68 @@ function AudiencePoolCard({ audience }: { audience: CampaignAudience }) {
             );
           })}
         </div>
+
+        {/* Quiet "View leads" affordance - opens a preview of sample leads. */}
+        {hasLeads && (
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <span className="text-[11.5px] text-foreground/45">A sample of who is in your pool</span>
+            <button
+              type="button"
+              data-testid="button-view-leads"
+              onClick={onViewLeads}
+              className="glass-pill pill inline-flex items-center gap-1.5 h-[30px] pl-3 pr-2.5 text-[12.5px] font-medium text-foreground/80 hover-elevate active-elevate-2"
+            >
+              View leads
+              <ChevronRight size={14} strokeWidth={2.2} className="text-foreground/45" />
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
 }
 
-// ── B) Sources — toggle rows in ONE card, warmest first ─────────────
+// ── A2) Enrichment - ALWAYS ON status card (no toggle, no providers) ─
+// Quiet, reassuring quality statement. Never names a source or a cost.
+function AudienceEnrichmentCard() {
+  return (
+    <section>
+      <AudienceHeader
+        label="Enrichment"
+        sub="Every lead is enriched before outreach."
+      />
+      <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-enrichment">
+        <div className="flex items-start gap-3">
+          <div className="h-9 w-9 shrink-0 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center">
+            <Sparkles size={16} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
+                Always on
+              </span>
+              <span className="glass-pill inline-flex items-center gap-1 h-[20px] px-2 rounded-full text-[10.5px] font-medium text-foreground/55">
+                <Check size={11} strokeWidth={2.6} style={{ color: AI_ACCENT }} />
+                enriched
+              </span>
+            </div>
+            <p className="mt-1 text-[13px] text-foreground/55 leading-snug">
+              Leads are auto-enriched with company data, recent activity and
+              buying signals, so every message lands personal.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── B) Sources - toggle rows in ONE card, warmest first ─────────────
 function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
   // Representational: local toggle state, no backend write this round.
   const [sources, setSources] = useState(audience.sources);
+  // A small mock upload affordance for the manual-import source.
+  const [uploadOpen, setUploadOpen] = useState(false);
   // Warmest first, then warm, then cold; import (cold) naturally lands last.
   const ordered = useMemo(
     () =>
@@ -333,17 +498,43 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                   ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
                 />
               </div>
-              {/* Manual import, when on, offers a quiet upload affordance. */}
+              {/* Manual import, when on, offers a quiet upload affordance that
+                  opens a small mock flow on local state. */}
               {src.kind === 'import' && src.enabled && (
                 <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
                   <button
                     type="button"
                     data-testid="source-import-upload"
+                    onClick={() => setUploadOpen((v) => !v)}
+                    aria-expanded={uploadOpen}
                     className="glass-pill pill inline-flex items-center gap-1.5 h-[30px] px-3 text-[12.5px] font-medium text-foreground/75 hover-elevate active-elevate-2"
                   >
                     <Upload size={13} strokeWidth={2} className="text-foreground/55" />
                     Upload CSV or paste URLs
                   </button>
+                  <AnimatePresence initial={false}>
+                    {uploadOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 4, height: 0 }}
+                        animate={{ opacity: 1, y: 0, height: 'auto' }}
+                        exit={{ opacity: 0, y: -4, height: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2.5 rounded-2xl border border-dashed border-foreground/15 dark:border-white/15 px-4 py-4 flex flex-col items-center text-center gap-1.5">
+                          <Upload size={18} strokeWidth={1.7} className="text-foreground/40" />
+                          <p className="text-[12.5px] text-foreground/60 leading-snug">
+                            Drop a CSV here, or paste LinkedIn URLs
+                          </p>
+                          <input
+                            data-testid="source-import-input"
+                            placeholder="Paste one or more LinkedIn URLs"
+                            className="mt-1 w-full bg-foreground/[0.04] dark:bg-white/[0.06] rounded-xl px-3 py-2 outline-none text-[13px] text-foreground placeholder:text-foreground/40"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
             </div>
@@ -354,9 +545,13 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
   );
 }
 
-// ── C) Ideal customer (ICP) — labelled chip groups, read-only ───────
+// ── C) Ideal customer (ICP) - editable chip groups on local state ───
+// Read-only by default; "Edit" turns chips removable and shows an add input.
+// "Start from a template" opens a small picker that fills the ICP.
 function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
-  const { icp } = audience;
+  const [icp, setIcp] = useState<IcpCriteria>(audience.icp);
+  const [editing, setEditing] = useState(false);
+
   const empty =
     icp.titles.length === 0 &&
     icp.industries.length === 0 &&
@@ -365,6 +560,16 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
     icp.seniority.length === 0 &&
     icp.exclusions.length === 0;
 
+  // Add / remove helpers for the array fields, on local state only.
+  type ArrayKey = 'titles' | 'industries' | 'locations' | 'seniority' | 'exclusions';
+  const removeAt = (key: ArrayKey, value: string) =>
+    setIcp((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }));
+  const addTo = (key: ArrayKey, value: string) => {
+    const v = value.trim();
+    if (!v) return;
+    setIcp((prev) => (prev[key].includes(v) ? prev : { ...prev, [key]: [...prev[key], v] }));
+  };
+
   return (
     <section>
       <AudienceHeader
@@ -372,44 +577,118 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
         sub="The profile we match leads against."
         trailing={
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              data-testid="button-icp-template"
-              className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+            <GlassPopover
+              anchor="bottom"
+              align="right"
+              width="w-64"
+              testId="icp-template-menu"
+              trigger={({ open, toggle }) => (
+                <button
+                  type="button"
+                  data-testid="button-icp-template"
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  onClick={toggle}
+                  className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+                >
+                  <Copy size={12} strokeWidth={2} className="text-foreground/55" />
+                  Start from a template
+                </button>
+              )}
             >
-              <Copy size={12} strokeWidth={2} className="text-foreground/55" />
-              Start from a template
-            </button>
+              {({ close }) => (
+                <div className="flex flex-col">
+                  {ICP_TEMPLATES.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      data-testid={`icp-template-${t.id}`}
+                      onClick={() => {
+                        setIcp(t.icp);
+                        setEditing(true);
+                        close();
+                      }}
+                      className="w-full text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2"
+                    >
+                      <div className="text-[13px] font-semibold text-foreground">{t.name}</div>
+                      <div className="text-[11.5px] text-foreground/50 leading-snug">{t.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </GlassPopover>
             <button
               type="button"
               data-testid="button-icp-edit"
+              onClick={() => setEditing((v) => !v)}
+              aria-pressed={editing}
               className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
             >
-              <Pencil size={12} strokeWidth={2} className="text-foreground/55" />
-              Edit
+              {editing ? (
+                <Check size={12} strokeWidth={2.4} className="text-foreground/55" />
+              ) : (
+                <Pencil size={12} strokeWidth={2} className="text-foreground/55" />
+              )}
+              {editing ? 'Done' : 'Edit'}
             </button>
           </div>
         }
       />
       <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-icp">
-        {empty ? (
+        {empty && !editing ? (
           <p className="text-[13px] text-foreground/45 leading-snug">
             No ideal customer defined yet. Start from a template or clone another
             campaign to set who this reaches.
           </p>
         ) : (
           <div className="flex flex-col gap-5">
-            <IcpGroup caption="Titles" values={icp.titles} />
-            <IcpGroup caption="Industries" values={icp.industries} />
+            <IcpEditableGroup
+              caption="Titles"
+              field="titles"
+              values={icp.titles}
+              editing={editing}
+              onRemove={removeAt}
+              onAdd={addTo}
+            />
+            <IcpEditableGroup
+              caption="Industries"
+              field="industries"
+              values={icp.industries}
+              editing={editing}
+              onRemove={removeAt}
+              onAdd={addTo}
+            />
             {icp.companySize && (
               <IcpGroup caption="Company size" values={[icp.companySize]} />
             )}
-            <IcpGroup caption="Locations" values={icp.locations} />
-            <IcpGroup caption="Seniority" values={icp.seniority} />
-            {icp.exclusions.length > 0 && (
+            <IcpEditableGroup
+              caption="Locations"
+              field="locations"
+              values={icp.locations}
+              editing={editing}
+              onRemove={removeAt}
+              onAdd={addTo}
+            />
+            <IcpEditableGroup
+              caption="Seniority"
+              field="seniority"
+              values={icp.seniority}
+              editing={editing}
+              onRemove={removeAt}
+              onAdd={addTo}
+            />
+            {(icp.exclusions.length > 0 || editing) && (
               <>
                 <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07]" />
-                <IcpGroup caption="Exclusions" values={icp.exclusions} muted />
+                <IcpEditableGroup
+                  caption="Exclusions"
+                  field="exclusions"
+                  values={icp.exclusions}
+                  editing={editing}
+                  muted
+                  onRemove={removeAt}
+                  onAdd={addTo}
+                />
               </>
             )}
           </div>
@@ -419,9 +698,101 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
   );
 }
 
-// ── D) Match quality — representational threshold slider ────────────
-function AudienceThresholdCard({ audience }: { audience: CampaignAudience }) {
-  const value = audience.matchThreshold;
+// One editable ICP group: caption + chips. In edit mode each chip shows a
+// remove control and a small "add" input appears at the end. Sits directly in
+// the parent card (no inner box) so there is no block-in-block.
+function IcpEditableGroup({
+  caption,
+  field,
+  values,
+  editing,
+  muted = false,
+  onRemove,
+  onAdd,
+}: {
+  caption: string;
+  field: 'titles' | 'industries' | 'locations' | 'seniority' | 'exclusions';
+  values: string[];
+  editing: boolean;
+  muted?: boolean;
+  onRemove: (key: typeof field, value: string) => void;
+  onAdd: (key: typeof field, value: string) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  if (values.length === 0 && !editing) return null;
+  return (
+    <div>
+      <div className="text-[12px] font-semibold text-foreground/65 mb-2">{caption}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        {values.map((v) =>
+          editing ? (
+            <span
+              key={v}
+              className={`glass-pill inline-flex items-center gap-1 h-[28px] pl-3 pr-1.5 rounded-full text-[12.5px] font-medium ${
+                muted ? 'text-foreground/45' : 'text-foreground/80'
+              }`}
+            >
+              {muted && (
+                <span aria-hidden="true" className="text-foreground/35 leading-none">
+                  &minus;
+                </span>
+              )}
+              {v}
+              <button
+                type="button"
+                data-testid={`icp-remove-${field}-${v}`}
+                onClick={() => onRemove(field, v)}
+                aria-label={`Remove ${v}`}
+                className="h-[18px] w-[18px] rounded-full flex items-center justify-center text-foreground/40 hover-elevate active-elevate-2"
+              >
+                <X size={11} strokeWidth={2.4} />
+              </button>
+            </span>
+          ) : (
+            <IcpChip key={v} label={v} muted={muted} />
+          ),
+        )}
+        {editing && (
+          <input
+            data-testid={`icp-add-${field}`}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                onAdd(field, draft);
+                setDraft('');
+              }
+            }}
+            onBlur={() => {
+              if (draft.trim()) {
+                onAdd(field, draft);
+                setDraft('');
+              }
+            }}
+            placeholder="Add"
+            className="h-[28px] w-[110px] bg-foreground/[0.04] dark:bg-white/[0.06] rounded-full px-3 outline-none text-[12.5px] text-foreground placeholder:text-foreground/40"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── D) Match quality - DRAGGABLE threshold slider + live qualified count
+// A real range input styled to match, updating local state. Shows the live
+// "X of N leads qualify" computed from the score buckets as you drag.
+function AudienceThresholdCard({
+  audience,
+  value,
+  onChange,
+}: {
+  audience: CampaignAudience;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const poolTotal = audience.pool.cold + audience.pool.warm + audience.pool.warmest;
+  const qualify = qualifiedCount(audience.scoreBuckets, value);
+
   return (
     <section>
       <AudienceHeader
@@ -440,28 +811,48 @@ function AudienceThresholdCard({ audience }: { audience: CampaignAudience }) {
             {value}%
           </span>
         </div>
-        {/* Representational slider — a filled track to the threshold with a
-            quiet knob. Read-only this round (no drag logic). */}
-        <div
-          className="relative h-[8px] rounded-full bg-foreground/[0.06] dark:bg-white/[0.06]"
-          role="img"
-          aria-label={`${value}% minimum match`}
-        >
+
+        {/* Draggable slider: a real range input made invisible but on top of a
+            styled track + filled progress + knob, so it drags naturally while
+            matching the design system exactly. */}
+        <div className="relative h-[16px] flex items-center" data-testid="threshold-slider">
+          <div className="absolute inset-x-0 h-[8px] rounded-full bg-foreground/[0.06] dark:bg-white/[0.06]" />
           <div
-            className="absolute inset-y-0 left-0 rounded-full"
+            className="absolute left-0 h-[8px] rounded-full"
             style={{ width: `${value}%`, background: AI_ACCENT, opacity: 0.8 }}
           />
           <span
             aria-hidden="true"
-            className="absolute top-1/2 h-[16px] w-[16px] -translate-y-1/2 -translate-x-1/2 rounded-full bg-white"
+            className="absolute top-1/2 h-[16px] w-[16px] -translate-y-1/2 -translate-x-1/2 rounded-full bg-white pointer-events-none"
             style={{
               left: `${value}%`,
               boxShadow:
                 '0 1px 1px rgba(0,0,0,0.05), 0 2px 6px rgba(8,10,18,0.22), inset 0 1px 0.5px rgba(255,255,255,0.95)',
             }}
           />
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={value}
+            data-testid="threshold-range"
+            aria-label="Minimum match score"
+            onChange={(e) => onChange(parseInt(e.target.value, 10))}
+            className="relative w-full h-[16px] cursor-pointer appearance-none bg-transparent m-0 opacity-0"
+          />
         </div>
-        <p className="mt-3.5 text-[12.5px] text-foreground/50 leading-snug">
+
+        {/* Live qualified count - recomputes as you drag. */}
+        <div className="mt-3.5 flex items-center gap-1.5" data-testid="threshold-qualified">
+          <span className="text-[13px] font-semibold text-foreground tabular-nums">
+            {fmtNum(qualify)}
+          </span>
+          <span className="text-[13px] text-foreground/55">
+            of {fmtNum(poolTotal)} leads qualify
+          </span>
+        </div>
+        <p className="mt-2 text-[12.5px] text-foreground/50 leading-snug">
           Leads below {value}% are still sourced and enriched, but never
           contacted. Source broad, reach out to the best fits only.
         </p>
@@ -470,7 +861,7 @@ function AudienceThresholdCard({ audience }: { audience: CampaignAudience }) {
   );
 }
 
-// ── E) Auto-suppress — three toggles in ONE card ────────────────────
+// ── E) Auto-suppress - four toggles in ONE card ─────────────────────
 const SUPPRESS_ROWS: {
   key: keyof CampaignAudience['suppress'];
   label: string;
@@ -490,6 +881,11 @@ const SUPPRESS_ROWS: {
     key: 'existingConnections',
     label: 'Existing connections',
     hint: 'Leave people you already know out of cold outreach',
+  },
+  {
+    key: 'inActiveConversation',
+    label: 'Already in conversation',
+    hint: 'If a teammate is in an active conversation, others can still connect or like, but will not start a competing one',
   },
 ];
 
@@ -528,11 +924,19 @@ function AudienceSuppressCard({ audience }: { audience: CampaignAudience }) {
           </div>
         ))}
       </div>
+      {/* Subtle compliance hint - quiet single line, no banner. */}
+      <p
+        data-testid="audience-compliance"
+        className="px-2 mt-2.5 flex items-center gap-1.5 text-[11.5px] text-foreground/45 leading-snug"
+      >
+        <ShieldCheck size={13} strokeWidth={1.9} className="shrink-0 text-foreground/35" />
+        Outreach stays within safe, human limits. No private data, no spam.
+      </p>
     </section>
   );
 }
 
-// ── F) Smarter over time — subtle phase-2 self-learning teaser ──────
+// ── F) Smarter over time - subtle phase-2 self-learning teaser ──────
 function AudienceSmarterHint() {
   return (
     <div
@@ -548,25 +952,108 @@ function AudienceSmarterHint() {
   );
 }
 
+// ── View-leads preview - a lightweight sheet of sample enriched leads ─
+function ViewLeadsSheet({
+  open,
+  onClose,
+  leads,
+}: {
+  open: boolean;
+  onClose: () => void;
+  leads: SampleLead[];
+}) {
+  return (
+    <ResponsiveSheet open={open} onClose={onClose} desktopWidth="md" testId="view-leads-sheet">
+      <div className="px-5 pt-5 pb-2">
+        <div className="text-[16px] font-semibold tracking-[-0.01em] text-foreground">
+          Leads in this audience
+        </div>
+        <p className="text-[12.5px] text-foreground/50 leading-snug mt-0.5">
+          A sample, each enriched with recent activity and buying signals.
+        </p>
+      </div>
+      <div className="px-3 pb-5 overflow-y-auto no-scrollbar">
+        <div className="flex flex-col">
+          {leads.map((lead, i) => (
+            <div key={`${lead.name}-${i}`}>
+              {i > 0 && (
+                <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+              )}
+              <div
+                data-testid={`view-lead-${i}`}
+                className="flex items-start gap-3 px-2 py-3"
+              >
+                <ReplaiyAvatar name={lead.name} src={lead.avatar} size={40} className="shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate">
+                      {lead.name}
+                    </span>
+                    <span className="glass-pill inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/55 shrink-0">
+                      <span
+                        aria-hidden="true"
+                        className="inline-block h-[6px] w-[6px] rounded-full"
+                        style={{ background: AI_ACCENT, opacity: WARMTH_META[lead.warmth].tint }}
+                      />
+                      {WARMTH_META[lead.warmth].label}
+                    </span>
+                  </div>
+                  <div className="text-[12.5px] text-foreground/55 truncate">
+                    {lead.title} at {lead.company}
+                  </div>
+                  <div className="mt-1.5 flex items-start gap-1.5">
+                    <Sparkles
+                      size={12}
+                      strokeWidth={2}
+                      style={{ color: AI_ACCENT }}
+                      className="shrink-0 mt-[2px]"
+                    />
+                    <span className="text-[12px] text-foreground/60 leading-snug">
+                      {lead.insight}
+                    </span>
+                  </div>
+                </div>
+                <span className="shrink-0 text-[12px] font-semibold tabular-nums text-foreground/70">
+                  {lead.matchScore}%
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </ResponsiveSheet>
+  );
+}
+
 // ── The whole Audience section, in agreed order ─────────────────────
+// Threshold + view-leads live here so the pool health line, the slider, and
+// the preview all read from one source of truth (local state).
 function AudienceSection({ campaign }: { campaign: Campaign }) {
   const audience = campaign.audience;
+  const [threshold, setThreshold] = useState(audience?.matchThreshold ?? 70);
+  const [leadsOpen, setLeadsOpen] = useState(false);
   if (!audience) return null;
+  const leads = audience.sampleLeads ?? [];
   return (
     <div className="flex flex-col gap-6 md:gap-7">
-      <AudiencePoolCard audience={audience} />
+      <AudiencePoolCard
+        audience={audience}
+        threshold={threshold}
+        onViewLeads={() => setLeadsOpen(true)}
+      />
+      <AudienceEnrichmentCard />
       <AudienceSourcesCard audience={audience} />
       <AudienceIcpCard audience={audience} />
-      <AudienceThresholdCard audience={audience} />
+      <AudienceThresholdCard audience={audience} value={threshold} onChange={setThreshold} />
       <AudienceSuppressCard audience={audience} />
       <AudienceSmarterHint />
+      <ViewLeadsSheet open={leadsOpen} onClose={() => setLeadsOpen(false)} leads={leads} />
     </div>
   );
 }
 
-
 // ════════════════════════════════════════════════════════════════════
-// Dispatcher — keep universal hooks at the top (rules-of-hooks safe),
+// Dispatcher - keep universal hooks at the top (rules-of-hooks safe),
 // then delegate to the create view or the detail view, or an empty state.
 export default function CampaignDetail() {
   const params = useParams<{ id?: string }>();
@@ -581,7 +1068,7 @@ export default function CampaignDetail() {
 
   if (!id) {
     // Bare /campaigns in the right pane (desktop). The list/overview owns the
-    // screen; this is the calm placeholder behind it — given the SAME polished
+    // screen; this is the calm placeholder behind it - given the SAME polished
     // treatment as the inbox EmptyDetail (Replaiy mark + h2 + one helper line)
     // so Campaigns and Inbox feel identical. Same classNames / typography.
     return (
@@ -605,7 +1092,7 @@ export default function CampaignDetail() {
   return <CampaignDetailView campaign={campaign} key={campaign.id} />;
 }
 
-// ── Missing campaign — graceful, with a way back ────────────────────
+// ── Missing campaign - graceful, with a way back ────────────────────
 function CampaignMissing() {
   const [, navigate] = useLocation();
   useMobileTopChromeSlot(
@@ -632,7 +1119,7 @@ function CampaignMissing() {
   );
 }
 
-// ── Overflow (... ) menu — glass-strong dropdown, Rename + Delete ───
+// ── Overflow (... ) menu - glass-strong dropdown, Rename + Delete ───
 // The switch (active/paused) owns enable/disable; this menu only renames or
 // removes. Archive was redundant alongside Paused, so it's gone entirely.
 function OverflowMenu({
@@ -723,7 +1210,7 @@ function OverflowMenu({
   );
 }
 
-// ── Inline goal picker — reused by the create view AND the editable
+// ── Inline goal picker - reused by the create view AND the editable
 //    goal card in the detail. Same treatment in both places. ─────────
 function GoalPicker({
   goalType,
@@ -738,7 +1225,7 @@ function GoalPicker({
 }) {
   // One glass cluster of rows (inbox / Settings language): hairline
   // dividers, NO per-row boxed icon, NO coloured border. Selection is a
-  // subtle neutral fill + a small muted check — calm, not a loud frame.
+  // subtle neutral fill + a small muted check - calm, not a loud frame.
   return (
     <div className="rp-card rounded-3xl overflow-hidden">
       {GOAL_ORDER.map((g, i) => {
@@ -774,7 +1261,7 @@ function GoalPicker({
                     {meta.hint}
                   </div>
                 </div>
-                {/* Quiet selection mark — small muted check, no filled circle. */}
+                {/* Quiet selection mark - small muted check, no filled circle. */}
                 {selected && (
                   <Check
                     size={17}
@@ -803,7 +1290,251 @@ function GoalPicker({
   );
 }
 
-// ── Goal card — what Replaiy steers toward, now editable in place ───
+// Language section: auto-match (default) or a fixed language.
+// Two quiet rows in one card: "Match each lead's language automatically"
+// (default) and "Use a fixed language" with a glass language picker. When
+// fixed, a helper notes it runs only on seats who speak that language.
+function LanguageSection({ campaign }: { campaign: Campaign }) {
+  const [mode, setMode] = useState<'auto' | 'fixed'>(campaign.language?.mode ?? 'auto');
+  const [fixed, setFixed] = useState<LanguageCode>(campaign.language?.fixed ?? 'en');
+
+  const ROWS: { value: 'auto' | 'fixed'; label: string; hint: string }[] = [
+    {
+      value: 'auto',
+      label: "Match each lead's language automatically",
+      hint: 'Replies follow whatever language the lead writes in.',
+    },
+    {
+      value: 'fixed',
+      label: 'Use a fixed language',
+      hint: 'Every conversation in this campaign runs in one language.',
+    },
+  ];
+
+  return (
+    <section>
+      <AudienceHeader
+        label="Language"
+        sub="What language this campaign reaches out in."
+      />
+      <div className="rp-card rounded-3xl overflow-hidden" data-testid="campaign-language">
+        {ROWS.map((row, i) => {
+          const selected = mode === row.value;
+          return (
+            <div key={row.value}>
+              {i > 0 && (
+                <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+              )}
+              <button
+                type="button"
+                data-testid={`language-option-${row.value}`}
+                onClick={() => setMode(row.value)}
+                aria-pressed={selected}
+                className={`w-full text-left px-4 py-3.5 hover-elevate active-elevate-2 ${
+                  selected ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <LanguagesIcon
+                    size={16}
+                    strokeWidth={1.9}
+                    className={`shrink-0 ${selected ? 'text-foreground/70' : 'text-foreground/40'}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
+                      {row.label}
+                    </div>
+                    <div className="text-[12.5px] text-muted-foreground leading-snug mt-0.5">
+                      {row.hint}
+                    </div>
+                  </div>
+                  {selected && (
+                    <Check size={17} strokeWidth={2.4} className="shrink-0 text-foreground/70" />
+                  )}
+                </div>
+              </button>
+              {row.value === 'fixed' && selected && (
+                <div className="px-4 pb-4 pl-[52px] flex flex-col gap-2.5" onClick={(e) => e.stopPropagation()}>
+                  <CampaignLanguagePicker value={fixed} onChange={setFixed} />
+                  <p className="text-[12px] text-foreground/50 leading-snug">
+                    Runs only on seats who speak {LANGUAGE_LABELS[fixed]}, from
+                    the languages each teammate lists in their persona.
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// A searchable glass language picker, built on the shared GlassPopover, in the
+// exact pattern of the Persona FallbackPicker (single-select, w-60, search).
+function CampaignLanguagePicker({
+  value,
+  onChange,
+}: {
+  value: LanguageCode;
+  onChange: (code: LanguageCode) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const codes = Object.keys(LANGUAGE_LABELS) as LanguageCode[];
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? codes.filter((code) => LANGUAGE_LABELS[code].toLowerCase().includes(q))
+    : codes;
+
+  return (
+    <GlassPopover
+      anchor="bottom"
+      align="left"
+      width="w-60"
+      testId="campaign-language-menu"
+      onOpenChange={(next) => {
+        if (next) requestAnimationFrame(() => inputRef.current?.focus());
+        else setQuery('');
+      }}
+      trigger={({ open, toggle }) => (
+        <button
+          type="button"
+          data-testid="campaign-language-trigger"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={toggle}
+          className="glass-pill inline-flex items-center gap-1.5 h-9 pl-3.5 pr-3 rounded-full text-[13px] font-medium text-foreground/80 hover-elevate active-elevate-2 self-start"
+        >
+          {LANGUAGE_LABELS[value]}
+          <motion.span animate={{ rotate: open ? 180 : 0 }} transition={APPLE_SPRING} className="inline-flex">
+            <ChevronDown size={14} strokeWidth={2} className="text-icon-muted" />
+          </motion.span>
+        </button>
+      )}
+    >
+      {({ close }) => (
+        <>
+          <div className="flex items-center gap-2 h-9 px-2.5 mb-1">
+            <Globe size={15} strokeWidth={1.8} className="shrink-0 text-foreground/75" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search language"
+              data-testid="campaign-language-search"
+              className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[13px] text-foreground placeholder:text-foreground/40"
+            />
+          </div>
+          <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] mx-1 mb-1" />
+          <div className="max-h-64 overflow-y-auto no-scrollbar" role="listbox">
+            {filtered.length === 0 ? (
+              <div className="px-2.5 py-3 text-[12.5px] text-foreground/45">No languages found</div>
+            ) : (
+              filtered.map((code) => {
+                const selected = code === value;
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    data-testid={`campaign-language-${code}`}
+                    onClick={() => {
+                      onChange(code);
+                      close();
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 h-9 px-2.5 rounded-xl text-[13px] text-left transition-colors hover-elevate active-elevate-2 ${
+                      selected ? 'font-semibold text-foreground' : 'text-foreground/70'
+                    }`}
+                  >
+                    {LANGUAGE_LABELS[code]}
+                    {selected && <Check size={14} strokeWidth={2.6} style={{ color: AI_ACCENT }} />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+    </GlassPopover>
+  );
+}
+
+// Send timing section: automated actions only.
+// A master toggle "Send at sensible local hours". When on, a representational
+// work window + a note that it uses the lead's local time with a fallback.
+// A clear line that it applies to automated actions only.
+function TimingSection({ campaign }: { campaign: Campaign }) {
+  const [enabled, setEnabled] = useState(campaign.timing?.enabled ?? true);
+  const windowLabel = campaign.timing?.window ?? 'Weekdays, 8:00 to 18:00';
+
+  return (
+    <section>
+      <AudienceHeader label="Send timing" sub="When automated actions go out." />
+      <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="campaign-timing">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 shrink-0 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center">
+            <Clock size={16} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
+              Send at sensible local hours
+            </div>
+            <div className="text-[12.5px] text-foreground/50 leading-snug">
+              Hold automated actions until a natural time of day.
+            </div>
+          </div>
+          <GlassToggle
+            on={enabled}
+            onChange={setEnabled}
+            testId="timing-toggle"
+            ariaLabel={`${enabled ? 'Disable' : 'Enable'} send timing`}
+          />
+        </div>
+
+        <AnimatePresence initial={false}>
+          {enabled && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="overflow-hidden"
+            >
+              <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[12px] font-semibold text-foreground/65">Work window</span>
+                <span
+                  data-testid="timing-window"
+                  className="glass-pill inline-flex items-center gap-1.5 h-[28px] px-3 rounded-full text-[12.5px] font-medium text-foreground/80"
+                >
+                  <Clock size={12} strokeWidth={2} className="text-foreground/45" />
+                  {windowLabel}
+                </span>
+              </div>
+              <p className="mt-3 text-[12.5px] text-foreground/50 leading-snug">
+                Uses each lead's local time where known, with a fallback to your
+                timezone.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="mt-4 flex items-start gap-1.5">
+          <ShieldCheck size={13} strokeWidth={1.9} className="shrink-0 mt-[2px] text-foreground/35" />
+          <p className="text-[11.5px] text-foreground/45 leading-snug">
+            Applies to automated actions only. Manual approvals send when you
+            approve them.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── Goal card - what Replaiy steers toward, now editable in place ───
 // View mode shows the goal + hint with an Edit affordance. Editing reveals
 // the same goal picker the create view uses, and persists via updateCampaign.
 function GoalCard({ campaign }: { campaign: Campaign }) {
@@ -843,20 +1574,23 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
 
   return (
     <section>
-      <div className="px-2 mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Goal</span>
-        {!editing && (
-          <button
-            type="button"
-            data-testid="button-edit-goal"
-            onClick={beginEdit}
-            className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
-          >
-            <Pencil size={12} strokeWidth={2} className="text-foreground/55" />
-            Edit
-          </button>
-        )}
-      </div>
+      <AudienceHeader
+        label="Goal"
+        sub="What the AI drives every conversation toward."
+        trailing={
+          !editing ? (
+            <button
+              type="button"
+              data-testid="button-edit-goal"
+              onClick={beginEdit}
+              className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+            >
+              <Pencil size={12} strokeWidth={2} className="text-foreground/55" />
+              Edit
+            </button>
+          ) : undefined
+        }
+      />
 
       <AnimatePresence mode="wait" initial={false}>
         {editing ? (
@@ -874,7 +1608,7 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
               onPick={setGoalType}
               onCustomLabel={setCustomLabel}
             />
-            {/* Editable goal description — same field shown on the row. */}
+            {/* Editable goal description - same field shown on the row. */}
             <div className="rp-card rounded-3xl px-4 py-3">
               <input
                 data-testid="input-edit-goal-description"
@@ -915,7 +1649,7 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
           >
             <div className="flex items-start gap-3">
               <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-                {/* Goal icon — small, neutral. A single accent micro-detail. */}
+                {/* Goal icon - small, neutral. A single accent micro-detail. */}
                 <Target size={16} strokeWidth={1.9} style={{ color: 'var(--ai-accent)' }} />
               </div>
               <div className="min-w-0">
@@ -936,7 +1670,7 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
 
 // ── Funnel ──────────────────────────────────────────────────────────
 // A single FLOWING funnel shape that narrows left-to-right (emulating the
-// clean dashboard reference — NOT rainbow bars). Each stage: name + count
+// clean dashboard reference - NOT rainbow bars). Each stage: name + count
 // on top, drop-off % shown BETWEEN consecutive stages, and one monochrome
 // fill that subtly DEEPENS toward the goal. Rendered as a layered SVG so
 // the band stays crisp at any width. Responsive: horizontally scrolls on
@@ -959,7 +1693,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
   const reply = replyRatePct(campaign);
   const fmt = (n: number) => n.toLocaleString('en-US');
 
-  // Unique gradient id per instance — the detail renders a desktop AND a
+  // Unique gradient id per instance - the detail renders a desktop AND a
   // mobile copy of this card; a shared id would let the mobile path point at
   // the desktop gradient, which lives in a display:none subtree and never
   // paints. useId keeps each band filled on its own screen.
@@ -971,7 +1705,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
   // floor so later (small) stages never collapse into an empty strip.
   const N = stages.length;
   const W = 720;
-  const H = 96; // shorter, denser band — no tall empty box on mobile
+  const H = 96; // shorter, denser band - no tall empty box on mobile
   const padX = 6;
   const midY = H / 2;
   const maxHalf = H / 2 - 6;
@@ -1021,28 +1755,31 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
 
   return (
     <section>
-      <div className="px-2 mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Funnel</span>
-        <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
-          <span>
-            <span className="font-semibold text-foreground tabular-nums">{reply}%</span>{' '}
-            reply
-          </span>
-          <span className="h-3 w-px bg-foreground/15" aria-hidden="true" />
-          <span>
-            <span className="font-semibold text-foreground tabular-nums">{conv}%</span>{' '}
-            conversion
-          </span>
-        </div>
-      </div>
+      <AudienceHeader
+        label="Funnel"
+        sub="How leads move toward your goal."
+        trailing={
+          <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
+            <span>
+              <span className="font-semibold text-foreground tabular-nums">{reply}%</span>{' '}
+              reply
+            </span>
+            <span className="h-3 w-px bg-foreground/15" aria-hidden="true" />
+            <span>
+              <span className="font-semibold text-foreground tabular-nums">{conv}%</span>{' '}
+              conversion
+            </span>
+          </div>
+        }
+      />
 
       <div className="rp-card rounded-3xl px-3 py-4 lg:px-4 lg:py-5">
-        {/* Funnel fits the card width on every screen — no horizontal scroll.
+        {/* Funnel fits the card width on every screen - no horizontal scroll.
             Stage typography scales down on mobile so all stages read at once,
             exactly like the reference dashboard. */}
         <div>
           <div>
-            {/* Stage headers — name + count, aligned to each column. */}
+            {/* Stage headers - name + count, aligned to each column. */}
             <div
               className="grid"
               style={{ gridTemplateColumns: `repeat(${N}, minmax(0, 1fr))` }}
@@ -1075,7 +1812,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
               >
                 <defs>
                   {/* ONE hue: a soft accent tint that deepens left→right.
-                      Built from --ai-accent at rising alpha — calm, not loud. */}
+                      Built from --ai-accent at rising alpha - calm, not loud. */}
                   <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor="#2F6BFF" stopOpacity="0.14" />
                     <stop offset="45%" stopColor="#2F6BFF" stopOpacity="0.30" />
@@ -1083,7 +1820,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
                     <stop offset="100%" stopColor="#2F6BFF" stopOpacity="0.78" />
                   </linearGradient>
                 </defs>
-                {/* Column separators — faint, so eyes can map count→band. */}
+                {/* Column separators - faint, so eyes can map count→band. */}
                 {stages.map((_, i) =>
                   i === 0 ? null : (
                     <line
@@ -1131,21 +1868,23 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
   );
 }
 
-// ── Flow card — READ-ONLY action sequence Replaiy runs per lead ─────
+// ── Flow card - READ-ONLY action sequence Replaiy runs per lead ─────
 // A clean vertical sequence: icon + label + hint, with the delay on the
-// right. A connector line ties the steps together. Clearly read-only —
+// right. A connector line ties the steps together. Clearly read-only -
 // an "Editing soon" hint, no drag-and-drop.
 function FlowCard({ campaign }: { campaign: Campaign }) {
   const flow = campaign.flow ?? DEFAULT_FLOW;
   return (
     <section>
-      <div className="px-2 mb-1.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Flow</span>
-          <span className="text-[12px] text-muted-foreground">{flow.length} steps</span>
-        </div>
-        <span className="text-[11.5px] text-muted-foreground">Editing soon</span>
-      </div>
+      <AudienceHeader
+        label="Flow"
+        sub="The steps Replaiy runs for each lead."
+        trailing={
+          <span className="glass-pill pill inline-flex items-center h-[22px] px-2.5 text-[11px] font-medium text-foreground/55 whitespace-nowrap">
+            {flow.length} steps
+          </span>
+        }
+      />
       <div className="rp-card rounded-3xl px-4 py-3 lg:px-5 lg:py-3.5">
         <div className="flex flex-col">
           {flow.map((step, i) => {
@@ -1194,7 +1933,7 @@ function FlowCard({ campaign }: { campaign: Campaign }) {
   );
 }
 
-// ── Team card — which workspace seats run this campaign ─────────────
+// ── Team card - which workspace seats run this campaign ─────────────
 // Shows assigned members as avatar + name/role rows. A small "+ Add"
 // opens an inline glass list of all workspace members to toggle on/off.
 // Persists via updateCampaign(id, { memberIds }).
@@ -1215,28 +1954,26 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
 
   return (
     <section>
-      <div className="px-2 mb-1.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Running from</span>
-          <span className="text-[12px] text-muted-foreground">
-            {assigned.length} {assigned.length === 1 ? 'seat' : 'seats'}
-          </span>
-        </div>
-        <button
-          type="button"
-          data-testid="button-toggle-member-picker"
-          onClick={() => setPicking((v) => !v)}
-          aria-expanded={picking}
-          className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
-        >
-          {picking ? (
-            <X size={12} strokeWidth={2.2} className="text-foreground/55" />
-          ) : (
-            <Plus size={12} strokeWidth={2.2} className="text-foreground/55" />
-          )}
-          {picking ? 'Done' : 'Add'}
-        </button>
-      </div>
+      <AudienceHeader
+        label="Running from"
+        sub="The teammates whose agents run this campaign."
+        trailing={
+          <button
+            type="button"
+            data-testid="button-toggle-member-picker"
+            onClick={() => setPicking((v) => !v)}
+            aria-expanded={picking}
+            className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
+          >
+            {picking ? (
+              <X size={12} strokeWidth={2.2} className="text-foreground/55" />
+            ) : (
+              <Plus size={12} strokeWidth={2.2} className="text-foreground/55" />
+            )}
+            {picking ? 'Done' : 'Add'}
+          </button>
+        }
+      />
 
       <div className="rp-card rounded-3xl px-2 py-1.5">
         {assigned.length === 0 && !picking ? (
@@ -1266,6 +2003,15 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
                     </div>
                     <div className="text-[12px] text-muted-foreground truncate">{m.role}</div>
                   </div>
+                  {m.personaName && (
+                    <span
+                      data-testid={`member-persona-${m.id}`}
+                      className="shrink-0 glass-pill pill inline-flex items-center gap-1.5 h-[24px] px-2.5 text-[11.5px] font-medium text-foreground/65 whitespace-nowrap"
+                    >
+                      <Sparkles size={11} strokeWidth={1.9} style={{ color: 'var(--ai-accent)' }} />
+                      {m.personaName}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -1273,7 +2019,7 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
         )}
       </div>
 
-      {/* Inline picker — all workspace members, toggleable. */}
+      {/* Inline picker - all workspace members, toggleable. */}
       <AnimatePresence initial={false}>
         {picking && (
           <motion.div
@@ -1308,7 +2054,7 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
                           </div>
                           <div className="text-[12px] text-muted-foreground truncate">{m.role}</div>
                         </div>
-                        {/* Quiet selection mark — small muted check, no filled circle. */}
+                        {/* Quiet selection mark - small muted check, no filled circle. */}
                         {on && (
                           <Check size={16} strokeWidth={2.4} className="shrink-0 text-foreground/70" />
                         )}
@@ -1363,7 +2109,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
     setEditingName(false);
   };
 
-  // Mobile chrome — back arrow (left) + campaign name (center) + overflow.
+  // Mobile chrome - back arrow (left) + campaign name (center) + overflow.
   useMobileTopChromeSlot(
     useMemo(
       () => ({
@@ -1462,17 +2208,19 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      className="max-w-2xl mx-auto w-full flex flex-col gap-5"
+      className="max-w-2xl mx-auto w-full flex flex-col gap-6 md:gap-7"
     >
       {/* Name lives ONLY in the top chrome (mobile) / floating header
-          (desktop) — never duplicated in the body, exactly like the inbox
-          conversation. Rename on mobile is reached via the ··· menu. */}
-      {/* Audience — who this campaign reaches. The big one; sits at the TOP.
-          (Round 1: the Funnel/Goal/Flow/Running-from blocks below are left
-          as-is and restyled next round.) */}
+          (desktop), never duplicated in the body, exactly like the inbox
+          conversation. Rename on mobile is reached via the overflow menu. */}
+      {/* Order: Audience (the heart) and its enrichment, then how it reaches
+          out (Language, Send timing), then what it drives toward (Goal,
+          Funnel, Flow), then who it runs from (seats and their personas). */}
       <AudienceSection campaign={campaign} />
-      <FunnelCard campaign={campaign} />
+      <LanguageSection campaign={campaign} />
+      <TimingSection campaign={campaign} />
       <GoalCard campaign={campaign} />
+      <FunnelCard campaign={campaign} />
       <FlowCard campaign={campaign} />
       <TeamCard campaign={campaign} />
     </motion.div>
@@ -1480,7 +2228,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
 
   return (
     <div className="flex flex-col h-full min-h-0 relative">
-      {/* DESKTOP floating top pill row — editable name (left) + switch +
+      {/* DESKTOP floating top pill row - editable name (left) + switch +
           overflow (right), on the same top:12 baseline as ConversationDetail. */}
       <div
         data-testid="campaign-desktop-header"
@@ -1502,7 +2250,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
         </div>
       </div>
 
-      {/* DESKTOP scroll container — pt 76 clears the floating header. */}
+      {/* DESKTOP scroll container - pt 76 clears the floating header. */}
       <div
         data-testid="campaign-detail-scroll"
         className="hidden lg:flex flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar pb-10"
@@ -1511,7 +2259,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
         <div className="flex-1 px-4 lg:px-6">{body}</div>
       </div>
 
-      {/* MOBILE scroll container — content sits under the floating chrome. */}
+      {/* MOBILE scroll container - content sits under the floating chrome. */}
       <div
         className="flex lg:hidden flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 pb-32"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
@@ -1523,7 +2271,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// Create view — goal picker is the centrepiece.
+// Create view - goal picker is the centrepiece.
 function CampaignCreate() {
   const [, navigate] = useLocation();
   const { addCampaign } = useReplaiy();
@@ -1555,7 +2303,7 @@ function CampaignCreate() {
     navigate(`/campaigns/${id}`);
   };
 
-  // Mobile chrome — back arrow → /campaigns.
+  // Mobile chrome - back arrow → /campaigns.
   useMobileTopChromeSlot(
     useMemo(
       () => ({
@@ -1614,7 +2362,7 @@ function CampaignCreate() {
         </div>
       </section>
 
-      {/* Goal picker — the centrepiece (shared component). */}
+      {/* Goal picker - the centrepiece (shared component). */}
       <section>
         <div className="px-2 mb-1.5">
           <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Goal</span>
@@ -1627,7 +2375,7 @@ function CampaignCreate() {
         />
       </section>
 
-      {/* Goal description — short, human line shown as the row subtitle. */}
+      {/* Goal description - short, human line shown as the row subtitle. */}
       <section>
         <div className="px-2 mb-1.5 flex items-baseline justify-between gap-2">
           <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Description</span>
