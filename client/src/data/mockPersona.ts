@@ -24,7 +24,16 @@ export type ToneLength = 'short' | 'medium' | 'long';
 // otherwise it uses `fallbackLanguage`.
 export type LanguageCode =
   | 'en' | 'nl' | 'de' | 'fr' | 'es' | 'it' | 'pt' | 'sv' | 'da' | 'no'
-  | 'pl' | 'tr' | 'ar' | 'zh' | 'ja';
+  | 'pl' | 'tr' | 'ar' | 'zh' | 'ja'
+  // Extended world-languages set (most widely spoken + business languages),
+  // so the picker covers effectively any lead's language.
+  | 'fi' | 'is' | 'ga' | 'cs' | 'sk' | 'hu' | 'ro' | 'bg' | 'el' | 'uk'
+  | 'ru' | 'be' | 'lt' | 'lv' | 'et' | 'sl' | 'hr' | 'sr' | 'bs' | 'mk'
+  | 'sq' | 'mt' | 'ca' | 'eu' | 'gl' | 'af' | 'sw' | 'am' | 'ha' | 'yo'
+  | 'ig' | 'zu' | 'xh' | 'so' | 'he' | 'fa' | 'ur' | 'hi' | 'bn' | 'pa'
+  | 'gu' | 'mr' | 'ta' | 'te' | 'kn' | 'ml' | 'si' | 'ne' | 'th' | 'lo'
+  | 'km' | 'my' | 'vi' | 'id' | 'ms' | 'tl' | 'jv' | 'ko' | 'mn' | 'ka'
+  | 'hy' | 'az' | 'kk' | 'uz' | 'ky' | 'tg' | 'tk' | 'ps';
 
 export interface ToneProfile {
   /** Which languages the USER can actually hold a live conversation in. */
@@ -44,11 +53,25 @@ export interface ToneProfile {
   donts: string[];
 }
 
-// Human labels for the language picker.
+// Human labels for the language picker (English exonyms).
 export const LANGUAGE_LABELS: Record<LanguageCode, string> = {
   en: 'English', nl: 'Dutch', de: 'German', fr: 'French', es: 'Spanish',
   it: 'Italian', pt: 'Portuguese', sv: 'Swedish', da: 'Danish', no: 'Norwegian',
   pl: 'Polish', tr: 'Turkish', ar: 'Arabic', zh: 'Chinese', ja: 'Japanese',
+  fi: 'Finnish', is: 'Icelandic', ga: 'Irish', cs: 'Czech', sk: 'Slovak',
+  hu: 'Hungarian', ro: 'Romanian', bg: 'Bulgarian', el: 'Greek', uk: 'Ukrainian',
+  ru: 'Russian', be: 'Belarusian', lt: 'Lithuanian', lv: 'Latvian', et: 'Estonian',
+  sl: 'Slovenian', hr: 'Croatian', sr: 'Serbian', bs: 'Bosnian', mk: 'Macedonian',
+  sq: 'Albanian', mt: 'Maltese', ca: 'Catalan', eu: 'Basque', gl: 'Galician',
+  af: 'Afrikaans', sw: 'Swahili', am: 'Amharic', ha: 'Hausa', yo: 'Yoruba',
+  ig: 'Igbo', zu: 'Zulu', xh: 'Xhosa', so: 'Somali', he: 'Hebrew',
+  fa: 'Persian', ur: 'Urdu', hi: 'Hindi', bn: 'Bengali', pa: 'Punjabi',
+  gu: 'Gujarati', mr: 'Marathi', ta: 'Tamil', te: 'Telugu', kn: 'Kannada',
+  ml: 'Malayalam', si: 'Sinhala', ne: 'Nepali', th: 'Thai', lo: 'Lao',
+  km: 'Khmer', my: 'Burmese', vi: 'Vietnamese', id: 'Indonesian', ms: 'Malay',
+  tl: 'Filipino', jv: 'Javanese', ko: 'Korean', mn: 'Mongolian', ka: 'Georgian',
+  hy: 'Armenian', az: 'Azerbaijani', kk: 'Kazakh', uz: 'Uzbek', ky: 'Kyrgyz',
+  tg: 'Tajik', tk: 'Turkmen', ps: 'Pashto',
 };
 
 export type StrategyStance = 'push' | 'balanced' | 'patient';

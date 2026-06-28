@@ -59,6 +59,7 @@ export function GlassPopover({
   trigger,
   children,
   anchor = 'bottom',
+  align = 'left',
   width = 'w-60',
   surfaceClassName = '',
   testId,
@@ -67,6 +68,8 @@ export function GlassPopover({
   trigger: (props: GlassPopoverRenderProps) => ReactNode;
   children: ReactNode | ((props: GlassPopoverRenderProps) => ReactNode);
   anchor?: 'top' | 'bottom';
+  /** Horizontal edge to align the floating surface to the trigger. */
+  align?: 'left' | 'right';
   width?: string;
   surfaceClassName?: string;
   testId?: string;
@@ -116,10 +119,11 @@ export function GlassPopover({
     close: () => setOpenState(false),
   };
 
-  // Position + motion direction follow the anchor.
-  const positionClasses =
-    anchor === 'top' ? 'bottom-full mb-1.5 left-0' : 'mt-1.5 left-0';
-  const transformOrigin = anchor === 'top' ? 'bottom left' : 'top left';
+  // Position + motion direction follow the anchor; horizontal edge follows align.
+  const vClass = anchor === 'top' ? 'bottom-full mb-1.5' : 'mt-1.5';
+  const hClass = align === 'right' ? 'right-0' : 'left-0';
+  const positionClasses = `${vClass} ${hClass}`;
+  const transformOrigin = `${anchor === 'top' ? 'bottom' : 'top'} ${align}`;
   const y = anchor === 'top' ? 6 : -6;
 
   return (
@@ -135,19 +139,17 @@ export function GlassPopover({
             className={`absolute z-30 ${positionClasses} ${width}`}
             style={{ transformOrigin }}
           >
-            {/* Local dim-scrim: a FEATHERED radial gradient that sits just
-                behind the sheet and fades to fully transparent before the
-                edges, so it softens the busy content directly behind the
-                popover WITHOUT leaving a hard grey rectangular halo. Center
-                alpha is very low in light mode (where any rim is obvious) and
-                stronger in dark. Not a full-screen modal dimmer. */}
+            {/* Local dim-scrim: sits EXACTLY behind the sheet (same size +
+                radius, inset-0) so it never sticks out as a larger blurred
+                rectangle behind the rounded popover. It softens the busy
+                content directly behind the sheet without any halo. Stronger in
+                dark, very subtle in light. Not a full-screen modal dimmer. */}
             <div
               aria-hidden="true"
-              className="absolute -inset-4 -z-10 backdrop-blur-[2px] pointer-events-none"
+              className="absolute inset-0 -z-10 backdrop-blur-[3px] pointer-events-none"
               style={{
-                background: dark
-                  ? 'radial-gradient(120% 120% at 50% 50%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.30) 45%, rgba(0,0,0,0) 78%)'
-                  : 'radial-gradient(120% 120% at 50% 50%, rgba(0,0,0,0.07) 0%, rgba(0,0,0,0.04) 45%, rgba(0,0,0,0) 78%)',
+                borderRadius: 22,
+                background: dark ? 'rgba(0,0,0,0.34)' : 'rgba(0,0,0,0.05)',
               }}
             />
             {/* Frosted glass sheet (UniversalSearch recipe). */}

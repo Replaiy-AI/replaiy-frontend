@@ -49,11 +49,14 @@ import {
   Sparkles,
   ChevronDown,
   Search,
+  X,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import { ReplaiyLogo } from '@/components/Logo';
-import { PersonaExperience } from '@/components/PersonaExperience';
+import { PersonaExperience, CUSTOM_AGENT_GOLD } from '@/components/PersonaExperience';
 import { GlassPopover } from '@/components/GlassPopover';
+import { ResponsiveSheet } from '@/components/ResponsiveSheet';
+import mascotCustomGold from '@/assets/preset_custom_gold.png';
 import iconPersona from '@/assets/ai_icon_persona.png';
 import iconPersonal from '@/assets/ai_icon_personal.png';
 import iconWorkspace from '@/assets/ai_icon_workspace.png';
@@ -81,12 +84,18 @@ function GlassTextarea({
   placeholder,
   rows = 3,
   testId,
+  bare = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   rows?: number;
   testId?: string;
+  /** When true, the textarea has NO surface of its own (no background, border,
+   *  radius, inset shadow or padding): the surrounding rp-card IS the field, so
+   *  the user types straight into the card instead of into a framed block-in-
+   *  block. Only the text styling + auto-grow behaviour is kept. */
+  bare?: boolean;
 }) {
   // Auto-grow to fit content so answers never clip (rows is the min height).
   // On a narrow phone an answer can wrap to more lines than `rows` — without
@@ -134,8 +143,12 @@ function GlassTextarea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full resize-none rounded-2xl bg-foreground/[0.035] dark:bg-white/[0.04] px-3.5 py-2.5 text-[14px] leading-[1.5] text-foreground/90 placeholder:text-foreground/35 outline-none focus:bg-foreground/[0.06] dark:focus:bg-white/[0.06] transition-colors overflow-hidden"
-      style={{ boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.05)' }}
+      className={
+        bare
+          ? 'w-full resize-none bg-transparent p-0 text-[14px] leading-[1.5] text-foreground/90 placeholder:text-foreground/35 outline-none overflow-hidden'
+          : 'w-full resize-none rounded-2xl bg-foreground/[0.035] dark:bg-white/[0.04] px-3.5 py-2.5 text-[14px] leading-[1.5] text-foreground/90 placeholder:text-foreground/35 outline-none focus:bg-foreground/[0.06] dark:focus:bg-white/[0.06] transition-colors overflow-hidden'
+      }
+      style={bare ? undefined : { boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.05)' }}
     />
   );
 }
@@ -398,14 +411,32 @@ function FallbackPicker({
   value: LanguageCode;
   onChange: (code: LanguageCode) => void;
 }) {
+  // Searchable, identical pattern to MoreLanguagesPicker (query + autofocus on
+  // open, reset on close, w-60, divider under the search row, empty-state). The
+  // only difference is SINGLE-select: picking a language fires onChange and
+  // closes the popover (no toggling, no staying open).
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const codes = Object.keys(LANGUAGE_LABELS) as LanguageCode[];
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? codes.filter((code) => LANGUAGE_LABELS[code].toLowerCase().includes(q))
+    : codes;
 
   return (
     <GlassPopover
-      anchor="bottom"
-      width="w-44"
-      surfaceClassName="max-h-64 overflow-y-auto no-scrollbar"
+      anchor="top"
+      align="right"
+      width="w-60"
       testId="fallback-language-menu"
+      onOpenChange={(next) => {
+        if (next) {
+          requestAnimationFrame(() => inputRef.current?.focus());
+        } else {
+          setQuery('');
+        }
+      }}
       trigger={({ open, toggle }) => (
         <button
           type="button"
@@ -423,30 +454,51 @@ function FallbackPicker({
       )}
     >
       {({ close }) => (
-        <div role="listbox">
-          {codes.map((code) => {
-            const selected = code === value;
-            return (
-              <button
-                key={code}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                data-testid={`fallback-language-${code}`}
-                onClick={() => {
-                  onChange(code);
-                  close();
-                }}
-                className={`w-full flex items-center justify-between gap-2 h-9 px-2.5 rounded-xl text-[13px] text-left transition-colors hover-elevate active-elevate-2 ${
-                  selected ? 'font-semibold text-foreground' : 'text-foreground/70'
-                }`}
-              >
-                {LANGUAGE_LABELS[code]}
-                {selected && <Check size={14} strokeWidth={2.6} style={{ color: AI_ACCENT }} />}
-              </button>
-            );
-          })}
-        </div>
+        <>
+          <div className="flex items-center gap-2 h-9 px-2.5 mb-1">
+            <Search size={15} strokeWidth={1.8} className="shrink-0 text-foreground/75" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search language"
+              data-testid="fallback-language-search"
+              className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[13px] text-foreground placeholder:text-foreground/40"
+            />
+          </div>
+          <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] mx-1 mb-1" />
+          <div className="max-h-64 overflow-y-auto no-scrollbar" role="listbox">
+            {filtered.length === 0 ? (
+              <div className="px-2.5 py-3 text-[12.5px] text-foreground/45">
+                No languages found
+              </div>
+            ) : (
+              filtered.map((code) => {
+                const selected = code === value;
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    data-testid={`fallback-language-${code}`}
+                    onClick={() => {
+                      onChange(code);
+                      close();
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 h-9 px-2.5 rounded-xl text-[13px] text-left transition-colors hover-elevate active-elevate-2 ${
+                      selected ? 'font-semibold text-foreground' : 'text-foreground/70'
+                    }`}
+                  >
+                    {LANGUAGE_LABELS[code]}
+                    {selected && <Check size={14} strokeWidth={2.6} style={{ color: AI_ACCENT }} />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </>
       )}
     </GlassPopover>
   );
@@ -546,77 +598,189 @@ function MoreLanguagesPicker({
   );
 }
 
-// "Anything else?" is an optional, collapsed-by-default expandable row for
-// personal STYLE preferences. Steers users away from dumping facts here.
-function AnythingElse({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  // Open by default if there is already content, so existing notes are not hidden.
-  const [open, setOpen] = useState(value.trim().length > 0);
+// ════════════════════════════════════════════════════════════════
+// PERSONA detail — personality preset + fine-tune (languages, voice, more)
+// ════════════════════════════════════════════════════════════════
+// -- CUSTOM AGENT read-only teaser (Coming soon) --------------------
+// A peek at how a fully custom agent is configured. Everything is
+// non-interactive: gated behind a future paid plan. Gold accent (#C59011) is
+// used ONLY here and on the Custom agent card; blue stays the single UI accent
+// everywhere else.
+
+// The example configuration shown in the read-only panel. Local to this surface.
+const CUSTOM_AGENT_PREVIEW = {
+  formality: 'Neutral',
+  length: 'Short',
+  approach: 'Balanced (push when there is real intent)',
+  qualifying: 'Thorough',
+  closing: 'Direct',
+  dos: [
+    'Lead with a specific, genuine observation',
+    'Ask one sharp qualifying question',
+    "Mirror the lead's energy and language",
+  ],
+  donts: [
+    'No generic openers',
+    'No pitching before understanding fit',
+    'No pressure when intent is unclear',
+  ],
+  behavior:
+    'Act as a precise, founder-style operator. Open with a specific observation, qualify fast, and drive to the next step the moment intent is real. Stay warm and human, never templated. Adapt tone to the lead.',
+} as const;
+
+// One labelled read-only row: semibold label + optional muted sub-line, value
+// in a quiet rp-card row, clearly non-interactive (no focus ring, no input).
+function ReadOnlyRow({ label, sub, value }: { label: string; sub?: string; value: string }) {
   return (
-    <div className="rp-card rounded-3xl overflow-hidden" data-testid="tone-extra">
-      <button
-        type="button"
-        data-testid="tone-extra-toggle"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-5 lg:px-6 py-4 text-left hover-elevate active-elevate-2"
-      >
-        <Sparkles
-          size={18}
-          strokeWidth={1.9}
-          className="shrink-0"
-          style={{ color: AI_ACCENT }}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="text-[13.5px] font-semibold text-foreground leading-tight">
-            Anything else?
-          </div>
-          <div className="text-[11.5px] text-foreground/45 leading-tight mt-0.5">
-            Optional. A few personal style rules for how your AI writes.
-          </div>
-        </div>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={APPLE_SPRING} className="inline-flex shrink-0">
-          <ChevronDown size={16} strokeWidth={2} className="text-icon-muted" />
-        </motion.span>
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="body"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={APPLE_SPRING}
-            className="overflow-hidden"
-          >
-            <div className="px-5 lg:px-6 pb-5 pt-0">
-              <GlassTextarea
-                testId="tone-extra-notes"
-                value={value}
-                onChange={onChange}
-                placeholder="e.g. no em-dashes, keep it casual, never use exclamation marks"
-                rows={3}
-              />
-              <p className="text-[11.5px] leading-[1.5] text-foreground/45 mt-2 px-0.5">
-                Style only, like "no em-dashes" or "keep it casual". For facts about your
-                product or pricing, use Workspace knowledge.
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div>
+      <div className="text-[12.5px] font-semibold text-foreground">{label}</div>
+      {sub && <div className="text-[11.5px] leading-[1.4] text-foreground/45 mt-0.5">{sub}</div>}
+      <div className="rp-card rounded-2xl px-3.5 py-2.5 mt-1.5 text-[13px] leading-[1.45] text-foreground/75">
+        {value}
+      </div>
     </div>
   );
 }
 
-// ════════════════════════════════════════════════════════════════
-// PERSONA detail — personality preset + fine-tune (languages, voice, more)
-// ════════════════════════════════════════════════════════════════
+// A read-only list of short rules (do's / don'ts), rendered as quiet chips.
+function ReadOnlyList({ label, items }: { label: string; items: readonly string[] }) {
+  return (
+    <div>
+      <div className="text-[12.5px] font-semibold text-foreground">{label}</div>
+      <div className="flex flex-col gap-1.5 mt-1.5">
+        {items.map((item) => (
+          <div
+            key={item}
+            className="rp-card rounded-2xl px-3.5 py-2 text-[13px] leading-[1.4] text-foreground/75"
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// The read-only Custom agent panel, built on the shared ResponsiveSheet
+// (desktop right-panel / mobile bottom-sheet): inherits backdrop-click, Escape,
+// and APPLE_SPRING motion for free, identical to every other sheet.
+function CustomAgentPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <ResponsiveSheet
+      open={open}
+      onClose={onClose}
+      desktopWidth="lg"
+      mobileMaxHeight="88vh"
+      testId="custom-agent-panel"
+    >
+      {/* Header: gold mascot + title + Coming soon pill + close. */}
+      <div className="px-5 lg:px-6 pt-4 pb-3 flex items-start gap-3 shrink-0">
+        <div className="relative w-10 h-10 shrink-0 flex items-center justify-center">
+          <div
+            aria-hidden
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: `radial-gradient(circle at 50% 48%, ${CUSTOM_AGENT_GOLD}, transparent 68%)`,
+              filter: 'blur(8px)',
+              opacity: 0.3,
+            }}
+          />
+          <img
+            src={mascotCustomGold}
+            alt=""
+            aria-hidden
+            draggable={false}
+            className="relative w-9 h-9 object-contain select-none pointer-events-none"
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+              Custom agent
+            </span>
+            <span
+              className="glass-pill inline-flex items-center gap-1 h-[22px] px-2 rounded-full text-[11px] font-semibold"
+              style={{ color: CUSTOM_AGENT_GOLD }}
+            >
+              <Lock size={10} strokeWidth={2.6} />
+              Coming soon
+            </span>
+          </div>
+          <p className="text-[11.5px] leading-[1.45] text-foreground/45 mt-1">
+            A peek under the hood. This is how a fully custom agent is configured.
+            Available on a paid plan soon.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          data-testid="custom-agent-close"
+          className="h-8 w-8 shrink-0 rounded-full glass-pill flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+        >
+          <X size={16} strokeWidth={2} />
+        </button>
+      </div>
+
+      {/* Body: read-only example configuration. */}
+      <div className="flex-1 overflow-y-auto no-scrollbar px-5 lg:px-6 pb-4">
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <ReadOnlyRow label="Formality" value={CUSTOM_AGENT_PREVIEW.formality} />
+            <ReadOnlyRow label="Length" value={CUSTOM_AGENT_PREVIEW.length} />
+            <ReadOnlyRow label="Approach / stance" value={CUSTOM_AGENT_PREVIEW.approach} />
+            <ReadOnlyRow label="Qualifying depth" value={CUSTOM_AGENT_PREVIEW.qualifying} />
+          </div>
+          <ReadOnlyRow label="Closing style" value={CUSTOM_AGENT_PREVIEW.closing} />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <ReadOnlyList label="Do's" items={CUSTOM_AGENT_PREVIEW.dos} />
+            <ReadOnlyList label="Don'ts" items={CUSTOM_AGENT_PREVIEW.donts} />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[12.5px] font-semibold text-foreground">
+                Behavior (system prompt)
+              </span>
+              <Lock size={11} strokeWidth={2.4} className="text-foreground/40" />
+            </div>
+            <div className="text-[11.5px] leading-[1.4] text-foreground/45 mt-0.5">
+              The instruction the agent runs on. Read-only in this preview.
+            </div>
+            <div className="rp-card rounded-2xl px-3.5 py-3 mt-1.5 text-[13px] leading-[1.55] text-foreground/75">
+              {CUSTOM_AGENT_PREVIEW.behavior}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer CTA: gold primary button. Looks real and inviting; gated. */}
+      <div className="shrink-0 px-5 lg:px-6 pt-3 pb-5 border-t border-foreground/[0.07] dark:border-white/[0.07]">
+        <button
+          type="button"
+          data-testid="custom-agent-upgrade"
+          className="w-full h-11 rounded-full text-white text-[14px] font-semibold flex items-center justify-center gap-2 hover-elevate active-elevate-2"
+          style={{
+            background: CUSTOM_AGENT_GOLD,
+            boxShadow: `inset 0 1px 0 rgba(255,255,255,0.28), 0 6px 20px -6px ${CUSTOM_AGENT_GOLD}aa`,
+          }}
+        >
+          <Sparkles size={15} strokeWidth={2.2} />
+          Upgrade to customize
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full mt-2 h-9 rounded-full text-[13px] font-medium text-foreground/55 hover-elevate active-elevate-2"
+        >
+          Maybe later
+        </button>
+      </div>
+    </ResponsiveSheet>
+  );
+}
+
 function PersonaDetail({
   persona,
   setPersona,
@@ -627,6 +791,9 @@ function PersonaDetail({
   onBack: () => void;
 }) {
   const tone = persona.tone;
+  // Read-only "Custom agent" teaser panel (Coming soon). Opened from the
+  // locked card in PersonaExperience.
+  const [customAgentOpen, setCustomAgentOpen] = useState(false);
   // Fine-tuning any control moves the persona off its preset into "custom"
   // (activePresetId = null), so the preset cards no longer show as selected.
   const patchTone = (p: Partial<typeof tone>) =>
@@ -660,20 +827,17 @@ function PersonaDetail({
     <ViewShell title="Persona" onBack={onBack}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
         {/* Living top: preset personalities + live mascot preview. */}
-        <PersonaExperience persona={persona} setPersona={setPersona} />
+        <PersonaExperience
+          persona={persona}
+          setPersona={setPersona}
+          onOpenCustomAgent={() => setCustomAgentOpen(true)}
+        />
 
         {/* Fine-tune — the small, deliberate set of things the user controls by
             hand. Everything else (length, formality, approach, ...) is set by
-            the chosen personality under the hood. */}
-        <div className="flex items-center gap-3 mt-8 mb-5 px-2">
-          <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground/80">
-            Fine-tune
-          </span>
-          <span className="text-[12px] text-foreground/45">Optional, a few personal touches</span>
-          <div className="flex-1 h-px bg-foreground/[0.08] dark:bg-white/[0.08]" />
-        </div>
-
-        <div className="flex flex-col gap-6 md:gap-7">
+            the chosen personality under the hood. No separate "Fine-tune"
+            divider header: each section below carries its own clear label. */}
+        <div className="flex flex-col gap-6 md:gap-7 mt-8">
           {/* ── Languages ─────────────────────────────────────────── */}
           <FineTuneSection
             label="Languages you speak"
@@ -721,10 +885,11 @@ function PersonaDetail({
           {/* ── Voice ─────────────────────────────────────────────── */}
           <FineTuneSection
             label="Voice"
-            sub="Optional. A line or two on how you sound, so messages read like you and not a template."
+            sub="A line or two on how you sound, so messages read like you and not a template."
           >
             <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-voice">
               <GlassTextarea
+                bare
                 testId="tone-voice"
                 value={tone.voice}
                 onChange={(voice) => patchTone({ voice })}
@@ -734,15 +899,29 @@ function PersonaDetail({
             </div>
           </FineTuneSection>
 
-          {/* ── Anything else? (optional, collapsed) ──────────────── */}
-          <AnythingElse
-            value={tone.extraNotes}
-            onChange={(extraNotes) => patchTone({ extraNotes })}
-          />
+          {/* ── Anything else? ────────────────────────────────────── */}
+          <FineTuneSection
+            label="Anything else?"
+            sub='A few personal style rules for how your AI writes, like "keep it casual" or "never use exclamation marks". For facts about your product or pricing, use Workspace knowledge.'
+          >
+            <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-extra">
+              <GlassTextarea
+                bare
+                testId="tone-extra-notes"
+                value={tone.extraNotes}
+                onChange={(extraNotes) => patchTone({ extraNotes })}
+                placeholder="e.g. no em-dashes, keep it casual, never use exclamation marks"
+                rows={3}
+              />
+            </div>
+          </FineTuneSection>
         </div>
 
         {/* Auto-save: changes are kept live; no explicit Save button. */}
       </motion.div>
+
+      {/* Read-only Custom agent teaser (Coming soon). */}
+      <CustomAgentPanel open={customAgentOpen} onClose={() => setCustomAgentOpen(false)} />
     </ViewShell>
   );
 }

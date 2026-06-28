@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────
 import { AnimatePresence, motion } from 'framer-motion';
 import { APPLE_SPRING } from '@/lib/motion';
-import { Check } from 'lucide-react';
+import { Check, Lock } from 'lucide-react';
 import {
   personaPresets,
   previewLead,
@@ -31,6 +31,7 @@ import mascotWarm from '@/assets/preset_warm.png';
 import mascotConsultative from '@/assets/preset_consultative.png';
 import mascotSharp from '@/assets/preset_sharp.png';
 import mascotDirect from '@/assets/preset_direct.png';
+import mascotCustomGold from '@/assets/preset_custom_gold.png';
 
 const MASCOT: Record<PersonaPreset['mascot'], string> = {
   patient: mascotPatient,
@@ -39,6 +40,11 @@ const MASCOT: Record<PersonaPreset['mascot'], string> = {
   sharp: mascotSharp,
   direct: mascotDirect,
 };
+
+// The gold accent for the (locked, coming-soon) Custom agent card and its
+// read-only detail panel. Used ONLY here; blue #2F6BFF stays the single UI
+// accent everywhere else.
+export const CUSTOM_AGENT_GOLD = '#C59011';
 
 // ── One preset card ───────────────────────────────────────────────
 function PresetCard({
@@ -138,6 +144,95 @@ function PresetCard({
   );
 }
 
+// ── Custom agent card (locked, coming soon) ───────────────────────
+// Mirrors PresetCard's shape/size/motion EXACTLY, but it is a teaser: it is
+// never selectable as a persona. A gold lock badge replaces the blue check,
+// the glow/ring are gold, and clicking it opens the read-only detail panel
+// instead of applying a preset.
+function CustomAgentCard({
+  index,
+  onOpen,
+}: {
+  index: number;
+  onOpen?: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      data-testid="preset-custom"
+      aria-haspopup="dialog"
+      onClick={onOpen}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...APPLE_SPRING, delay: 0.04 * index }}
+      whileHover="hover"
+      whileTap={{ scale: 0.97 }}
+      className="rp-card relative rounded-3xl p-4 flex flex-col items-center text-center shrink-0 w-[150px] hover-elevate active-elevate-2"
+    >
+      {/* A gold ring blooms gently on hover only — never a selected/active
+          state (this card is not pickable). */}
+      <motion.div
+        aria-hidden
+        className="absolute inset-0 rounded-3xl pointer-events-none"
+        initial={false}
+        animate={{ opacity: 0 }}
+        variants={{ hover: { opacity: 1 } }}
+        transition={APPLE_SPRING}
+        style={{ boxShadow: `inset 0 0 0 1.5px ${CUSTOM_AGENT_GOLD}55` }}
+      />
+
+      {/* Mascot — same idle breathing + hover lift as the live presets, with a
+          gold radial glow. Held at 0.9 opacity for a restrained, locked feel. */}
+      <motion.div
+        className="relative w-[88px] h-[88px] flex items-center justify-center"
+        variants={{ hover: { y: -6, rotate: -3, scale: 1.06 } }}
+        transition={APPLE_SPRING}
+      >
+        <motion.div
+          aria-hidden
+          className="absolute inset-0 rounded-full"
+          initial={false}
+          animate={{ opacity: 0.22 }}
+          variants={{ hover: { opacity: 0.6 } }}
+          transition={APPLE_SPRING}
+          style={{
+            background: `radial-gradient(circle at 50% 48%, ${CUSTOM_AGENT_GOLD}, transparent 68%)`,
+            filter: 'blur(11px)',
+          }}
+        />
+        <motion.img
+          src={mascotCustomGold}
+          alt=""
+          aria-hidden
+          draggable={false}
+          className="relative w-[84px] h-[84px] object-contain select-none pointer-events-none opacity-90"
+          animate={{ y: [0, -2, 0] }}
+          transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </motion.div>
+
+      <div className="mt-2 text-[14px] font-semibold tracking-[-0.01em] text-foreground leading-tight">
+        Custom agent
+      </div>
+      <div className="mt-1 text-[11.5px] leading-[1.4] text-foreground/55">
+        Build your own from scratch. Coming soon.
+      </div>
+
+      {/* Lock badge — sits where the preset check sits, in a subtle gold-tinted
+          circle. Signals locked/coming-soon, never selected. */}
+      <div
+        className="absolute top-3 right-3 h-5 w-5 rounded-full flex items-center justify-center"
+        style={{
+          background: `${CUSTOM_AGENT_GOLD}26`,
+          boxShadow: `inset 0 0 0 1px ${CUSTOM_AGENT_GOLD}55`,
+        }}
+      >
+        <Lock size={11} strokeWidth={2.5} style={{ color: CUSTOM_AGENT_GOLD }} />
+      </div>
+    </motion.button>
+  );
+}
+
 // ── Live preview bubble ───────────────────────────────────────────
 function LivePreview({
   preset,
@@ -221,9 +316,12 @@ function LivePreview({
 export function PersonaExperience({
   persona,
   setPersona,
+  onOpenCustomAgent,
 }: {
   persona: Persona;
   setPersona: React.Dispatch<React.SetStateAction<Persona>>;
+  /** Opens the read-only "under the hood" Custom agent teaser panel. */
+  onOpenCustomAgent?: () => void;
 }) {
   const activeId = persona.activePresetId;
   const activePreset = personaPresets.find((p) => p.id === activeId);
@@ -271,6 +369,8 @@ export function PersonaExperience({
               index={i}
             />
           ))}
+          {/* Custom agent teaser — always the last card in the row, locked. */}
+          <CustomAgentCard index={personaPresets.length} onOpen={onOpenCustomAgent} />
         </div>
       </section>
 
