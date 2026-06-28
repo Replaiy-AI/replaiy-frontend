@@ -145,22 +145,26 @@ function PresetCard({
 }
 
 // ── Custom agent card (locked, coming soon) ───────────────────────
-// Mirrors PresetCard's shape/size/motion EXACTLY, but it is a teaser: it is
-// never selectable as a persona. A gold lock badge replaces the blue check,
-// the glow/ring are gold, and clicking it opens the read-only detail panel
-// instead of applying a preset.
+// Mirrors PresetCard's shape/size/motion EXACTLY. It now participates in
+// selection like the live presets: clicking it selects the custom agent and
+// reveals the inline custom fine-tune section below. A gold lock badge sits
+// where the preset check sits, and the gold ring is the persistent SELECTED
+// ring when `active` (mirroring how PresetCard shows its accent ring, but in
+// gold). Selection is mutually exclusive with the normal presets.
 function CustomAgentCard({
   index,
   onOpen,
+  active = false,
 }: {
   index: number;
   onOpen?: () => void;
+  active?: boolean;
 }) {
   return (
     <motion.button
       type="button"
       data-testid="preset-custom"
-      aria-haspopup="dialog"
+      aria-pressed={active}
       onClick={onOpen}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
@@ -168,15 +172,21 @@ function CustomAgentCard({
       whileHover="hover"
       whileTap={{ scale: 0.97 }}
       className="rp-card relative rounded-3xl p-4 flex flex-col items-center text-center shrink-0 w-[150px] hover-elevate active-elevate-2"
+      style={{
+        // Selected = a persistent gold ring + soft gold lift, mirroring the
+        // preset cards' accent ring (but in gold).
+        boxShadow: active
+          ? `inset 0 0 0 1.5px ${CUSTOM_AGENT_GOLD}, 0 6px 22px -8px ${CUSTOM_AGENT_GOLD}66`
+          : undefined,
+      }}
     >
-      {/* A gold ring blooms gently on hover only — never a selected/active
-          state (this card is not pickable). */}
+      {/* A gold ring blooms gently on hover, and stays on when selected. */}
       <motion.div
         aria-hidden
         className="absolute inset-0 rounded-3xl pointer-events-none"
         initial={false}
-        animate={{ opacity: 0 }}
-        variants={{ hover: { opacity: 1 } }}
+        animate={{ opacity: active ? 0 : 0 }}
+        variants={{ hover: { opacity: active ? 0 : 1 } }}
         transition={APPLE_SPRING}
         style={{ boxShadow: `inset 0 0 0 1.5px ${CUSTOM_AGENT_GOLD}55` }}
       />
@@ -192,7 +202,7 @@ function CustomAgentCard({
           aria-hidden
           className="absolute inset-0 rounded-full"
           initial={false}
-          animate={{ opacity: 0.22 }}
+          animate={{ opacity: active ? 0.55 : 0.22 }}
           variants={{ hover: { opacity: 0.6 } }}
           transition={APPLE_SPRING}
           style={{
@@ -206,8 +216,8 @@ function CustomAgentCard({
           aria-hidden
           draggable={false}
           className="relative w-[84px] h-[84px] object-contain select-none pointer-events-none opacity-90"
-          animate={{ y: [0, -2, 0] }}
-          transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
+          animate={active ? { y: [0, -4, 0] } : { y: [0, -2, 0] }}
+          transition={{ duration: active ? 2.6 : 3.6, repeat: Infinity, ease: 'easeInOut' }}
         />
       </motion.div>
 
@@ -237,12 +247,15 @@ function CustomAgentCard({
 function LivePreview({
   preset,
   sample,
+  customActive = false,
 }: {
   preset: PersonaPreset | undefined;
   /** The opener to show — rewrites with a fade/slide when it changes. */
   sample: string;
+  /** When the custom agent is selected, the preview uses the gold mascot. */
+  customActive?: boolean;
 }) {
-  const mascotSrc = MASCOT[preset?.mascot ?? 'warm'];
+  const mascotSrc = customActive ? mascotCustomGold : MASCOT[preset?.mascot ?? 'warm'];
 
   return (
     <div>
@@ -296,11 +309,11 @@ function LivePreview({
           <div className="w-8 shrink-0">
             <motion.img
               src={mascotSrc}
+              key={`m-${customActive ? 'custom' : preset?.id ?? 'warm'}`}
               alt=""
               aria-hidden
               draggable={false}
               className="w-8 h-8 object-contain select-none pointer-events-none"
-              key={`m-${preset?.id ?? 'warm'}`}
               initial={{ scale: 0.6, opacity: 0, y: 6 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               transition={APPLE_SPRING}
@@ -316,19 +329,28 @@ function LivePreview({
 export function PersonaExperience({
   persona,
   setPersona,
-  onOpenCustomAgent,
+  onSelectCustom,
+  customActive = false,
+  onPresetPicked,
 }: {
   persona: Persona;
   setPersona: React.Dispatch<React.SetStateAction<Persona>>;
-  /** Opens the read-only "under the hood" Custom agent teaser panel. */
-  onOpenCustomAgent?: () => void;
+  /** Selects the custom agent, revealing the inline custom fine-tune section. */
+  onSelectCustom?: () => void;
+  /** When true, the custom agent is the active selection (presets forced off). */
+  customActive?: boolean;
+  /** Called when a NORMAL preset is picked, so the parent can clear the custom
+   *  selection (selection is mutually exclusive). */
+  onPresetPicked?: () => void;
 }) {
   const activeId = persona.activePresetId;
   const activePreset = personaPresets.find((p) => p.id === activeId);
 
   // Applying a preset fills tone + strategy and marks it active. Language is
-  // preserved (it's the user's own choice, not part of a personality).
+  // preserved (it's the user's own choice, not part of a personality). Picking
+  // a preset also clears the custom-agent selection (mutually exclusive).
   const applyPreset = (preset: PersonaPreset) => {
+    onPresetPicked?.();
     setPersona((prev) => ({
       ...prev,
       activePresetId: preset.id,
@@ -344,10 +366,13 @@ export function PersonaExperience({
     }));
   };
 
-  // The preview message: the active preset's sample, or a gentle default.
-  const sample =
-    activePreset?.sample ??
-    'Hey Emma, saw your work on scaling outbound. Curious how you are thinking about reply quality lately?';
+  // The preview message: when the custom agent is selected, show a sample that
+  // matches its precise founder-style behavior; otherwise the active preset's
+  // sample, or a gentle default.
+  const sample = customActive
+    ? 'Hey Emma, saw your post on SDR ramp time, sharp take. Quick one: is reply quality or dead threads the bigger drag right now? Happy to share what is working for similar teams.'
+    : activePreset?.sample ??
+      'Hey Emma, saw your work on scaling outbound. Curious how you are thinking about reply quality lately?';
 
   return (
     <div className="flex flex-col gap-5">
@@ -364,18 +389,26 @@ export function PersonaExperience({
             <PresetCard
               key={preset.id}
               preset={preset}
-              active={preset.id === activeId}
+              // When the custom agent is selected, all presets read as unselected.
+              active={!customActive && preset.id === activeId}
               onPick={() => applyPreset(preset)}
               index={i}
             />
           ))}
-          {/* Custom agent teaser — always the last card in the row, locked. */}
-          <CustomAgentCard index={personaPresets.length} onOpen={onOpenCustomAgent} />
+          {/* Custom agent — always the last card in the row. Selectable like a
+              preset (mutually exclusive); reveals the inline custom section. */}
+          <CustomAgentCard
+            index={personaPresets.length}
+            onOpen={onSelectCustom}
+            active={customActive}
+          />
         </div>
       </section>
 
-      {/* Live preview — the mascot speaking, message reshapes on change. */}
-      <LivePreview preset={activePreset} sample={sample} />
+      {/* Live preview — the mascot speaking, message reshapes on change. When
+          the custom agent is selected it shows the gold mascot + a fitting
+          sample, so the preview always follows the active selection. */}
+      <LivePreview preset={activePreset} sample={sample} customActive={customActive} />
     </div>
   );
 }

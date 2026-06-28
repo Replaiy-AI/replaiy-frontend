@@ -49,13 +49,11 @@ import {
   Sparkles,
   ChevronDown,
   Search,
-  X,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import { ReplaiyLogo } from '@/components/Logo';
 import { PersonaExperience, CUSTOM_AGENT_GOLD } from '@/components/PersonaExperience';
 import { GlassPopover } from '@/components/GlassPopover';
-import { ResponsiveSheet } from '@/components/ResponsiveSheet';
 import mascotCustomGold from '@/assets/preset_custom_gold.png';
 import iconPersona from '@/assets/ai_icon_persona.png';
 import iconPersonal from '@/assets/ai_icon_personal.png';
@@ -663,131 +661,6 @@ function ReadOnlyList({ label, items }: { label: string; items: readonly string[
   );
 }
 
-// The read-only Custom agent panel, built on the shared ResponsiveSheet
-// (desktop right-panel / mobile bottom-sheet): inherits backdrop-click, Escape,
-// and APPLE_SPRING motion for free, identical to every other sheet.
-function CustomAgentPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  return (
-    <ResponsiveSheet
-      open={open}
-      onClose={onClose}
-      desktopWidth="lg"
-      mobileMaxHeight="88vh"
-      testId="custom-agent-panel"
-    >
-      {/* Header: gold mascot + title + Coming soon pill + close. */}
-      <div className="px-5 lg:px-6 pt-4 pb-3 flex items-start gap-3 shrink-0">
-        <div className="relative w-10 h-10 shrink-0 flex items-center justify-center">
-          <div
-            aria-hidden
-            className="absolute inset-0 rounded-full"
-            style={{
-              background: `radial-gradient(circle at 50% 48%, ${CUSTOM_AGENT_GOLD}, transparent 68%)`,
-              filter: 'blur(8px)',
-              opacity: 0.3,
-            }}
-          />
-          <img
-            src={mascotCustomGold}
-            alt=""
-            aria-hidden
-            draggable={false}
-            className="relative w-9 h-9 object-contain select-none pointer-events-none"
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">
-              Custom agent
-            </span>
-            <span
-              className="glass-pill inline-flex items-center gap-1 h-[22px] px-2 rounded-full text-[11px] font-semibold"
-              style={{ color: CUSTOM_AGENT_GOLD }}
-            >
-              <Lock size={10} strokeWidth={2.6} />
-              Coming soon
-            </span>
-          </div>
-          <p className="text-[11.5px] leading-[1.45] text-foreground/45 mt-1">
-            A peek under the hood. This is how a fully custom agent is configured.
-            Available on a paid plan soon.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          data-testid="custom-agent-close"
-          className="h-8 w-8 shrink-0 rounded-full glass-pill flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
-        >
-          <X size={16} strokeWidth={2} />
-        </button>
-      </div>
-
-      {/* Body: read-only example configuration. */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-5 lg:px-6 pb-4">
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <ReadOnlyRow label="Formality" value={CUSTOM_AGENT_PREVIEW.formality} />
-            <ReadOnlyRow label="Length" value={CUSTOM_AGENT_PREVIEW.length} />
-            <ReadOnlyRow label="Approach / stance" value={CUSTOM_AGENT_PREVIEW.approach} />
-            <ReadOnlyRow label="Qualifying depth" value={CUSTOM_AGENT_PREVIEW.qualifying} />
-          </div>
-          <ReadOnlyRow label="Closing style" value={CUSTOM_AGENT_PREVIEW.closing} />
-          <ReadOnlyRow
-            label="Voice"
-            sub="How the agent sounds. Set by the chosen personality; editable in a custom agent."
-            value={CUSTOM_AGENT_PREVIEW.voice}
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <ReadOnlyList label="Do's" items={CUSTOM_AGENT_PREVIEW.dos} />
-            <ReadOnlyList label="Don'ts" items={CUSTOM_AGENT_PREVIEW.donts} />
-          </div>
-
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12.5px] font-semibold text-foreground">
-                Behavior (system prompt)
-              </span>
-              <Lock size={11} strokeWidth={2.4} className="text-foreground/40" />
-            </div>
-            <div className="text-[11.5px] leading-[1.4] text-foreground/45 mt-0.5">
-              The instruction the agent runs on. Read-only in this preview.
-            </div>
-            <div className="rp-card rounded-2xl px-3.5 py-3 mt-1.5 text-[13px] leading-[1.55] text-foreground/75">
-              {CUSTOM_AGENT_PREVIEW.behavior}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer CTA: gold primary button. Looks real and inviting; gated. */}
-      <div className="shrink-0 px-5 lg:px-6 pt-3 pb-5 border-t border-foreground/[0.07] dark:border-white/[0.07]">
-        <button
-          type="button"
-          data-testid="custom-agent-upgrade"
-          className="w-full h-11 rounded-full text-white text-[14px] font-semibold flex items-center justify-center gap-2 hover-elevate active-elevate-2"
-          style={{
-            background: CUSTOM_AGENT_GOLD,
-            boxShadow: `inset 0 1px 0 rgba(255,255,255,0.28), 0 6px 20px -6px ${CUSTOM_AGENT_GOLD}aa`,
-          }}
-        >
-          <Sparkles size={15} strokeWidth={2.2} />
-          Upgrade to customize
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full mt-2 h-9 rounded-full text-[13px] font-medium text-foreground/55 hover-elevate active-elevate-2"
-        >
-          Maybe later
-        </button>
-      </div>
-    </ResponsiveSheet>
-  );
-}
-
 function PersonaDetail({
   persona,
   setPersona,
@@ -798,13 +671,19 @@ function PersonaDetail({
   onBack: () => void;
 }) {
   const tone = persona.tone;
-  // Read-only "Custom agent" teaser panel (Coming soon). Opened from the
-  // locked card in PersonaExperience.
-  const [customAgentOpen, setCustomAgentOpen] = useState(false);
+  // Whether the Custom agent card is the active selection. This is pure UI
+  // state (it deliberately does NOT touch persona.activePresetId, so it never
+  // breaks applyPreset / resolvers). Selecting the custom agent reveals the
+  // inline custom fine-tune section below; picking a normal preset OR editing
+  // any standard control clears it (selection is mutually exclusive).
+  const [customSelected, setCustomSelected] = useState(false);
   // Fine-tuning any control moves the persona off its preset into "custom"
   // (activePresetId = null), so the preset cards no longer show as selected.
-  const patchTone = (p: Partial<typeof tone>) =>
+  // Editing a standard control also leaves the custom-agent selection.
+  const patchTone = (p: Partial<typeof tone>) => {
+    setCustomSelected(false);
     setPersona((prev) => ({ ...prev, activePresetId: null, tone: { ...prev.tone, ...p } }));
+  };
 
   // The languages the user can hold a meeting in. Toggling never empties the
   // set below one (you must speak at least one language). All ~15 labels.
@@ -830,94 +709,221 @@ function PersonaDetail({
     return [...POPULAR_LANGUAGES, ...extras];
   }, [tone.languages]);
 
+  // ── Reusable interactive sections ──────────────────────────────
+  // The Languages card and the Anything-else section are identical in the
+  // standard Fine-tune and the inline Custom-agent section (languages are the
+  // user's own, so they stay live in both). Factored out so both render the
+  // EXACT same JSX, keeping the two views pixel-consistent.
+  const languagesSection = (
+    <FineTuneSection
+      label="Languages you speak"
+      sub="Your AI replies in each lead's own language automatically. It only moves a lead to a live conversation in a language you speak, so you are never booked into one you cannot hold."
+    >
+      <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-languages">
+        <div className="flex items-center gap-2 mb-3">
+          <LanguagesIcon size={15} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
+          <span className="text-[12px] font-semibold text-foreground/65">
+            I can hold a live conversation in
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2" data-testid="tone-languages">
+          {visibleLanguageCodes.map((code) => (
+            <LanguageChip
+              key={code}
+              testId={`tone-language-${code}`}
+              label={LANGUAGE_LABELS[code]}
+              active={tone.languages.includes(code)}
+              onToggle={() => toggleLanguage(code)}
+            />
+          ))}
+          <MoreLanguagesPicker selected={tone.languages} onToggle={toggleLanguage} />
+        </div>
+
+        <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
+
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <div className="min-w-0">
+            <div className="text-[12px] font-semibold text-foreground/65">
+              Fallback language
+            </div>
+            <div className="text-[11.5px] leading-[1.45] text-foreground/45 mt-0.5 max-w-sm">
+              Used when a lead speaks a language you have not selected above.
+            </div>
+          </div>
+          <FallbackPicker
+            value={tone.fallbackLanguage}
+            onChange={(fallbackLanguage) => patchTone({ fallbackLanguage })}
+          />
+        </div>
+      </div>
+    </FineTuneSection>
+  );
+
+  const anythingElseSection = (
+    <FineTuneSection
+      label="Anything else?"
+      sub='A few personal style rules for how your AI writes, like "keep it casual" or "never use exclamation marks". For facts about your product or pricing, use Workspace knowledge.'
+    >
+      <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-extra">
+        <GlassTextarea
+          bare
+          testId="tone-extra-notes"
+          value={tone.extraNotes}
+          onChange={(extraNotes) => patchTone({ extraNotes })}
+          placeholder="e.g. no em-dashes, keep it casual, never use exclamation marks"
+          rows={3}
+        />
+      </div>
+    </FineTuneSection>
+  );
+
   return (
     <ViewShell title="Persona" onBack={onBack}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-        {/* Living top: preset personalities + live mascot preview. */}
+        {/* Living top: preset personalities + live mascot preview. The custom
+            agent card now selects like a preset (mutually exclusive). */}
         <PersonaExperience
           persona={persona}
           setPersona={setPersona}
-          onOpenCustomAgent={() => setCustomAgentOpen(true)}
+          customActive={customSelected}
+          onSelectCustom={() => setCustomSelected(true)}
+          onPresetPicked={() => setCustomSelected(false)}
         />
 
-        {/* Fine-tune — the small, deliberate set of things the user controls by
-            hand. Everything else (length, formality, approach, ...) is set by
-            the chosen personality under the hood. No separate "Fine-tune"
-            divider header: each section below carries its own clear label. */}
-        <div className="flex flex-col gap-6 md:gap-7 mt-8">
-          {/* ── Languages ─────────────────────────────────────────── */}
-          <FineTuneSection
-            label="Languages you speak"
-            sub="Your AI replies in each lead's own language automatically. It only moves a lead to a live conversation in a language you speak, so you are never booked into one you cannot hold."
-          >
-            <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-languages">
-              <div className="flex items-center gap-2 mb-3">
-                <LanguagesIcon size={15} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
-                <span className="text-[12px] font-semibold text-foreground/65">
-                  I can hold a live conversation in
+        {/* Fine-tune — switches on the selection. With a normal preset (or no
+            custom selection) the standard Fine-tune shows; selecting the custom
+            agent reveals the inline custom section in the SAME container,
+            spacing and design (just more, mostly read-only, fields). */}
+        <AnimatePresence mode="wait" initial={false}>
+          {customSelected ? (
+            <motion.div
+              key="custom"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={APPLE_SPRING}
+              className="flex flex-col gap-6 md:gap-7 mt-8"
+              data-testid="custom-agent-inline"
+            >
+              {/* Compact lead-in: gold Coming soon pill + one line of copy. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-2">
+                <span
+                  className="glass-pill inline-flex items-center gap-1 h-[22px] px-2 rounded-full text-[11px] font-semibold"
+                  style={{ color: CUSTOM_AGENT_GOLD }}
+                >
+                  <Lock size={10} strokeWidth={2.6} />
+                  Coming soon
+                </span>
+                <span className="text-[11.5px] leading-[1.45] text-foreground/45">
+                  This is the full custom agent. Building your own from scratch is coming soon.
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-2" data-testid="tone-languages">
-                {visibleLanguageCodes.map((code) => (
-                  <LanguageChip
-                    key={code}
-                    testId={`tone-language-${code}`}
-                    label={LANGUAGE_LABELS[code]}
-                    active={tone.languages.includes(code)}
-                    onToggle={() => toggleLanguage(code)}
-                  />
-                ))}
-                <MoreLanguagesPicker selected={tone.languages} onToggle={toggleLanguage} />
-              </div>
 
-              <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
+              {/* Languages — same live card as the standard view. */}
+              {languagesSection}
 
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-                <div className="min-w-0">
-                  <div className="text-[12px] font-semibold text-foreground/65">
-                    Fallback language
-                  </div>
-                  <div className="text-[11.5px] leading-[1.45] text-foreground/45 mt-0.5 max-w-sm">
-                    Used when a lead speaks a language you have not selected above.
+              {/* Voice — read-only under-the-hood field. */}
+              <FineTuneSection label="Voice" sub="How the agent sounds.">
+                <div className="rp-card rounded-3xl p-5 lg:p-6">
+                  <div className="text-[13px] leading-[1.5] text-foreground/75">
+                    {CUSTOM_AGENT_PREVIEW.voice}
                   </div>
                 </div>
-                <FallbackPicker
-                  value={tone.fallbackLanguage}
-                  onChange={(fallbackLanguage) => patchTone({ fallbackLanguage })}
-                />
+              </FineTuneSection>
+
+              {/* Tone — formality + length, read-only in a 2-col grid. */}
+              <FineTuneSection label="Tone" sub="How formal and how long the messages are.">
+                <div className="rp-card rounded-3xl p-5 lg:p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <ReadOnlyRow label="Formality" value={CUSTOM_AGENT_PREVIEW.formality} />
+                    <ReadOnlyRow label="Length" value={CUSTOM_AGENT_PREVIEW.length} />
+                  </div>
+                </div>
+              </FineTuneSection>
+
+              {/* Strategy — approach + qualifying + closing, read-only. */}
+              <FineTuneSection label="Strategy" sub="How the agent pushes, qualifies and closes.">
+                <div className="rp-card rounded-3xl p-5 lg:p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <ReadOnlyRow label="Approach / stance" value={CUSTOM_AGENT_PREVIEW.approach} />
+                    <ReadOnlyRow label="Qualifying depth" value={CUSTOM_AGENT_PREVIEW.qualifying} />
+                  </div>
+                  <div className="mt-3">
+                    <ReadOnlyRow label="Closing style" value={CUSTOM_AGENT_PREVIEW.closing} />
+                  </div>
+                </div>
+              </FineTuneSection>
+
+              {/* Do's and Don'ts — two read-only lists side by side. */}
+              <FineTuneSection label="Do's and Don'ts" sub="The rules the agent always follows.">
+                <div className="rp-card rounded-3xl p-5 lg:p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <ReadOnlyList label="Do's" items={CUSTOM_AGENT_PREVIEW.dos} />
+                    <ReadOnlyList label="Don'ts" items={CUSTOM_AGENT_PREVIEW.donts} />
+                  </div>
+                </div>
+              </FineTuneSection>
+
+              {/* Behavior (system prompt) — read-only text block with a lock. */}
+              <FineTuneSection label="Behavior (system prompt)" sub="The instruction the agent runs on.">
+                <div className="rp-card rounded-3xl p-5 lg:p-6">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Lock size={11} strokeWidth={2.4} style={{ color: CUSTOM_AGENT_GOLD }} />
+                    <span className="text-[11.5px] font-medium" style={{ color: CUSTOM_AGENT_GOLD }}>
+                      Locked
+                    </span>
+                  </div>
+                  <div className="text-[13px] leading-[1.55] text-foreground/75">
+                    {CUSTOM_AGENT_PREVIEW.behavior}
+                  </div>
+                </div>
+              </FineTuneSection>
+
+              {/* Anything else — same live section as the standard view. */}
+              {anythingElseSection}
+
+              {/* Single gold upgrade button. Tasteful, does nothing yet. */}
+              <div className="px-2">
+                <motion.button
+                  type="button"
+                  data-testid="custom-agent-upgrade"
+                  whileTap={{ scale: 0.97 }}
+                  transition={APPLE_SPRING}
+                  className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl text-white text-[14px] font-semibold hover-elevate active-elevate-2"
+                  style={{
+                    background: CUSTOM_AGENT_GOLD,
+                    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.28), 0 6px 20px -6px ${CUSTOM_AGENT_GOLD}aa`,
+                  }}
+                >
+                  <Sparkles size={15} strokeWidth={2.2} />
+                  Upgrade to customize
+                </motion.button>
               </div>
-            </div>
-          </FineTuneSection>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="standard"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={APPLE_SPRING}
+              className="flex flex-col gap-6 md:gap-7 mt-8"
+            >
+              {/* Languages */}
+              {languagesSection}
 
-          {/* Voice is NOT a standard control: it is set by the chosen
-              personality (avatar) under the hood, and is editable only in the
-              paid Custom agent (shown read-only in its preview panel). Keeping
-              it out of the standard UI avoids a field that just mirrors the
-              preset. Personal style tweaks go in "Anything else?" below. */}
+              {/* Voice is NOT a standard control: it is set by the chosen
+                  personality under the hood, and is editable only in the custom
+                  agent. Personal style tweaks go in "Anything else?" below. */}
 
-          {/* ── Anything else? ────────────────────────────────────── */}
-          <FineTuneSection
-            label="Anything else?"
-            sub='A few personal style rules for how your AI writes, like "keep it casual" or "never use exclamation marks". For facts about your product or pricing, use Workspace knowledge.'
-          >
-            <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="persona-extra">
-              <GlassTextarea
-                bare
-                testId="tone-extra-notes"
-                value={tone.extraNotes}
-                onChange={(extraNotes) => patchTone({ extraNotes })}
-                placeholder="e.g. no em-dashes, keep it casual, never use exclamation marks"
-                rows={3}
-              />
-            </div>
-          </FineTuneSection>
-        </div>
+              {/* Anything else? */}
+              {anythingElseSection}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Auto-save: changes are kept live; no explicit Save button. */}
       </motion.div>
-
-      {/* Read-only Custom agent teaser (Coming soon). */}
-      <CustomAgentPanel open={customAgentOpen} onClose={() => setCustomAgentOpen(false)} />
     </ViewShell>
   );
 }
