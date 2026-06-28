@@ -279,7 +279,7 @@ export const mockPersona: Persona = {
         type: 'linkedin',
         title: 'LinkedIn profile',
         url: 'https://www.linkedin.com/in/simonvanbasten',
-        hint: 'Your headline, about and recent posts — so your AI sounds like you',
+        hint: 'Your headline, about and recent posts, so your AI sounds like you',
         meta: 'Auto-synced',
         status: 'connected',
       },

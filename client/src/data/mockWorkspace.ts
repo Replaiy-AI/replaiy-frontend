@@ -71,7 +71,7 @@ export const mockWorkspace: Workspace = {
         type: 'url',
         title: 'replaiy.ai',
         url: 'https://replaiy.ai',
-        hint: 'Your company website — the AI reads it to learn what you do',
+        hint: 'Your company website, the AI reads it to learn what you do',
         meta: 'replaiy.ai',
         status: 'ready',
       },

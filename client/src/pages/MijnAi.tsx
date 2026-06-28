@@ -1152,7 +1152,7 @@ function KnowledgeDetail({
       type: 'url',
       title: domain,
       url,
-      hint: 'Web page — the AI reads it for context',
+      hint: 'Web page, the AI reads it for context',
       meta: domain,
       status: 'processing',
     });
@@ -1170,7 +1170,7 @@ function KnowledgeDetail({
           locked={!editable}
         />
 
-        <div className="flex flex-col gap-5 md:gap-6">
+        <div className="flex flex-col gap-6 md:gap-7">
         {/* ── Questions ── */}
         <section>
         <SectionHeader count={bundle.questions.length}>Questions</SectionHeader>
@@ -1202,21 +1202,25 @@ function KnowledgeDetail({
                 )}
               </div>
               {q.hint && <div className="text-[12px] text-foreground/45 mt-1">{q.hint}</div>}
-              <div className="mt-3">
+              {/* Hairline between question and answer, matching Persona's
+                  field rhythm (h-px divider, my-4). The answer then sits
+                  DIRECTLY in this card via the `bare` GlassTextarea, so
+                  there is no inner framed box (no block-in-block). */}
+              <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-4" />
               {editable ? (
                 <GlassTextarea
+                  bare
                   testId={`answer-${q.id}`}
                   value={q.answer}
                   onChange={(v) => setAnswer(q.id, v)}
                   placeholder="Your answer…"
-                  rows={3}
+                  rows={2}
                 />
               ) : (
                 <p className="text-[13.5px] leading-[1.5] text-foreground/80 whitespace-pre-wrap">
                   {q.answer || <span className="text-foreground/35">Not answered yet</span>}
                 </p>
               )}
-              </div>
             </div>
           ))}
           {editable && (
