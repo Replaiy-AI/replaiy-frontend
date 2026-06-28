@@ -49,6 +49,7 @@ import {
   Sparkles,
   ChevronDown,
   Search,
+  X,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import { ReplaiyLogo } from '@/components/Logo';
@@ -328,17 +329,21 @@ function FineTuneSection({
   label,
   sub,
   children,
+  locked = false,
 }: {
   label: string;
   sub: string;
   children: React.ReactNode;
+  /** Shows a gold "Locked" badge next to the section label (custom agent). */
+  locked?: boolean;
 }) {
   return (
     <section>
-      <div className="px-2 mb-1">
+      <div className="px-2 mb-1 flex items-center justify-between gap-3">
         <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
           {label}
         </span>
+        {locked && <LockBadge />}
       </div>
       <p className="px-2 text-[11.5px] leading-[1.45] text-foreground/45 mb-3">{sub}</p>
       {children}
@@ -861,14 +866,11 @@ function PersonaDetail({
               {/* GROUP A: Identity, who your agent is. One rp-card, fields
                   separated by hairline dividers (same rhythm as the standard
                   Languages card). No block-in-block. */}
-              <FineTuneSection label="Identity" sub="Who your agent is.">
+              <FineTuneSection label="Identity" sub="Who your agent is." locked>
                 <div className="rp-card rounded-3xl p-5 lg:p-6">
-                  {/* Voice: read-only text straight in the card (the card IS
-                      the field, exactly like the bare GlassTextarea). */}
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className="text-[12px] font-semibold text-foreground/65">Voice</span>
-                    <LockBadge />
-                  </div>
+                  {/* Voice: label + read-only text straight in the card (the
+                      card IS the field, like the bare GlassTextarea). */}
+                  <div className="text-[12px] font-semibold text-foreground/65 mb-2">Voice</div>
                   <div className="text-[14px] leading-[1.5] text-foreground/90">
                     {CUSTOM_AGENT_PREVIEW.voice}
                   </div>
@@ -909,7 +911,7 @@ function PersonaDetail({
               {/* GROUP B: Strategy, how it works toward your goal. The Drive
                   axis replaces the old approach + closing + push rows. One
                   rp-card, hairline divider between the two controls. */}
-              <FineTuneSection label="Strategy" sub="How it works toward your goal.">
+              <FineTuneSection label="Strategy" sub="How it works toward your goal." locked>
                 <div className="rp-card rounded-3xl p-5 lg:p-6">
                   {/* Drive: the KEY simplification, one 3-segment control. */}
                   <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
@@ -949,14 +951,8 @@ function PersonaDetail({
 
               {/* GROUP C: Guardrails, the rules it always follows. One rp-card,
                   two columns of plain text rules (no inner cards). */}
-              <FineTuneSection label="Guardrails" sub="The rules it always follows.">
+              <FineTuneSection label="Guardrails" sub="The rules it always follows." locked>
                 <div className="rp-card rounded-3xl p-5 lg:p-6">
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <span className="text-[12px] font-semibold text-foreground/65">
-                      Always do, never do
-                    </span>
-                    <LockBadge />
-                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
                     <div>
                       <div className="text-[12px] font-semibold text-foreground/65 mb-2">Always do</div>
@@ -985,8 +981,10 @@ function PersonaDetail({
                             key={item}
                             className="flex items-start gap-2 text-[14px] leading-[1.5] text-foreground/90"
                           >
-                            <span
-                              className="mt-[7px] h-[3px] w-[3px] rounded-full shrink-0 bg-foreground/40"
+                            <X
+                              size={14}
+                              strokeWidth={2.4}
+                              className="mt-0.5 shrink-0 text-foreground/40"
                             />
                             <span>{item}</span>
                           </li>
@@ -999,14 +997,8 @@ function PersonaDetail({
 
               {/* GROUP D: Advanced, optional, for fine control. One rp-card,
                   the instructions text straight in the card (no inner block). */}
-              <FineTuneSection label="Advanced" sub="Optional, for fine control.">
+              <FineTuneSection label="Advanced" sub="Optional custom instructions, for fine control." locked>
                 <div className="rp-card rounded-3xl p-5 lg:p-6">
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className="text-[12px] font-semibold text-foreground/65">
-                      Custom instructions
-                    </span>
-                    <LockBadge />
-                  </div>
                   <div className="text-[14px] leading-[1.5] text-foreground/55">
                     {CUSTOM_AGENT_PREVIEW.customInstructions}
                   </div>
