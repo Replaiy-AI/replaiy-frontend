@@ -1892,7 +1892,7 @@ export function InlineReplyBar({
                toggling the pill. */}
             <div className="pointer-events-auto">
               <VadikGlass
-                width={formatPillOpen ? 172 : 40}
+                width={formatPillOpen ? 156 : 40}
                 height={40}
                 shape={formatPillOpen ? 'pill' : 'circle'}
                 data-testid="reply-fmt-toggle"
@@ -1905,23 +1905,25 @@ export function InlineReplyBar({
                     'width 360ms cubic-bezier(0.22, 1, 0.36, 1), min-width 360ms cubic-bezier(0.22, 1, 0.36, 1), max-width 360ms cubic-bezier(0.22, 1, 0.36, 1), transform 140ms cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
               >
+                {/* All 4 controls share the SAME 36px slot so the spacing is
+                   uniform (equal gaps, equal side margins) — the pill width
+                   (156 = 4*36 + 2*6 padding) hugs the content with no empty
+                   space after the paperclip. */}
                 <div
                   data-glass-content
-                  className="flex items-center w-full h-full"
-                  style={{
-                    justifyContent: formatPillOpen ? 'flex-start' : 'center',
-                    paddingLeft: formatPillOpen ? 11 : 0,
-                    paddingRight: formatPillOpen ? 6 : 0,
-                  }}
+                  className="flex items-center w-full h-full justify-center"
+                  style={{ paddingLeft: 6, paddingRight: 6 }}
                 >
-                  <motion.span
-                    className="inline-flex text-icon shrink-0"
-                    initial={false}
-                    animate={{ rotate: formatPillOpen ? 45 : 0 }}
-                    transition={APPLE_SPRING}
-                  >
-                    <Plus size={17} strokeWidth={2} />
-                  </motion.span>
+                  <span className="h-9 w-9 rounded-full flex items-center justify-center shrink-0">
+                    <motion.span
+                      className="inline-flex text-icon"
+                      initial={false}
+                      animate={{ rotate: formatPillOpen ? 45 : 0 }}
+                      transition={APPLE_SPRING}
+                    >
+                      <Plus size={17} strokeWidth={2} />
+                    </motion.span>
+                  </span>
 
                   <AnimatePresence initial={false}>
                     {formatPillOpen && (
