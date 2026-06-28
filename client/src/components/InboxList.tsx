@@ -322,52 +322,50 @@ function SmartInboxView({ conversations, setConversationStatus, params }: { conv
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="px-2 pt-1"
+        className="px-2 pt-1 flex flex-row items-start gap-3 sm:gap-4"
       >
-        {/* Top row: Remi mascot sits beside the greeting title only. The
-           sub-text then flows full-width underneath, so the title needs less
-           horizontal room and the inbox column keeps its width even with the
-           lead panel open. */}
-        <div className="flex flex-row items-center gap-3 sm:gap-4">
-          {/* Remi — Replaiy AI-mascotte. Vriendelijk begroetend element naast de
-             greeting. Zachte float-animatie, ingetogen; breekt de premium look niet. */}
-          <motion.img
-            src={remiMascot}
-            alt="Remi, the Replaiy assistant"
-            aria-hidden="true"
-            draggable={false}
-            initial={{ opacity: 0, scale: 0.85, y: 6 }}
-            animate={{
-              opacity: 1,
-              scale: 1,
-              y: [0, -4, 0],
-            }}
-            transition={{
-              opacity: { duration: 0.4, delay: 0.1 },
-              scale: { duration: 0.4, delay: 0.1 },
-              y: { duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 },
-            }}
-            className="shrink-0 w-[64px] h-[64px] sm:w-[84px] sm:h-[84px] object-contain select-none pointer-events-none"
-          />
-          <h2 className="min-w-0 text-[24px] font-semibold tracking-[-0.02em] leading-tight">
+        {/* Remi — Replaiy AI-mascotte. Vriendelijk begroetend element naast de
+           greeting. Zachte float-animatie, ingetogen; breekt de premium look niet.
+           Structuur IDENTIEK aan de Campaigns-header (gouden standaard): mascotte
+           naast één tekstblok (titel + sub). */}
+        <motion.img
+          src={remiMascot}
+          alt="Remi, the Replaiy assistant"
+          aria-hidden="true"
+          draggable={false}
+          initial={{ opacity: 0, scale: 0.85, y: 6 }}
+          animate={{
+            opacity: 1,
+            scale: 1,
+            y: [0, -4, 0],
+          }}
+          transition={{
+            opacity: { duration: 0.4, delay: 0.1 },
+            scale: { duration: 0.4, delay: 0.1 },
+            y: { duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 },
+          }}
+          className="shrink-0 w-[64px] h-[64px] sm:w-[84px] sm:h-[84px] object-contain select-none pointer-events-none"
+        />
+        <div className="min-w-0">
+          <h2 className="text-[24px] font-semibold tracking-[-0.02em] leading-tight">
             {greeting}, Simon.
           </h2>
+          <p className="text-[15px] text-foreground/70 mt-2 leading-snug">
+            <span className="font-semibold text-foreground">
+              {needsApproval.length} draft{needsApproval.length === 1 ? '' : 's'}
+            </span>{' '}
+            need your approval.{' '}
+            <span className="text-foreground/55">
+              {autoSent.length} {autoSent.length === 1 ? 'was' : 'were'} auto-sent overnight.
+            </span>
+            {avgConfidence > 0 && (
+              <>
+                {' '}
+                <span className="text-foreground/55">Avg confidence {avgConfidence}%.</span>
+              </>
+            )}
+          </p>
         </div>
-        <p className="text-[15px] text-foreground/70 mt-3 leading-snug">
-          <span className="font-semibold text-foreground">
-            {needsApproval.length} draft{needsApproval.length === 1 ? '' : 's'}
-          </span>{' '}
-          need your approval.{' '}
-          <span className="text-foreground/55">
-            {autoSent.length} {autoSent.length === 1 ? 'was' : 'were'} auto-sent overnight.
-          </span>
-          {avgConfidence > 0 && (
-            <>
-              {' '}
-              <span className="text-foreground/55">Avg confidence {avgConfidence}%.</span>
-            </>
-          )}
-        </p>
       </motion.div>
 
       {needsApproval.length > 0 && (
