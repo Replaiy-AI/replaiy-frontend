@@ -1030,6 +1030,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
         onBack={() => navigate('/')}
         onDone={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
         onSnooze={() => { setConversationStatus(mail.id, 'snoozed'); navigate('/'); }}
+        onIdentityClick={hasLeadContext ? toggleLeadPanel : undefined}
       />
 
       {/* DESKTOP top pill row (v19.3) — absolutely positioned at top:12px
@@ -1057,51 +1058,40 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
         {/* Conversation header logic, by state:
            • lead CLOSED → identity pill. Centered on wide (>=1280), left-aligned
              below that (more stable on a narrow center column).
-           • lead OPEN + narrow (<1280) → inbox is REPLACED by the panel, so the
-             pill is redundant (identity shows in the panel) and would be
-             cropped. Show a back-to-inbox arrow instead — it closes the panel,
-             which brings the inbox back.
-           • lead OPEN + wide (>=1280) → inbox still visible, identity shows in the
-             panel, so the center stays empty (no cropped pill, no clutter). */}
-        {leadPanelOpen && !isWide && (
-          <div className="flex items-center justify-start" style={{ paddingLeft: 16 }}>
-            <button
-              type="button"
-              data-testid="lead-back-to-inbox"
-              aria-label="Back to inbox"
-              onClick={() => setLeadPanelOpen(false)}
-              className="glass-pill pointer-events-auto inline-flex items-center gap-1.5 h-[42px] pl-2.5 pr-3.5 rounded-full text-[13.5px] font-medium text-foreground/80 hover-elevate active-elevate-2"
+           The identity pill ALWAYS stays visible (it is the conversation
+           header and the panel trigger). Alignment:
+           • CENTERED when the lead panel is closed AND the screen is wide
+             (>=1280) — plenty of room above the conversation.
+           • LEFT-aligned when the panel is OPEN (narrow center column) or on
+             screens below 1280 — never collides with the action cluster and
+             truncates cleanly before the buttons. */}
+        {(() => {
+          const leftAlign = leadPanelOpen || !isWide;
+          return (
+            <div
+              className={`flex items-center ${leftAlign ? 'justify-start' : 'justify-center'}`}
+              style={{
+                paddingLeft: leftAlign ? 24 : 136,
+                paddingRight: hasLeadContext ? 150 : 136,
+              }}
             >
-              <ArrowLeft size={18} strokeWidth={2} />
-              Inbox
-            </button>
-          </div>
-        )}
-        {!leadPanelOpen && (
-          <div
-            className={`flex items-center ${isWide ? 'justify-center' : 'justify-start'}`}
-            style={{
-              paddingLeft: isWide ? 136 : 24,
-              paddingRight: hasLeadContext ? 150 : 136,
-            }}
-          >
-            <div className="pointer-events-auto flex items-center gap-3 min-w-0 max-w-[440px]">
-              {/* v30.32 — Combined identity + subject pill (zie
-                 ConversationDetailToolbar.tsx). */}
-              {/* v30.32 — meta-badge alleen tonen als panel waarde heeft. */}
-              <SubjectIdentityPill
-                name={titleName}
-                avatar={mail.from.avatar}
-                subject={[mail.leadHeadline, mail.leadCompany].filter(Boolean).join(' · ')}
-                metaLabel={null}
-                onMetaClick={undefined}
-                metaActive={summaryPanelOpen}
-                onIdentityClick={hasLeadContext ? toggleLeadPanel : undefined}
-                identityActive={false}
-              />
+              <div className="pointer-events-auto flex items-center gap-3 min-w-0 max-w-[440px]">
+                {/* v30.32 — Combined identity + subject pill (zie
+                   ConversationDetailToolbar.tsx). */}
+                <SubjectIdentityPill
+                  name={titleName}
+                  avatar={mail.from.avatar}
+                  subject={[mail.leadHeadline, mail.leadCompany].filter(Boolean).join(' · ')}
+                  metaLabel={null}
+                  onMetaClick={undefined}
+                  metaActive={summaryPanelOpen}
+                  onIdentityClick={hasLeadContext ? toggleLeadPanel : undefined}
+                  identityActive={false}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         <div className="absolute top-0 right-4 lg:right-6 pointer-events-auto flex items-center gap-2">
           {/* v30.30 — Desktop gebruikt nu hetzelfde compact-pattern als
              mobile: Done + ••• overflow met Forward + Snooze + kalender.
@@ -1542,6 +1532,7 @@ function ThreadChromeSlot({
   onDone,
   onSnooze,
   onForward,
+  onIdentityClick,
 }: {
   name: string;
   avatar?: string;
@@ -1550,6 +1541,7 @@ function ThreadChromeSlot({
   onDone?: () => void;
   onSnooze?: () => void;
   onForward?: () => void;
+  onIdentityClick?: () => void;
 }) {
   const slot = useMemo(
     () => ({
@@ -1561,20 +1553,39 @@ function ThreadChromeSlot({
       ),
       togglePill: (
         // v-replaiy — iMessage style: avatar + naam plain (geen capsule).
-        // The legacy contact info panel was removed, so this is now a plain
-        // non-interactive identity (avatar + naam + thread count).
-        <div
-          data-testid="contact-pill"
-          className="inline-flex items-center gap-2 px-1 h-[52px]"
-        >
-          <ReplaiyAvatar name={name} src={avatar} size={32} />
-          <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[140px] text-foreground leading-tight">
-            {name}
-          </span>
-          <span className="text-foreground/40 text-[12px] tabular-nums shrink-0">
-            {threadCount}
-          </span>
-        </div>
+        // When there is lead context, the identity is the trigger that opens
+        // the full-screen lead panel on phone (tap the name). Otherwise it is
+        // a plain non-interactive identity.
+        onIdentityClick ? (
+          <button
+            type="button"
+            data-testid="contact-pill"
+            onClick={onIdentityClick}
+            aria-label="Open lead context"
+            className="inline-flex items-center gap-2 pl-1 pr-2 h-[52px] rounded-full hover-elevate active-elevate-2"
+          >
+            <ReplaiyAvatar name={name} src={avatar} size={32} />
+            <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[140px] text-foreground leading-tight">
+              {name}
+            </span>
+            <span className="text-foreground/40 text-[12px] tabular-nums shrink-0">
+              {threadCount}
+            </span>
+          </button>
+        ) : (
+          <div
+            data-testid="contact-pill"
+            className="inline-flex items-center gap-2 px-1 h-[52px]"
+          >
+            <ReplaiyAvatar name={name} src={avatar} size={32} />
+            <span className="text-[14px] font-semibold tracking-[-0.005em] truncate max-w-[140px] text-foreground leading-tight">
+              {name}
+            </span>
+            <span className="text-foreground/40 text-[12px] tabular-nums shrink-0">
+              {threadCount}
+            </span>
+          </div>
+        )
       ),
       // v30.30 — Mobile: alleen Done als prominent pill + ... overflow met
       // Snooze + Forward in een liquid-glass dropdown.
@@ -1589,7 +1600,7 @@ function ThreadChromeSlot({
           <div style={{ width: 52, height: 52 }} aria-hidden="true" />
         ),
     }),
-    [name, avatar, threadCount, onBack, onDone, onSnooze, onForward],
+    [name, avatar, threadCount, onBack, onDone, onSnooze, onForward, onIdentityClick],
   );
   useMobileTopChromeSlot(slot);
   return null;
