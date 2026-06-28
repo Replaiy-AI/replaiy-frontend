@@ -135,7 +135,7 @@ export function AiReviseChat({
             ['--ai-accent' as never]: accent,
             ...surfaceStyle(),
           }}
-          className="absolute left-3 right-3 bottom-full mb-3 z-40 flex flex-col rounded-[26px] overflow-hidden"
+          className="absolute left-3 right-3 bottom-[60px] z-40 flex flex-col rounded-[26px] overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-3 shrink-0">
