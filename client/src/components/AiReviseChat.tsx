@@ -38,19 +38,35 @@ const QUICK = ['Shorter', 'Warmer', 'More direct', 'Stronger CTA'];
 // Opaque frosted-glass surface (theme-aware via the dark class). More opaque
 // than a popover because this panel floats over busy conversation content and
 // must stay fully readable.
+//
+// The persona-coloured RING + bottom tint + outer bloom are the SAME 'this is
+// Replaiy/AI' signature the AI-draft card uses (see InlineReplyBar aiTint), so
+// the revise-chat reads as part of the same AI system. Driven by --ai-accent
+// (scoped to the active persona on the panel element).
 function surfaceStyle(): React.CSSProperties {
   const dark =
     typeof document !== 'undefined' &&
     document.documentElement.classList.contains('dark');
+  const base = dark
+    ? 'linear-gradient(180deg, rgba(32,32,36,0.98) 0%, rgba(26,26,30,0.97) 100%)'
+    : 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(252,252,253,0.98) 100%)';
   return {
-    background: dark
-      ? 'linear-gradient(180deg, rgba(32,32,36,0.98) 0%, rgba(26,26,30,0.97) 100%)'
-      : 'linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(252,252,253,0.98) 100%)',
+    // Frosted base + a soft bottom-up persona tint, like the draft card.
+    background:
+      base +
+      ', linear-gradient(180deg, transparent 55%, color-mix(in srgb, var(--ai-accent, #2F6BFF) 9%, transparent) 100%)',
     backdropFilter: 'blur(24px) saturate(150%)',
     WebkitBackdropFilter: 'blur(24px) saturate(150%)',
-    boxShadow: dark
-      ? 'inset 0 0 0 1px rgba(255,255,255,0.10), 0 24px 64px rgba(0,0,0,0.55)'
-      : 'inset 0 0 0 1px rgba(255,255,255,0.6), 0 1px 4px rgba(0,0,0,0.06), 0 24px 64px rgba(0,0,0,0.18)',
+    boxShadow: [
+      dark
+        ? 'inset 0 0 0 1px rgba(255,255,255,0.10), 0 24px 64px rgba(0,0,0,0.55)'
+        : 'inset 0 0 0 1px rgba(255,255,255,0.6), 0 1px 4px rgba(0,0,0,0.06), 0 24px 64px rgba(0,0,0,0.18)',
+      // Coloured iridescent ring + outer bloom — identical language to the
+      // AI-draft card so the persona colour is clearly 'AI' without shouting.
+      'inset 0 0 0 1px color-mix(in srgb, var(--ai-accent, #2F6BFF) 42%, transparent)',
+      '0 0 0 1px color-mix(in srgb, var(--ai-accent, #2F6BFF) 14%, transparent)',
+      '0 8px 34px -10px color-mix(in srgb, var(--ai-accent, #2F6BFF) 38%, transparent)',
+    ].join(', '),
   };
 }
 

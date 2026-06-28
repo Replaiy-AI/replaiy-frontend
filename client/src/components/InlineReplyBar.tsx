@@ -1883,64 +1883,82 @@ export function InlineReplyBar({
             className="absolute z-10 pointer-events-none flex items-center gap-2"
             style={{ bottom: 12, left: 12 }}
           >
-            {/* + (formatting) + media row live in ONE glass pill so they read
-               as a single connected unit. The + is the pill's leading button;
-               the photo/video/attach icons grow out to the right INSIDE the
-               same pill (no detached second pill, no gap). */}
-            <div
-              className="pointer-events-auto flex items-center overflow-hidden rounded-full"
-              style={{ ...replyPillStyle(), height: 40, padding: 2 }}
-            >
-              <ReplyFormatBtn
-                label={formatPillOpen ? 'Hide formatting' : 'Show formatting'}
-                testId="reply-fmt-toggle"
+            {/* + (formatting) + media row are ONE real glass button. Closed =
+               a 40px VadikGlass circle with just the +. Open = the SAME glass
+               stretches into a pill and the photo/video/attach icons appear
+               inside it: one continuous liquid-glass surface (matches the AI
+               mascot beside it), no detached pill, no gap. Media icons are
+               spans w/ stopPropagation so they fire their picker without
+               toggling the pill. */}
+            <div className="pointer-events-auto">
+              <VadikGlass
+                width={formatPillOpen ? 172 : 40}
+                height={40}
+                shape={formatPillOpen ? 'pill' : 'circle'}
+                data-testid="reply-fmt-toggle"
+                aria-label={formatPillOpen ? 'Hide formatting' : 'Show formatting'}
+                aria-pressed={formatPillOpen}
                 onClick={() => setFormatPillOpen((v) => !v)}
-                active={formatPillOpen}
+                onMouseDown={(e) => e.preventDefault()}
+                wrapperStyle={{
+                  transition:
+                    'width 360ms cubic-bezier(0.22, 1, 0.36, 1), min-width 360ms cubic-bezier(0.22, 1, 0.36, 1), max-width 360ms cubic-bezier(0.22, 1, 0.36, 1), transform 140ms cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
               >
-                <motion.span
-                  className="inline-flex"
-                  initial={false}
-                  animate={{ rotate: formatPillOpen ? 45 : 0 }}
-                  transition={APPLE_SPRING}
+                <div
+                  data-glass-content
+                  className="flex items-center w-full h-full"
+                  style={{
+                    justifyContent: formatPillOpen ? 'flex-start' : 'center',
+                    paddingLeft: formatPillOpen ? 11 : 0,
+                    paddingRight: formatPillOpen ? 6 : 0,
+                  }}
                 >
-                  <Plus size={17} strokeWidth={2} />
-                </motion.span>
-              </ReplyFormatBtn>
-
-              <AnimatePresence initial={false}>
-                {formatPillOpen && (
-                  <motion.div
-                    key="reply-fmt-expanded"
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: 'auto', opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
+                  <motion.span
+                    className="inline-flex text-icon shrink-0"
+                    initial={false}
+                    animate={{ rotate: formatPillOpen ? 45 : 0 }}
                     transition={APPLE_SPRING}
-                    className="flex items-center overflow-hidden"
                   >
-                    <ReplyFormatBtn
-                      label="Add photo"
-                      testId="reply-fmt-photo"
-                      onClick={() => photoInputRef.current?.click()}
-                    >
-                      <ImageIcon size={16} strokeWidth={2} />
-                    </ReplyFormatBtn>
-                    <ReplyFormatBtn
-                      label="Add video"
-                      testId="reply-fmt-video"
-                      onClick={() => videoInputRef.current?.click()}
-                    >
-                      <VideoIcon size={16} strokeWidth={2} />
-                    </ReplyFormatBtn>
-                    <ReplyFormatBtn
-                      label="Attach file"
-                      testId="reply-fmt-attach"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Paperclip size={16} strokeWidth={2} />
-                    </ReplyFormatBtn>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    <Plus size={17} strokeWidth={2} />
+                  </motion.span>
+
+                  <AnimatePresence initial={false}>
+                    {formatPillOpen && (
+                      <motion.div
+                        key="reply-fmt-expanded"
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: 'auto', opacity: 1 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        transition={APPLE_SPRING}
+                        className="flex items-center overflow-hidden"
+                      >
+                        <ReplyMediaIcon
+                          label="Add photo"
+                          testId="reply-fmt-photo"
+                          onClick={() => photoInputRef.current?.click()}
+                        >
+                          <ImageIcon size={16} strokeWidth={2} />
+                        </ReplyMediaIcon>
+                        <ReplyMediaIcon
+                          label="Add video"
+                          testId="reply-fmt-video"
+                          onClick={() => videoInputRef.current?.click()}
+                        >
+                          <VideoIcon size={16} strokeWidth={2} />
+                        </ReplyMediaIcon>
+                        <ReplyMediaIcon
+                          label="Attach file"
+                          testId="reply-fmt-attach"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Paperclip size={16} strokeWidth={2} />
+                        </ReplyMediaIcon>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </VadikGlass>
             </div>
 
             {/* AI revise on the RIGHT of the + — opens the wide "talk to
@@ -2234,6 +2252,47 @@ function ReplyFormatBtn({
     >
       {children}
     </button>
+  );
+}
+
+// Media icon that lives INSIDE the VadikGlass formatting pill. Rendered as a
+// span (not a button) so it never nests a <button> inside the VadikGlass
+// <button>. stopPropagation keeps a click on it from toggling the pill open/
+// closed; it just fires its own file picker.
+function ReplyMediaIcon({
+  label,
+  testId,
+  onClick,
+  children,
+}: {
+  label: string;
+  testId: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      data-testid={testId}
+      aria-label={label}
+      title={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      onMouseDown={(e) => e.preventDefault()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick();
+        }
+      }}
+      className="h-9 w-9 rounded-full flex items-center justify-center text-icon hover:text-foreground active-elevate-2 transition-colors cursor-pointer shrink-0"
+    >
+      {children}
+    </span>
   );
 }
 
