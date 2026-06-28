@@ -1101,20 +1101,10 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
             onDone={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
             onSnooze={() => { setConversationStatus(mail.id, 'snoozed'); navigate('/'); }}
           />
-          {/* Lead context panel toggle — a small glass pill button that opens
-             / closes the right-hand column. The right column inside the icon
-             slides in / out to mirror the panel state. */}
-          {hasLeadContext && (
-            <ActionPill
-              testId="lead-panel-toggle"
-              label="Toggle lead context"
-              ariaPressed={leadPanelOpen}
-              active={leadPanelOpen}
-              onClick={toggleLeadPanel}
-            >
-              <PanelToggleIcon open={leadPanelOpen} />
-            </ActionPill>
-          )}
+          {/* Lead-context panel toggle button removed per user request — the
+             lead-context column now simply stays open by default (no manual
+             toggle). The leadPanelOpen state + toggleLeadPanel stay available
+             for any programmatic use. */}
         </div>
       </div>
 

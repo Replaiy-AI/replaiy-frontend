@@ -39,7 +39,6 @@ import {
   Video as VideoIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { APPLE_SPRING } from '@/lib/motion';
 import VadikGlass from './VadikGlass';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useLocation } from 'wouter';
@@ -47,6 +46,23 @@ import { DiscardDraftPopover } from './DiscardDraftPopover';
 import { AiReviseChat } from './AiReviseChat';
 import { activePersona } from '@/data/mockPersona';
 import { useReplaiy } from '@/state/ReplaiyContext';
+
+// v35.5 — Formatting-pill open/close tween. The VadikGlass wrapper animates
+// its WIDTH via a CSS transition: 360ms cubic-bezier(0.22, 1, 0.36, 1). The
+// inner media-icons (and the +→X rotation) previously used APPLE_SPRING, a
+// spring with different timing. On open the two systems happened to look in
+// sync; on CLOSE they desynced — the spring exited on its own curve while the
+// CSS width eased out separately, making the close feel janky/abrupt.
+//
+// Fix: drive BOTH the icons' reveal/collapse AND the +→X rotation with the
+// EXACT same easing + duration as the pill width. open and close are now
+// mirror images of one another: one easing, one duration, content collapsing
+// perfectly in sync with the pill width. (framer ease arrays are in seconds.)
+const FMT_PILL_TWEEN = {
+  type: 'tween' as const,
+  duration: 0.36,
+  ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+};
 
 /** v30.30 — Forward state: leeg To-veld, pre-filled editor met forward-block.
  *  Wanneer aanwezig openen we de bar in forward-mode (expanded + leeg To). */
@@ -1036,6 +1052,35 @@ export function InlineReplyBar({
   // same: a single PenLine glass-circle bottom-right that expands
   // leftwards to reveal B / I / U / list / link / attach.
   const [formatPillOpen, setFormatPillOpen] = useState(false);
+  // v35.5 — Keep the VadikGlass shape='pill' for the FULL duration of the
+  // collapse, then flip to 'circle'. Without this latch, shape flips pill→
+  // circle the instant close starts; while the width is still ~156 a circle's
+  // `border-radius:50%` resolves to ~78px horizontally (an ellipse) and the
+  // corners visibly bulge mid-collapse — a hard radius jump. By holding 'pill'
+  // (fixed 20px radius) until the width has finished easing to 40, the radius
+  // never jumps; at 40×40 the pill (h/2=20) and circle (50%=20) radii are
+  // identical, so the swap at the end is invisible.
+  const [formatPillShapePill, setFormatPillShapePill] = useState(false);
+  const formatPillShapeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (formatPillShapeTimer.current) {
+      clearTimeout(formatPillShapeTimer.current);
+      formatPillShapeTimer.current = null;
+    }
+    if (formatPillOpen) {
+      // Opening: become a pill immediately so the width can expand as a capsule.
+      setFormatPillShapePill(true);
+    } else {
+      // Closing: stay a pill until the 360ms width collapse finishes, then
+      // swap to circle (radius is identical at 40×40, so no visible jump).
+      formatPillShapeTimer.current = setTimeout(() => {
+        setFormatPillShapePill(false);
+      }, 360);
+    }
+    return () => {
+      if (formatPillShapeTimer.current) clearTimeout(formatPillShapeTimer.current);
+    };
+  }, [formatPillOpen]);
 
 
   // v32.1 — "Has content" detector for the discard flow. Treats body as
@@ -1894,7 +1939,7 @@ export function InlineReplyBar({
               <VadikGlass
                 width={formatPillOpen ? 156 : 40}
                 height={40}
-                shape={formatPillOpen ? 'pill' : 'circle'}
+                shape={formatPillShapePill ? 'pill' : 'circle'}
                 data-testid="reply-fmt-toggle"
                 aria-label={formatPillOpen ? 'Hide formatting' : 'Show formatting'}
                 aria-pressed={formatPillOpen}
@@ -1905,21 +1950,27 @@ export function InlineReplyBar({
                     'width 360ms cubic-bezier(0.22, 1, 0.36, 1), min-width 360ms cubic-bezier(0.22, 1, 0.36, 1), max-width 360ms cubic-bezier(0.22, 1, 0.36, 1), transform 140ms cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
               >
-                {/* All 4 controls share the SAME 36px slot so the spacing is
-                   uniform (equal gaps, equal side margins) — the pill width
-                   (156 = 4*36 + 2*6 padding) hugs the content with no empty
-                   space after the paperclip. */}
+                {/* All 4 controls share the SAME 36px slot. The geometric
+                   slot-centers are perfectly symmetric (24px from each pill
+                   edge, 36px center-to-center). The + slot's paddings are
+                   tuned asymmetrically (paddingLeft 8 / paddingRight 4) to
+                   optically compensate for the rotated "+"→X: when rotated 45°
+                   the X's bounding box is ~25px wide (vs the 16px media
+                   glyphs), so its left edge protrudes closer to the pill edge.
+                   Nudging the content ~2px right equalizes the VISIBLE left
+                   margin (edge→X) with the VISIBLE right margin (paperclip→
+                   edge) so the pill hugs the content symmetrically. */}
                 <div
                   data-glass-content
                   className="flex items-center w-full h-full justify-center"
-                  style={{ paddingLeft: 6, paddingRight: 6 }}
+                  style={{ paddingLeft: 8, paddingRight: 4 }}
                 >
                   <span className="h-9 w-9 rounded-full flex items-center justify-center shrink-0">
                     <motion.span
                       className="inline-flex text-icon"
                       initial={false}
                       animate={{ rotate: formatPillOpen ? 45 : 0 }}
-                      transition={APPLE_SPRING}
+                      transition={FMT_PILL_TWEEN}
                     >
                       <Plus size={17} strokeWidth={2} />
                     </motion.span>
@@ -1932,7 +1983,7 @@ export function InlineReplyBar({
                         initial={{ width: 0, opacity: 0 }}
                         animate={{ width: 'auto', opacity: 1 }}
                         exit={{ width: 0, opacity: 0 }}
-                        transition={APPLE_SPRING}
+                        transition={FMT_PILL_TWEEN}
                         className="flex items-center overflow-hidden"
                       >
                         <ReplyMediaIcon
