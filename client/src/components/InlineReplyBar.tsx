@@ -1883,66 +1883,65 @@ export function InlineReplyBar({
             className="absolute z-10 pointer-events-none flex items-center gap-2"
             style={{ bottom: 12, left: 12 }}
           >
-            {/* + (formatting) on the LEFT. */}
-            <div className="pointer-events-auto">
-              <VadikGlass
-                width={40}
-                height={40}
-                shape="circle"
-                data-testid="reply-fmt-toggle"
-                aria-label={formatPillOpen ? 'Hide formatting' : 'Show formatting'}
-                aria-pressed={formatPillOpen}
+            {/* + (formatting) + media row live in ONE glass pill so they read
+               as a single connected unit. The + is the pill's leading button;
+               the photo/video/attach icons grow out to the right INSIDE the
+               same pill (no detached second pill, no gap). */}
+            <div
+              className="pointer-events-auto flex items-center overflow-hidden rounded-full"
+              style={{ ...replyPillStyle(), height: 40, padding: 2 }}
+            >
+              <ReplyFormatBtn
+                label={formatPillOpen ? 'Hide formatting' : 'Show formatting'}
+                testId="reply-fmt-toggle"
                 onClick={() => setFormatPillOpen((v) => !v)}
-                onMouseDown={(e) => e.preventDefault()}
+                active={formatPillOpen}
               >
                 <motion.span
-                  className="inline-flex text-icon"
+                  className="inline-flex"
                   initial={false}
                   animate={{ rotate: formatPillOpen ? 45 : 0 }}
                   transition={APPLE_SPRING}
                 >
                   <Plus size={17} strokeWidth={2} />
                 </motion.span>
-              </VadikGlass>
-            </div>
+              </ReplyFormatBtn>
 
-            {/* Media row (photo / video / attach) expands to the right of the
-               + as its own glass pill when formatting is open. */}
-            <AnimatePresence initial={false}>
-              {formatPillOpen && (
-                <motion.div
-                  key="reply-fmt-expanded"
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: 'auto', opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
-                  transition={APPLE_SPRING}
-                  className="pointer-events-auto flex items-center overflow-hidden rounded-full"
-                  style={{ ...replyPillStyle(), height: 40, padding: 2 }}
-                >
-                  <ReplyFormatBtn
-                    label="Add photo"
-                    testId="reply-fmt-photo"
-                    onClick={() => photoInputRef.current?.click()}
+              <AnimatePresence initial={false}>
+                {formatPillOpen && (
+                  <motion.div
+                    key="reply-fmt-expanded"
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 'auto', opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={APPLE_SPRING}
+                    className="flex items-center overflow-hidden"
                   >
-                    <ImageIcon size={16} strokeWidth={2} />
-                  </ReplyFormatBtn>
-                  <ReplyFormatBtn
-                    label="Add video"
-                    testId="reply-fmt-video"
-                    onClick={() => videoInputRef.current?.click()}
-                  >
-                    <VideoIcon size={16} strokeWidth={2} />
-                  </ReplyFormatBtn>
-                  <ReplyFormatBtn
-                    label="Attach file"
-                    testId="reply-fmt-attach"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Paperclip size={16} strokeWidth={2} />
-                  </ReplyFormatBtn>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    <ReplyFormatBtn
+                      label="Add photo"
+                      testId="reply-fmt-photo"
+                      onClick={() => photoInputRef.current?.click()}
+                    >
+                      <ImageIcon size={16} strokeWidth={2} />
+                    </ReplyFormatBtn>
+                    <ReplyFormatBtn
+                      label="Add video"
+                      testId="reply-fmt-video"
+                      onClick={() => videoInputRef.current?.click()}
+                    >
+                      <VideoIcon size={16} strokeWidth={2} />
+                    </ReplyFormatBtn>
+                    <ReplyFormatBtn
+                      label="Attach file"
+                      testId="reply-fmt-attach"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Paperclip size={16} strokeWidth={2} />
+                    </ReplyFormatBtn>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* AI revise on the RIGHT of the + — opens the wide "talk to
                Replaiy" chat overlay. Uses the persona mascot as its icon. */}
