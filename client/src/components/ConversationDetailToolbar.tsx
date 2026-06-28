@@ -84,6 +84,8 @@ export function SubjectIdentityPill({
   metaLabel,
   onMetaClick,
   metaActive,
+  onIdentityClick,
+  identityActive,
 }: {
   name: string;
   avatar?: string;
@@ -91,6 +93,10 @@ export function SubjectIdentityPill({
   metaLabel?: string | null;
   onMetaClick?: () => void;
   metaActive?: boolean;
+  /** When set, the identity zone (avatar + name) becomes a button that
+   *  toggles the Lead context panel. */
+  onIdentityClick?: () => void;
+  identityActive?: boolean;
 }) {
   // v30.32 — Pill gebruikt nu VadikGlass shape="pill" (zelfde recipe
   // als de Done/Snooze/More action-buttons rechts). Was eerder lg-pill
@@ -108,18 +114,36 @@ export function SubjectIdentityPill({
       wrapperStyle={{ flex: 1, maxWidth: 640, minWidth: 0 }}
     >
       <div className="flex items-center w-full h-full pl-1.5 pr-1.5">
-        {/* Identity zone — plain (non-interactive). The legacy contact
-           info panel was removed; the sender name/avatar no longer opens
-           anything. */}
-        <div
-          data-testid="toolbar-identity"
-          className="inline-flex items-center gap-2.5 h-[42px] px-2.5 rounded-full shrink-0"
-        >
-          <ReplaiyAvatar name={name} src={avatar} size={32} />
-          <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate max-w-[160px]">
-            {name}
-          </span>
-        </div>
+        {/* Identity zone. When onIdentityClick is set it toggles the Lead
+           context panel (the chip IS the panel trigger). Otherwise it is
+           a plain, non-interactive identity. */}
+        {onIdentityClick ? (
+          <button
+            type="button"
+            data-testid="toolbar-identity"
+            onClick={onIdentityClick}
+            aria-pressed={!!identityActive}
+            aria-label="Toggle lead context"
+            className={`inline-flex items-center gap-2.5 h-[42px] px-2.5 rounded-full shrink-0 transition-transform hover:scale-[1.02] active:scale-[0.98] hover-elevate active-elevate-2 ${
+              identityActive ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
+            }`}
+          >
+            <ReplaiyAvatar name={name} src={avatar} size={32} />
+            <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate max-w-[160px]">
+              {name}
+            </span>
+          </button>
+        ) : (
+          <div
+            data-testid="toolbar-identity"
+            className="inline-flex items-center gap-2.5 h-[42px] px-2.5 rounded-full shrink-0"
+          >
+            <ReplaiyAvatar name={name} src={avatar} size={32} />
+            <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate max-w-[160px]">
+              {name}
+            </span>
+          </div>
+        )}
 
         {/* Vertical hairline divider */}
         <div

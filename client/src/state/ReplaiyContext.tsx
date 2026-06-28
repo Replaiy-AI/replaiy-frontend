@@ -78,6 +78,11 @@ interface StiltState {
   contextPanelOpen: boolean;
   setContextPanelOpen: (b: boolean) => void;
   toggleContextPanel: () => void;
+  /** Right-hand Lead context column (desktop) / slide-over (mobile).
+   *  Parallel to the summary panel; persists across mail navigation. */
+  leadPanelOpen: boolean;
+  setLeadPanelOpen: (b: boolean) => void;
+  toggleLeadPanel: () => void;
 }
 
 const Ctx = createContext<StiltState | null>(null);
@@ -111,6 +116,9 @@ export function ReplaiyProvider({ children }: { children: React.ReactNode }) {
   const contextPanelOpen = summaryPanelOpen;
   const setContextPanelOpen = setSummaryPanelOpen;
   const toggleContextPanel = toggleSummaryPanel;
+  const [leadPanelOpen, setLeadPanelOpenState] = useState(true);
+  const setLeadPanelOpen = useCallback((b: boolean) => setLeadPanelOpenState(b), []);
+  const toggleLeadPanel = useCallback(() => setLeadPanelOpenState((v) => !v), []);
   const [ai, setAIState] = useState<AISettings>({
     summary: true,
     smartReply: true,
@@ -236,8 +244,11 @@ export function ReplaiyProvider({ children }: { children: React.ReactNode }) {
       contextPanelOpen,
       setContextPanelOpen,
       toggleContextPanel,
+      leadPanelOpen,
+      setLeadPanelOpen,
+      toggleLeadPanel,
     }),
-    [conversations, setConversationStatus, campaigns, addCampaign, updateCampaign, persona, workspace, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, conversationView, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel]
+    [conversations, setConversationStatus, campaigns, addCampaign, updateCampaign, persona, workspace, startConversationWith, composePrefill, theme, effectiveDark, category, viewMode, smartMode, conversationView, query, ai, setAI, showShortcuts, dotsMenuOpen, sheetOpen, summaryPanelOpen, setSummaryPanelOpen, toggleSummaryPanel, contextPanelOpen, setContextPanelOpen, toggleContextPanel, leadPanelOpen, setLeadPanelOpen, toggleLeadPanel]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

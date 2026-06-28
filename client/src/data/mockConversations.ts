@@ -41,6 +41,24 @@ export interface Attachment {
   kind: 'pdf' | 'image' | 'doc' | 'sheet' | 'zip';
 }
 
+// ─── Lead context — the right-hand enrichment panel ────────────────
+// Everything the AI knows about the person behind the thread. The contact
+// PII (email + phone) is present in the mock but the UI keeps it hidden
+// until the user opts in via "Reveal contact info" (on-demand enrichment).
+export interface LeadContext {
+  title: string; // 'Head of Growth'
+  company: string; // 'Northwave Labs'
+  location?: string; // 'Amsterdam, NL'
+  companySize?: string; // '50-200'
+  industry?: string; // 'B2B SaaS'
+  fitScore?: number; // 0-100 ICP match
+  signals?: string[]; // why the AI personalizes this thread
+  linkedinUrl?: string;
+  // contact-enrichment (PII) — hidden in the UI until revealed on demand.
+  email?: string;
+  phone?: string;
+}
+
 export interface ThreadMessage {
   id: string;
   from: 'me' | 'other';
@@ -100,6 +118,17 @@ export interface Conversation {
   leadHeadline?: string;
   leadCompany?: string;
   leadLocation?: string;
+
+  // ─── Lead context panel — enrichment + AI read of the thread ──────
+  /** Enriched lead profile shown in the right-hand Lead context panel. */
+  lead?: LeadContext;
+  /** AI read: one-line interpretation of WHY / what the thread means.
+   *  e.g. 'Interested, but will want proof the AI sounds human.' This is
+   *  NOT a stage — goalStage stays the single source of truth for warmth. */
+  aiRead?: string;
+  /** The most valuable line: the next best action to move the thread on.
+   *  e.g. 'Propose Tue or Wed afternoon for a 20-min call'. */
+  nextAction?: string;
 
   // Threading
   isThread?: boolean;
@@ -183,6 +212,24 @@ export const mockConversations: Conversation[] = [
     goalType: 'meeting',
     goalStage: 'interested',
     campaignName: 'Q3 — Series-B founders',
+    aiRead: 'Interested, but will want proof the AI sounds human before committing.',
+    nextAction: 'Propose Tue or Wed afternoon for a 20-min call',
+    lead: {
+      title: 'Head of Growth',
+      company: 'Northwave Labs',
+      location: 'Amsterdam, NL',
+      companySize: '50-200',
+      industry: 'B2B SaaS',
+      fitScore: 91,
+      signals: [
+        'Replied positively today',
+        'Scaling SDR outbound right now',
+        'Reply quality is her stated pain',
+      ],
+      linkedinUrl: '#',
+      email: 'emma.chen@northwavelabs.com',
+      phone: '+31 6 12 34 56 78',
+    },
     smartReplies: [
       "Love that — reply quality is exactly where we move the needle. Worth a 20-min look at how it'd fit your current SDR motion? I can walk you through a live thread from a team your size. Tue or Wed afternoon work on your end?",
       "Happy to share a couple of live examples from a similar SDR team first if that's easier?",
@@ -212,6 +259,24 @@ export const mockConversations: Conversation[] = [
     goalType: 'meeting',
     goalStage: 'in_conversation',
     campaignName: 'Q3 — Series-B founders',
+    aiRead: 'Skeptical after a past bad experience, not closed off. Wants reassurance this is human-led.',
+    nextAction: 'Offer two live examples from a comparable dev team',
+    lead: {
+      title: 'CTO',
+      company: 'Acme Software',
+      location: 'Amsterdam, NL',
+      companySize: '200-500',
+      industry: 'Dev tooling',
+      fitScore: 78,
+      signals: [
+        'Tried an outbound tool last year',
+        'Cares about reply quality, not volume',
+        'Technical buyer, wants the how',
+      ],
+      linkedinUrl: '#',
+      email: 'jan.devries@acmesoftware.io',
+      phone: '+31 6 98 76 54 32',
+    },
     smartReplies: [
       'Snap ik helemaal, Jan — de meeste tools blazen hetzelfde sjabloon naar 500 mensen. Wij draaien het om: elke reply wordt geschreven op basis van de context van dít gesprek, en jouw team keurt alles goed vóór het de deur uitgaat. Niks gaat automatisch tenzij je dat zelf aanzet. Zal ik je een paar échte voorbeelden uit een vergelijkbaar dev-team sturen?',
       'Eerlijk: de eerste lichting outbound-tools wás spam. Wij zijn human-in-the-loop — jij keurt elke reply goed. Zal ik laten zien hoe dat eruitziet?',
@@ -241,6 +306,24 @@ export const mockConversations: Conversation[] = [
     goalType: 'meeting',
     goalStage: 'ready',
     campaignName: 'Q3 — Series-B founders',
+    aiRead: 'Ready to move. Asked outright how to start, so the only job left is to book the time.',
+    nextAction: 'Offer two onboarding slots and confirm one',
+    lead: {
+      title: 'Marketing Lead',
+      company: 'Kettle & Co',
+      location: 'Vienna, AT',
+      companySize: '10-50',
+      industry: 'D2C commerce',
+      fitScore: 84,
+      signals: [
+        'Asked how to get started',
+        'No objections raised',
+        'Small team, fast to adopt',
+      ],
+      linkedinUrl: '#',
+      email: 'hannah.mueller@kettleandco.com',
+      phone: '+43 660 123 45 67',
+    },
     smartReplies: [
       "Great to hear, Hannah! Easiest first step is a quick 25-min onboarding call — we connect your inbox, set your tone, and you'll have your first reviewed drafts the same day. Does Thursday morning or Friday around lunch suit you better?",
       "Awesome — want me to send over a short getting-started guide first, or jump straight to a call?",

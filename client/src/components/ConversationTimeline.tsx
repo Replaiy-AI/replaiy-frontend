@@ -18,7 +18,9 @@ import { useMobileTopChromeSlot } from './MobileTopChrome';
 import { IdentityPill, ConversationActionPills, ConversationActionPillsCompact, SubjectPill, SubjectIdentityPill, ActionPill } from './ConversationDetailToolbar';
 
 import { ConversationSummaryPanel, hasSummaryPanelValue } from './ConversationSummaryPanel';
+import { LeadContextPanel } from './LeadContextPanel';
 import { InlineReplyBar, type ForwardContext } from './InlineReplyBar';
+import { PanelRight, X } from 'lucide-react';
 import {
   ComposeSheetMobile,
   useComposeSheetRefs,
@@ -427,7 +429,31 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
     summaryPanelOpen,
     toggleSummaryPanel,
     setSummaryPanelOpen,
+    leadPanelOpen,
+    toggleLeadPanel,
+    setLeadPanelOpen,
   } = useReplaiy();
+
+  // Lead context panel only makes sense when there is something to show.
+  const hasLeadContext =
+    !!mail.lead ||
+    !!mail.aiRead ||
+    !!mail.nextAction ||
+    !!mail.goalStage ||
+    !!mail.leadHeadline;
+
+  // The panel defaults to OPEN (nice on desktop), but on a compact viewport
+  // an auto-open slide-over would cover the whole conversation on first
+  // load. So on mount, if we are compact, collapse it once — the user can
+  // still open it via the chip / toggle. Runs only on the initial mount.
+  const didInitLeadPanel = useRef(false);
+  useEffect(() => {
+    if (didInitLeadPanel.current) return;
+    didInitLeadPanel.current = true;
+    if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 1024px)').matches) {
+      setLeadPanelOpen(false);
+    }
+  }, [setLeadPanelOpen]);
   // v30.32 — ConversationTimeline rendert nu ALLE conversations (single + thread).
   // Voorheen had SingleConversationDetail een eigen render-tree, wat tot subtiele
   // styling-verschillen leidde tussen "Elena's mail" en "Nora's thread".
@@ -935,7 +961,11 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
   const titleName = mail.from.name;
 
   return (
-    <div className="flex flex-col h-full min-h-0 relative">
+    <div className="flex flex-row h-full min-h-0 relative">
+      {/* CENTER column — timeline + chrome + reply bar. flex-1 so it takes
+          the full width when the lead panel is closed, and shrinks (not
+          crushes) when the panel opens beside it on desktop. */}
+      <div className="flex-1 flex flex-col h-full min-h-0 relative min-w-0">
       <BubbleStyles />
       {/* Mobile top chrome: back + identity pill + Done/Snooze actions. */}
       <ThreadChromeSlot
@@ -969,22 +999,49 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
            verschoof. We reserveren nu aan beide zijden ruimte voor de
            action cluster (136px) zodat de Avatar+Subject groep precies
            in het midden van de viewport-column zit. */}
-        <div className="flex justify-center items-center px-[136px]">
-          <div className="pointer-events-auto flex items-center gap-3 min-w-0 max-w-[640px]">
-            {/* v30.32 — Combined identity + subject pill (zie
-               ConversationDetailToolbar.tsx). */}
-            {/* v30.32 — meta-badge alleen tonen als panel waarde heeft. */}
-            <SubjectIdentityPill
-              name={titleName}
-              avatar={mail.from.avatar}
-              subject={[mail.leadHeadline, mail.leadCompany].filter(Boolean).join(' · ')}
-              metaLabel={null}
-              onMetaClick={undefined}
-              metaActive={summaryPanelOpen}
-            />
+        {/* The centered identity pill is hidden while the lead panel is open:
+           the panel header already shows the lead's identity, and in the
+           narrower center column the floating pill would otherwise collide
+           with the top-right action cluster (toggle + Done). */}
+        {!(hasLeadContext && leadPanelOpen) && (
+          <div
+            className="flex justify-center items-center"
+            style={{
+              paddingLeft: 136,
+              paddingRight: hasLeadContext ? 150 : 136,
+            }}
+          >
+            <div className="pointer-events-auto flex items-center gap-3 min-w-0 max-w-[440px]">
+              {/* v30.32 — Combined identity + subject pill (zie
+                 ConversationDetailToolbar.tsx). */}
+              {/* v30.32 — meta-badge alleen tonen als panel waarde heeft. */}
+              <SubjectIdentityPill
+                name={titleName}
+                avatar={mail.from.avatar}
+                subject={[mail.leadHeadline, mail.leadCompany].filter(Boolean).join(' · ')}
+                metaLabel={null}
+                onMetaClick={undefined}
+                metaActive={summaryPanelOpen}
+                onIdentityClick={hasLeadContext ? toggleLeadPanel : undefined}
+                identityActive={leadPanelOpen}
+              />
+            </div>
           </div>
-        </div>
-        <div className="absolute top-0 right-4 lg:right-6 pointer-events-auto">
+        )}
+        <div className="absolute top-0 right-4 lg:right-6 pointer-events-auto flex items-center gap-2">
+          {/* Lead context panel toggle — a small glass pill button that opens
+             / closes the right-hand column. Mirrors the clickable top chip. */}
+          {hasLeadContext && (
+            <ActionPill
+              testId="lead-panel-toggle"
+              label="Toggle lead context"
+              ariaPressed={leadPanelOpen}
+              active={leadPanelOpen}
+              onClick={toggleLeadPanel}
+            >
+              <PanelRight size={20} strokeWidth={1.7} className="text-icon" />
+            </ActionPill>
+          )}
           {/* v30.30 — Desktop gebruikt nu hetzelfde compact-pattern als
              mobile: Done + ••• overflow met Forward + Snooze + kalender. */}
           <ConversationActionPillsCompact
@@ -1330,6 +1387,80 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
           </ComposeSheetMobile>
         )}
       </AnimatePresence>
+      </div>
+      {/* /CENTER column */}
+
+      {/* RIGHT column — Lead context panel (desktop). A real in-flow column
+         that animates its width + opacity with APPLE_SPRING so the center
+         conversation reflows smoothly beside it. The inbox list (column 1)
+         shrinks to a comfortable minimum at the same time (see App.tsx), so
+         all three columns stay readable. Hidden below lg; mobile uses the
+         slide-over sheet below. */}
+      {hasLeadContext && (
+        <AnimatePresence initial={false}>
+          {leadPanelOpen && (
+            <motion.aside
+              key="lead-panel-desktop"
+              data-testid="lead-panel-desktop"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 340, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={APPLE_SPRING}
+              className="hidden lg:block h-full min-h-0 shrink-0 overflow-hidden border-l border-foreground/[0.06] dark:border-white/[0.06]"
+            >
+              <div style={{ width: 340 }} className="h-full min-h-0">
+                <LeadContextPanel mail={mail} />
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
+      )}
+
+      {/* MOBILE / compact slide-over — the lead panel slides in from the
+         right over the conversation, with a tap-to-dismiss scrim. */}
+      {hasLeadContext && (
+        <AnimatePresence>
+          {leadPanelOpen && (
+            <div className="lg:hidden">
+              <motion.div
+                key="lead-scrim"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setLeadPanelOpen(false)}
+                className="absolute inset-0 z-40 bg-black/30"
+              />
+              <motion.aside
+                key="lead-panel-mobile"
+                data-testid="lead-panel-mobile"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={APPLE_SPRING}
+                className="absolute top-0 right-0 bottom-0 z-50 w-[86%] max-w-[360px] lg-sheet"
+                style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+              >
+                <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                  <span className="text-[13px] font-semibold text-foreground">Lead context</span>
+                  <button
+                    type="button"
+                    aria-label="Close lead context"
+                    data-testid="lead-panel-close"
+                    onClick={() => setLeadPanelOpen(false)}
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-full hover-elevate active-elevate-2"
+                  >
+                    <X size={18} strokeWidth={1.9} className="text-icon" />
+                  </button>
+                </div>
+                <div className="h-[calc(100%-44px)] min-h-0">
+                  <LeadContextPanel mail={mail} />
+                </div>
+              </motion.aside>
+            </div>
+          )}
+        </AnimatePresence>
+      )}
     </div>
   );
 }

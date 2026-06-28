@@ -22,6 +22,7 @@ import { ReplaiyLogo } from '@/components/Logo';
 import { UniversalSearch } from '@/components/UniversalSearch';
 import { LiquidGlassFilters } from '@/components/LiquidGlassFilters';
 import { AnimatePresence, motion } from 'framer-motion';
+import { APPLE_SPRING } from '@/lib/motion';
 
 // v-replaiy — /settings is deprecated. The Stilt profile menu was removed
 // (all fake template UI), so this route now simply redirects to the inbox
@@ -183,8 +184,51 @@ function KeyboardShortcuts() {
   return null;
 }
 
+// Tracks the responsive breakpoint so the inbox/list column can be driven by
+// an animatable pixel width (Tailwind responsive classes can't be spring-
+// animated). Mirrors the md:360 / lg:560 / xl:600 column tokens.
+function useListColumnWidth(shrink: boolean) {
+  const compute = () => {
+    if (typeof window === 'undefined') return { base: 560, isDesktop: true, winW: 1440 };
+    const w = window.innerWidth;
+    if (w < 768) return { base: 0, isDesktop: false, winW: w }; // < md: full-width (w-full)
+    if (w < 1024) return { base: 360, isDesktop: true, winW: w }; // md
+    if (w < 1280) return { base: 560, isDesktop: true, winW: w }; // lg
+    return { base: 600, isDesktop: true, winW: w }; // xl
+  };
+  const [{ base, isDesktop, winW }, setDims] = useState(compute);
+  useEffect(() => {
+    const onResize = () => setDims(compute());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  // When the lead panel is open all three columns must coexist without anyone
+  // getting crushed. We do NOT snap the inbox to a hard minimum — instead we
+  // give the conversation a comfortable floor and let the inbox keep whatever
+  // width is left over. On wide screens (e.g. 1440+) there is plenty of room,
+  // so the inbox barely shrinks (or not at all); only on tight screens does it
+  // ease down, and never below a still-comfortable floor.
+  //   layout = rail(88) + inbox + conversation + leadPanel(340) + gutters(~24)
+  const RAIL = 88;
+  const LEAD = 340;
+  const GUTTERS = 24;
+  const CONV_FLOOR = 560; // conversation never thinner than this
+  const INBOX_FLOOR = 360; // inbox stays readable; greeting on 2 clean lines
+  let width = base;
+  if (shrink) {
+    const leftover = winW - RAIL - LEAD - GUTTERS - CONV_FLOOR;
+    // Inbox takes the leftover, but never wider than its base and never below
+    // its comfortable floor. On 1440+ leftover (~428) keeps it near full width;
+    // on lg (1280) leftover (~268) is below the floor so it lands on the floor
+    // and the conversation gives the rest.
+    width = Math.max(INBOX_FLOOR, Math.min(base, leftover));
+  }
+  return { width, isDesktop };
+}
+
 function LayoutShell() {
   const [loc] = useLocation();
+  const { leadPanelOpen } = useReplaiy();
 
   // Determine right-pane content based on route
   const showingConversation = loc.startsWith('/conversation/');
@@ -209,6 +253,11 @@ function LayoutShell() {
   // Mobile: only show one column at a time
   // Tablet: list + detail
   // Desktop: rail + list + detail
+
+  // The inbox/list column shrinks (to its comfortable minimum) when the lead
+  // panel is open on a conversation — desktop only.
+  const shrinkList = showingConversation && leadPanelOpen;
+  const { width: listWidth, isDesktop } = useListColumnWidth(shrinkList);
 
   return (
     <div className="h-screen w-full flex relative">
@@ -235,7 +284,7 @@ function LayoutShell() {
             Hidden on mobile when a detail pane is open (a conversation, a
             specific campaign, or an /ai part), shown again for the bare list
             routes (empty state on the right). */}
-        <div
+        <motion.div
           className={`
             ${
               showingCalendar
@@ -244,12 +293,16 @@ function LayoutShell() {
                   ? 'hidden md:flex'
                   : 'flex'
             }
-            md:w-[360px] lg:w-[560px] xl:w-[600px] flex-col w-full md:shrink-0
-            relative lg:pr-2
+            flex-col w-full md:shrink-0
+            relative lg:pr-2 overflow-hidden
           `}
+          // Desktop: spring-animate the width so the column can shrink when the
+          // lead panel opens. Mobile (< md): full-width via w-full, width unset.
+          animate={isDesktop ? { width: listWidth } : undefined}
+          transition={APPLE_SPRING}
         >
           {showingAi ? <AiList /> : showingCampaigns ? <CampaignsList /> : <InboxList />}
-        </div>
+        </motion.div>
 
         {/* Right detail pane — list + detail just like the inbox. On desktop it
             always shows (empty state on bare /campaigns and bare /ai); on mobile
