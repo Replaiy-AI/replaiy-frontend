@@ -862,14 +862,21 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
       {/* Content area. The sticky tabs above scroll-overlap this content, so
           the cards softly pass behind the glass pill as you scroll. */}
       <div className="px-4 pb-6">
-        <AnimatePresence mode="wait">
+        {/* v-fix-tab-snappy — Tab switch is now an instant, light cross-fade.
+            Previously AnimatePresence used mode="wait" (the incoming tab waited
+            for the outgoing tab's full 0.22s exit before starting) PLUS a y
+            slide, which read as the buttons/name "slowly loading in the middle"
+            on every Contact<->Overview switch. Dropping mode="wait" lets the
+            two tabs cross-fade simultaneously, and removing the y offset (fade
+            only, fast 0.14s) makes the switch feel immediate. */}
+        <AnimatePresence>
           {tab === 'overview' ? (
             <motion.div
               key="overview"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.14, ease: 'easeOut' }}
               className="flex flex-col gap-5"
             >
               {/* 1 · THE AI, TALKING. The hero. Mascot as a living sender,
@@ -1007,10 +1014,10 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
           ) : (
             <motion.div
               key="contact"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.14, ease: 'easeOut' }}
               className="flex flex-col gap-5"
             >
               {/* Identity card · now the COMPLETE contact hub (FIX B). Avatar +

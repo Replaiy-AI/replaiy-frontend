@@ -1479,6 +1479,18 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
          side panel here) and slides in from the right like opening a detail
          view. A back arrow returns to the conversation. Mirrors the
          inbox→conversation push so it feels native, not like a modal. */}
+      {/* v-fix-chrome-handoff — The LeadPanelChromeSlot is registered HERE,
+          tied directly to `leadPanelOpen`, NOT inside the exit-animating
+          motion.div below. Previously it lived inside the panel's
+          AnimatePresence child, so on close it stayed mounted for the full
+          slide-out (APPLE_SPRING ~0.4s) — the title kept reading "Lead context"
+          and only after the animation finished did the conversation chrome
+          (name + Done check) return. Mounting it on `leadPanelOpen` de-registers
+          the slot the instant Back is tapped, so name + Done snap back
+          immediately while the panel still slides out smoothly. */}
+      {hasLeadContext && leadPanelOpen && (
+        <LeadPanelChromeSlot onClose={() => setLeadPanelOpen(false)} />
+      )}
       {hasLeadContext && (
         <AnimatePresence>
           {leadPanelOpen && (
@@ -1508,7 +1520,6 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
                   carries the safe-area + title-zone offset INTERNALLY (mobile)
                   so content scrolls UNDER the title and the lead-tab-fade veil
                   frosts it uniformly, exactly like the inbox. */}
-              <LeadPanelChromeSlot onClose={() => setLeadPanelOpen(false)} />
               <div className="flex-1 min-h-0">
                 <LeadContextPanel mail={mail} />
               </div>
