@@ -59,6 +59,7 @@ import { ReplaiyAvatar } from '@/components/Avatar';
 import { activePersona } from '@/data/mockPersona';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
+import { LinkedInProfileView, ProfileChromeSlot } from '@/components/LinkedInProfileView';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const ACCENT = '#2F6BFF';
@@ -220,7 +221,7 @@ function formatRelativeFuture(date: Date): string {
 // "Questions", "Choose your AI's personality"). Renders "Context",
 // "Signals", "Flow", "Company", "Role" in normal case so the panel is
 // consistent with the rest of the platform instead of shouting all-caps.
-function SectionLabel({ children }: { children: React.ReactNode }) {
+export function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground mb-2.5">
       {children}
@@ -697,6 +698,16 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
   const [phoneState, setPhoneState] = useState<FieldState>('locked');
   const timersRef = useRef<number[]>([]);
 
+  // ── Full LinkedIn profile push-in (step 1) ────────────────────────
+  // Open/close lives HERE because LeadContextPanel owns the lead-panel column
+  // on BOTH desktop (340px aside) and mobile (full-screen push). The profile
+  // view is rendered as an absolute-inset push-in scoped to THIS panel's
+  // container, so it overlays the column on desktop and the full screen on
+  // mobile, consistent with the mobile lead-panel push-in pattern. Reset to
+  // closed whenever the lead changes (see the per-lead reset effect below).
+  const [profileOpen, setProfileOpen] = useState(false);
+  const hasLinkedinProfile = !!mail.lead?.linkedinProfile;
+
   // Live persona drives the talking mascot avatar + its fin colour, exactly
   // like the AI-draft avatar in the reply bar. Active "warm" = the blue-fin
   // mascot, so the column feels like the Persona page Simon loves.
@@ -765,6 +776,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
   useEffect(() => {
     setEmailState('locked');
     setPhoneState('locked');
+    setProfileOpen(false);
     return () => {
       timersRef.current.forEach((id) => window.clearTimeout(id));
       timersRef.current = [];
@@ -790,6 +802,11 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
   };
 
   return (
+    // Outer wrapper is a non-scrolling, relative container so the LinkedIn
+    // profile push-in (absolute inset-0) is scoped to THIS lead-panel column
+    // (the 340px desktop aside / the full-screen mobile panel) rather than the
+    // whole viewport. The original scroll surface lives inside it unchanged.
+    <div className="relative h-full min-h-0">
     <div
       data-testid="lead-context-panel"
       className="h-full overflow-y-auto no-scrollbar"
@@ -1017,6 +1034,22 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
               transition={{ duration: 0.14, ease: 'easeOut' }}
               className="flex flex-col gap-5"
             >
+              {/* TEMPORARY (step 1) · a small text button that opens the full
+                  LinkedIn profile push-in so the view is testable now. In step
+                  4 this is replaced by the polished compact "LinkedIn profile"
+                  preview card. Only shown when the lead carries a profile. */}
+              {hasLinkedinProfile && (
+                <button
+                  type="button"
+                  data-testid="open-full-profile"
+                  onClick={() => setProfileOpen(true)}
+                  className="self-start inline-flex items-center text-[12.5px] font-semibold hover-elevate active-elevate-2 rounded-md px-1 -mx-1"
+                  style={{ color: ACCENT }}
+                >
+                  View full profile
+                </button>
+              )}
+
               {/* Identity card · now the COMPLETE contact hub (FIX B). Avatar +
                   name + "Title at Company" header, a divider, then the core
                   contact rows INSIDE this same card: Email (enrich), Phone
@@ -1158,5 +1191,36 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
         </AnimatePresence>
       </div>
     </div>
+
+      {/* ── Full LinkedIn profile push-in (step 1) ─────────────────────
+          Pushes in from the right OVER this lead-panel column using the EXACT
+          same recipe as the mobile lead-panel push-in in ConversationTimeline
+          (initial x:'100%', animate x:0, exit x:'100%', APPLE_SPRING). The
+          view itself carries that motion + its own chrome slot (priority 300,
+          mounted on `open` so it hands the chrome back instantly on close).
+          Works on both desktop and mobile because it is scoped to this
+          relative container. */}
+      {/* Mobile chrome slot mounted on `profileOpen` directly, OUTSIDE the
+          AnimatePresence below, so it de-registers the instant Back is tapped
+          and the lead-panel chrome hands back immediately (no lingering
+          "LinkedIn profile" title during the slide-out). Same handoff pattern
+          as LeadPanelChromeSlot. */}
+      {profileOpen && hasLinkedinProfile && (
+        <ProfileChromeSlot onClose={() => setProfileOpen(false)} />
+      )}
+      <AnimatePresence>
+        {profileOpen && hasLinkedinProfile && (
+          <LinkedInProfileView
+            mail={mail}
+            open={profileOpen}
+            onClose={() => setProfileOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
+
+// Expose the open setter to the Contact tab via context-free prop drilling is
+// unnecessary: the temporary trigger button lives inside this same component
+// (Contact tab), so it calls setProfileOpen directly.

@@ -60,6 +60,64 @@ export interface LeadContext {
   // contact-enrichment (PII) — hidden in the UI until revealed on demand.
   email?: string;
   phone?: string;
+  // The full embedded LinkedIn profile shown in the push-in view. Optional:
+  // only leads we have enriched carry it. Step 1 renders Hero + About +
+  // Experience; Education / Skills / Posts are designed in here now so later
+  // steps can render them without a data migration.
+  linkedinProfile?: LinkedInProfile;
+}
+
+// ─── Full embedded LinkedIn profile ────────────────────────────────
+// Holds the WHOLE profile feature (Hero, About, Experience, Education,
+// Skills, Recent Posts) even though step 1 only renders Hero + About +
+// Experience. Designed up front so later steps add UI, not data.
+export interface LinkedInExperience {
+  company: string;
+  role: string;
+  logoUrl?: string;
+  start: string;
+  end?: string;
+  location?: string;
+  description?: string;
+}
+
+export interface LinkedInEducation {
+  school: string;
+  degree?: string;
+  logoUrl?: string;
+  start?: string;
+  end?: string;
+  description?: string;
+}
+
+export interface LinkedInPost {
+  id: string;
+  authorName: string;
+  authorHeadline?: string;
+  authorAvatarUrl?: string;
+  timeAgo: string;
+  text: string;
+  imageUrl?: string;
+  likes?: number;
+  comments?: number;
+  reposts?: number;
+  /** Replaiy used this post to personalize outreach (shown as a quiet tag). */
+  usedByAI?: boolean;
+}
+
+export interface LinkedInProfile {
+  headline?: string;
+  about?: string;
+  bannerUrl?: string;
+  followers?: number;
+  connections?: number;
+  /** Connection degree badge, e.g. '1st' / '2nd' / '3rd'. */
+  degree?: string;
+  premium?: boolean;
+  experience?: LinkedInExperience[];
+  education?: LinkedInEducation[];
+  skills?: string[];
+  posts?: LinkedInPost[];
 }
 
 export interface ThreadMessage {
@@ -235,6 +293,160 @@ export const mockConversations: Conversation[] = [
       linkedinUrl: '#',
       email: 'emma.chen@northwavelabs.com',
       phone: '+31 6 12 34 56 78',
+      linkedinProfile: {
+        headline: 'Head of Growth at Northwave Labs | Scaling B2B SaaS pipelines that actually convert',
+        about:
+          'I lead growth at Northwave Labs, where we help product teams turn raw signups into revenue. My focus is building outbound and lifecycle motions that feel human at scale, not spray and pray. Before Northwave I ran demand generation at two early stage SaaS companies and learned the hard way that reply quality beats reply volume every time. Outside of work I mentor first time founders on go to market and I am a sucker for a clean attribution dashboard.',
+        followers: 5278,
+        connections: 201,
+        degree: '2nd',
+        premium: true,
+        experience: [
+          {
+            company: 'Northwave Labs',
+            role: 'Head of Growth',
+            start: '2022',
+            end: 'Present',
+            location: 'Berlin, Germany',
+            description:
+              'Own the full growth function across outbound, lifecycle and partnerships. Grew qualified pipeline 3x in 18 months by rebuilding the SDR motion around personalized, reply first outreach.',
+          },
+          {
+            company: 'Brightloop',
+            role: 'Demand Generation Lead',
+            start: '2019',
+            end: '2022',
+            location: 'Amsterdam, Netherlands',
+            description:
+              'Built the demand gen engine from scratch, taking the company from founder led sales to a repeatable inbound and outbound mix.',
+          },
+          {
+            company: 'Mavenly',
+            role: 'Growth Marketing Manager',
+            start: '2017',
+            end: '2019',
+            location: 'Amsterdam, Netherlands',
+          },
+        ],
+        education: [
+          {
+            school: 'University of Amsterdam',
+            degree: 'MSc, Business Administration',
+            start: '2013',
+            end: '2015',
+          },
+          {
+            school: 'Erasmus University Rotterdam',
+            degree: 'BSc, Marketing',
+            start: '2010',
+            end: '2013',
+            description: 'Graduated cum laude with a focus on consumer behavior.',
+          },
+        ],
+        skills: [
+          'Demand Generation',
+          'Outbound Strategy',
+          'Lifecycle Marketing',
+          'B2B SaaS',
+          'Marketing Operations',
+          'Team Leadership',
+          'Attribution',
+          'Go to Market',
+        ],
+        posts: [
+          {
+            id: 'p-emma-1',
+            authorName: 'Emma Chen',
+            authorHeadline: 'Head of Growth at Northwave Labs',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=47',
+            timeAgo: '3d',
+            text: 'Hot take after a year of scaling SDR outbound: reply quality is the only metric that matters. We cut sequence volume by 40 percent, spent the saved time on research, and booked more meetings than ever. Volume feels productive. Relevance is productive. If your reps are sending the same three lines to 500 people, you do not have an outbound problem, you have a positioning problem. Here is exactly how we restructured the motion and what we measured along the way.',
+            likes: 312,
+            comments: 47,
+            reposts: 18,
+            usedByAI: true,
+          },
+          {
+            id: 'p-emma-2',
+            authorName: 'Emma Chen',
+            authorHeadline: 'Head of Growth at Northwave Labs',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=47',
+            timeAgo: '1w',
+            text: 'We just crossed 3x qualified pipeline year over year. Proud of this team.',
+            imageUrl: 'https://i.pravatar.cc/600?img=47',
+            likes: 198,
+            comments: 22,
+            reposts: 5,
+          },
+          {
+            id: 'p-emma-3',
+            authorName: 'Northwave Labs',
+            authorHeadline: 'B2B SaaS for product led growth teams',
+            timeAgo: '2w',
+            text: 'We are hiring two SDRs in Berlin. If you care more about writing a great first message than hitting a dial quota, come talk to us.',
+            likes: 74,
+            comments: 9,
+            reposts: 12,
+          },
+          {
+            id: 'p-emma-4',
+            authorName: 'Emma Chen',
+            authorHeadline: 'Head of Growth at Northwave Labs',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=47',
+            timeAgo: '3w',
+            text: 'The best outbound reads like it was written by a human who actually read your profile, because it was. Tools should make that easier, not replace it. The teams winning right now use AI to draft and a human to approve. Nothing goes out on autopilot unless you choose it. That is the whole game.',
+            likes: 256,
+            comments: 31,
+            reposts: 21,
+            usedByAI: true,
+          },
+          {
+            id: 'p-emma-5',
+            authorName: 'Daniel Okafor',
+            authorHeadline: 'VP Sales at Brightloop',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=33',
+            timeAgo: '1mo',
+            text: 'Emma was the reason our outbound finally worked. Reposting her playbook because every growth lead should read it.',
+            likes: 88,
+            comments: 6,
+            reposts: 14,
+          },
+          {
+            id: 'p-emma-6',
+            authorName: 'Emma Chen',
+            authorHeadline: 'Head of Growth at Northwave Labs',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=47',
+            timeAgo: '1mo',
+            text: 'Spent the weekend rebuilding our attribution model. Multi touch is messy but pretending last click is the truth is worse.',
+            likes: 141,
+            comments: 19,
+            reposts: 7,
+          },
+          {
+            id: 'p-emma-7',
+            authorName: 'Emma Chen',
+            authorHeadline: 'Head of Growth at Northwave Labs',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=47',
+            timeAgo: '2mo',
+            text: 'Mentoring three first time founders this quarter on go to market. The most common mistake is hiring SDRs before you have a message that converts. Fix the message first.',
+            imageUrl: 'https://i.pravatar.cc/600?img=20',
+            likes: 203,
+            comments: 28,
+            reposts: 16,
+          },
+          {
+            id: 'p-emma-8',
+            authorName: 'Emma Chen',
+            authorHeadline: 'Head of Growth at Northwave Labs',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=47',
+            timeAgo: '3mo',
+            text: 'Quietly testing a new way to personalize outbound at scale. Early numbers are promising. More soon.',
+            likes: 97,
+            comments: 11,
+            reposts: 3,
+          },
+        ],
+      },
     },
     smartReplies: [
       "Love that — reply quality is exactly where we move the needle. Worth a 20-min look at how it'd fit your current SDR motion? I can walk you through a live thread from a team your size. Tue or Wed afternoon work on your end?",
@@ -284,6 +496,158 @@ export const mockConversations: Conversation[] = [
       linkedinUrl: '#',
       email: 'jan.devries@acmesoftware.io',
       phone: '+31 6 98 76 54 32',
+      linkedinProfile: {
+        headline: 'CTO at Acme Software | Building developer tooling that engineers actually want to use',
+        about:
+          'I am the CTO at Acme Software, where we build dev tooling for teams who ship fast without breaking trust. I care about clean APIs, fast feedback loops and engineering cultures where people feel safe to disagree. I have been writing code for two decades and leading teams for the last ten years. I am skeptical of tools that promise magic, so I tend to read the docs before I read the marketing. When I am not in code reviews you will find me cycling along the Amstel or tinkering with home automation.',
+        followers: 3142,
+        connections: 487,
+        degree: '2nd',
+        premium: false,
+        experience: [
+          {
+            company: 'Acme Software',
+            role: 'Chief Technology Officer',
+            start: '2020',
+            end: 'Present',
+            location: 'Amsterdam, Netherlands',
+            description:
+              'Lead engineering, platform and security across a team of 60. Rebuilt the core platform on a service mesh and cut deploy times from hours to minutes.',
+          },
+          {
+            company: 'Polderworks',
+            role: 'VP of Engineering',
+            start: '2015',
+            end: '2020',
+            location: 'Utrecht, Netherlands',
+            description:
+              'Scaled the engineering org from 8 to 40 while keeping the on call burden sane and the architecture boring on purpose.',
+          },
+          {
+            company: 'Kestrel Systems',
+            role: 'Senior Software Engineer',
+            start: '2011',
+            end: '2015',
+            location: 'Eindhoven, Netherlands',
+          },
+        ],
+        education: [
+          {
+            school: 'Delft University of Technology',
+            degree: 'MSc, Computer Science',
+            start: '2007',
+            end: '2009',
+          },
+          {
+            school: 'Delft University of Technology',
+            degree: 'BSc, Computer Science',
+            start: '2004',
+            end: '2007',
+          },
+        ],
+        skills: [
+          'Distributed Systems',
+          'Engineering Leadership',
+          'API Design',
+          'Cloud Architecture',
+          'Developer Experience',
+          'Security',
+          'TypeScript',
+          'Go',
+        ],
+        posts: [
+          {
+            id: 'p-jan-1',
+            authorName: 'Jan de Vries',
+            authorHeadline: 'CTO at Acme Software',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=12',
+            timeAgo: '5d',
+            text: 'Every outbound tool we tried in the last few years felt like spam wearing a suit. The pattern is always the same: a vendor blasts the same template to our whole engineering team and wonders why nobody replies. If you want a technical buyer to take you seriously, show that you understand what we actually build. Read the changelog. Reference the real problem. I will reply to one thoughtful message over fifty automated ones every single time.',
+            likes: 421,
+            comments: 63,
+            reposts: 29,
+            usedByAI: true,
+          },
+          {
+            id: 'p-jan-2',
+            authorName: 'Jan de Vries',
+            authorHeadline: 'CTO at Acme Software',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=12',
+            timeAgo: '2w',
+            text: 'Shipped our new deploy pipeline today. From commit to production in under four minutes. The team earned this one.',
+            imageUrl: 'https://i.pravatar.cc/600?img=12',
+            likes: 287,
+            comments: 34,
+            reposts: 11,
+          },
+          {
+            id: 'p-jan-3',
+            authorName: 'Jan de Vries',
+            authorHeadline: 'CTO at Acme Software',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=12',
+            timeAgo: '3w',
+            text: 'Boring architecture is a feature. The fewer surprises at 3am, the better your team sleeps.',
+            likes: 512,
+            comments: 41,
+            reposts: 38,
+          },
+          {
+            id: 'p-jan-4',
+            authorName: 'Acme Software',
+            authorHeadline: 'Developer tooling for teams that ship',
+            timeAgo: '1mo',
+            text: 'We are open sourcing our internal feature flag library this week. Built by the team, battle tested in production. Link in comments.',
+            likes: 168,
+            comments: 22,
+            reposts: 44,
+          },
+          {
+            id: 'p-jan-5',
+            authorName: 'Jan de Vries',
+            authorHeadline: 'CTO at Acme Software',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=12',
+            timeAgo: '1mo',
+            text: 'Interviewing engineers this month and the strongest signal is still curiosity. Tell me about a system you took apart just to understand how it worked. That answer tells me more than any whiteboard puzzle ever could.',
+            likes: 233,
+            comments: 27,
+            reposts: 9,
+          },
+          {
+            id: 'p-jan-6',
+            authorName: 'Priya Nair',
+            authorHeadline: 'Staff Engineer at Acme Software',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=44',
+            timeAgo: '2mo',
+            text: 'Grateful to work with a CTO who reads the RFC before the roadmap. Reposting Jan because more leaders should think this way.',
+            likes: 119,
+            comments: 8,
+            reposts: 6,
+          },
+          {
+            id: 'p-jan-7',
+            authorName: 'Jan de Vries',
+            authorHeadline: 'CTO at Acme Software',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=12',
+            timeAgo: '2mo',
+            text: 'Reminder that human in the loop is not a buzzword. It is the difference between a tool you trust and a tool you turn off after a week.',
+            likes: 198,
+            comments: 15,
+            reposts: 13,
+          },
+          {
+            id: 'p-jan-8',
+            authorName: 'Jan de Vries',
+            authorHeadline: 'CTO at Acme Software',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=12',
+            timeAgo: '3mo',
+            text: 'Took the whole engineering team off Slack for a focus week. Productivity went up, stress went down. We are doing it every quarter now.',
+            imageUrl: 'https://i.pravatar.cc/600?img=15',
+            likes: 304,
+            comments: 36,
+            reposts: 19,
+          },
+        ],
+      },
     },
     smartReplies: [
       'Snap ik helemaal, Jan — de meeste tools blazen hetzelfde sjabloon naar 500 mensen. Wij draaien het om: elke reply wordt geschreven op basis van de context van dít gesprek, en jouw team keurt alles goed vóór het de deur uitgaat. Niks gaat automatisch tenzij je dat zelf aanzet. Zal ik je een paar échte voorbeelden uit een vergelijkbaar dev-team sturen?',
@@ -333,6 +697,157 @@ export const mockConversations: Conversation[] = [
       ],
       linkedinUrl: '#',
       email: 'hannah.mueller@kettleandco.com',
+      linkedinProfile: {
+        headline: 'Marketing Lead at Kettle & Co | D2C storytelling, lifecycle and a slight obsession with retention',
+        about:
+          'I run marketing at Kettle & Co, a small but mighty D2C brand based in Vienna. I love the unglamorous work of retention: email flows, win back campaigns and making a second purchase feel inevitable. I started in agency life, moved in house because I wanted to own outcomes instead of decks, and never looked back. Small teams move fast, and I would rather ship a scrappy campaign today than a perfect one next quarter. Always happy to trade notes on lifecycle marketing over a good coffee.',
+        followers: 1893,
+        connections: 312,
+        degree: '3rd',
+        premium: false,
+        experience: [
+          {
+            company: 'Kettle & Co',
+            role: 'Marketing Lead',
+            start: '2021',
+            end: 'Present',
+            location: 'Vienna, Austria',
+            description:
+              'Own the full marketing mix for a fast growing D2C brand. Doubled repeat purchase rate by rebuilding the lifecycle email program from the ground up.',
+          },
+          {
+            company: 'Studio Hause',
+            role: 'Senior Marketing Manager',
+            start: '2018',
+            end: '2021',
+            location: 'Vienna, Austria',
+            description:
+              'Led brand and performance marketing for a portfolio of consumer clients across DACH.',
+          },
+          {
+            company: 'Brightside Agency',
+            role: 'Account Manager',
+            start: '2016',
+            end: '2018',
+            location: 'Munich, Germany',
+          },
+        ],
+        education: [
+          {
+            school: 'Vienna University of Economics and Business',
+            degree: 'MSc, Marketing',
+            start: '2014',
+            end: '2016',
+          },
+          {
+            school: 'University of Vienna',
+            degree: 'BA, Communication Science',
+            start: '2011',
+            end: '2014',
+          },
+        ],
+        skills: [
+          'Lifecycle Marketing',
+          'Email Marketing',
+          'D2C',
+          'Retention',
+          'Brand Strategy',
+          'Content Marketing',
+          'Performance Marketing',
+        ],
+        posts: [
+          {
+            id: 'p-hannah-1',
+            authorName: 'Hannah Müller',
+            authorHeadline: 'Marketing Lead at Kettle & Co',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=49',
+            timeAgo: '4d',
+            text: 'Retention is the most underrated growth lever in D2C. Everyone obsesses over the first purchase, but the second one is where the margin lives. We rebuilt our whole lifecycle program around the moment right after someone unboxes their first order, and that single flow now drives more revenue than any acquisition channel we run. Stop pouring budget into the top of the funnel and go fix the leaky bottom first.',
+            likes: 176,
+            comments: 24,
+            reposts: 13,
+            usedByAI: true,
+          },
+          {
+            id: 'p-hannah-2',
+            authorName: 'Hannah Müller',
+            authorHeadline: 'Marketing Lead at Kettle & Co',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=49',
+            timeAgo: '1w',
+            text: 'Doubled our repeat purchase rate this year. Small team, big proud moment.',
+            imageUrl: 'https://i.pravatar.cc/600?img=49',
+            likes: 142,
+            comments: 18,
+            reposts: 4,
+          },
+          {
+            id: 'p-hannah-3',
+            authorName: 'Kettle & Co',
+            authorHeadline: 'Thoughtfully made goods, shipped from Vienna',
+            timeAgo: '2w',
+            text: 'New seasonal collection drops Friday. Subscribers get early access, because loyalty should feel like a perk and not an afterthought.',
+            likes: 89,
+            comments: 7,
+            reposts: 5,
+          },
+          {
+            id: 'p-hannah-4',
+            authorName: 'Hannah Müller',
+            authorHeadline: 'Marketing Lead at Kettle & Co',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=49',
+            timeAgo: '3w',
+            text: 'A scrappy campaign that ships today beats a perfect one that ships next quarter. I have watched too many great ideas die in approval cycles. Small teams win by moving, learning and fixing in public. Give your marketers room to be a little messy and you will be amazed what they pull off.',
+            likes: 211,
+            comments: 29,
+            reposts: 17,
+          },
+          {
+            id: 'p-hannah-5',
+            authorName: 'Lukas Berger',
+            authorHeadline: 'Founder at Kettle & Co',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=51',
+            timeAgo: '1mo',
+            text: 'Hannah turned our marketing from a cost center into our best growth engine. Reposting because every founder deserves a marketing lead like this.',
+            likes: 97,
+            comments: 11,
+            reposts: 8,
+          },
+          {
+            id: 'p-hannah-6',
+            authorName: 'Hannah Müller',
+            authorHeadline: 'Marketing Lead at Kettle & Co',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=49',
+            timeAgo: '1mo',
+            text: 'Spent today writing win back emails. The trick is to sound like a person who noticed you left, not a brand running a discount script.',
+            likes: 134,
+            comments: 16,
+            reposts: 6,
+          },
+          {
+            id: 'p-hannah-7',
+            authorName: 'Hannah Müller',
+            authorHeadline: 'Marketing Lead at Kettle & Co',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=49',
+            timeAgo: '2mo',
+            text: 'Looking at tools to help us scale outreach without losing the personal touch that makes our brand work. The bar is high. If it sounds robotic, it is out.',
+            likes: 78,
+            comments: 9,
+            reposts: 2,
+          },
+          {
+            id: 'p-hannah-8',
+            authorName: 'Hannah Müller',
+            authorHeadline: 'Marketing Lead at Kettle & Co',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=49',
+            timeAgo: '3mo',
+            text: 'Coffee, a quiet office and a clean campaign calendar. Some mornings are just good.',
+            imageUrl: 'https://i.pravatar.cc/600?img=30',
+            likes: 121,
+            comments: 13,
+            reposts: 3,
+          },
+        ],
+      },
     },
     smartReplies: [
       "Great to hear, Hannah! Easiest first step is a quick 25-min onboarding call — we connect your inbox, set your tone, and you'll have your first reviewed drafts the same day. Does Thursday morning or Friday around lunch suit you better?",
