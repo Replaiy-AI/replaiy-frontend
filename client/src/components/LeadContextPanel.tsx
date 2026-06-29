@@ -45,7 +45,9 @@ import {
   Send,
   CornerUpRight,
   Clock,
+  ChevronRight,
 } from 'lucide-react';
+import linkedinFreeBadge from '@/assets/linkedin-free.png';
 import type { Conversation } from '@/data/mockConversations';
 import { STAGE_META } from '@/data/mockConversations';
 import {
@@ -1039,22 +1041,6 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
               transition={{ duration: 0.14, ease: 'easeOut' }}
               className="flex flex-col gap-5"
             >
-              {/* TEMPORARY (step 1) · a small text button that opens the full
-                  LinkedIn profile push-in so the view is testable now. In step
-                  4 this is replaced by the polished compact "LinkedIn profile"
-                  preview card. Only shown when the lead carries a profile. */}
-              {hasLinkedinProfile && (
-                <button
-                  type="button"
-                  data-testid="open-full-profile"
-                  onClick={() => setProfileOpen(true)}
-                  className="self-start inline-flex items-center text-[12.5px] font-semibold hover-elevate active-elevate-2 rounded-md px-1 -mx-1"
-                  style={{ color: ACCENT }}
-                >
-                  View full profile
-                </button>
-              )}
-
               {/* Identity card · now the COMPLETE contact hub (FIX B). Avatar +
                   name + "Title at Company" header, a divider, then the core
                   contact rows INSIDE this same card: Email (enrich), Phone
@@ -1139,6 +1125,45 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                   )}
                 </div>
               </div>
+
+              {/* LinkedIn profile preview card — the polished entry point (step 4)
+                 that replaced the temporary text button. Sits directly under the
+                 identity card (the profile belongs to the person). The whole
+                 card is tappable and opens the full embedded LinkedIn profile
+                 push-in. Shows the real LinkedIn badge + an About snippet + a
+                 meta line (recent posts count) so it gives a real preview and
+                 invites the tap. Only rendered when the lead carries a profile. */}
+              {hasLinkedinProfile && (() => {
+                const lp = lead?.linkedinProfile;
+                const postCount = lp?.posts?.length ?? 0;
+                const aboutSnippet = lp?.about?.trim();
+                return (
+                  <button
+                    type="button"
+                    data-testid="open-full-profile"
+                    onClick={() => setProfileOpen(true)}
+                    className="rp-card rounded-[20px] px-4 py-3.5 w-full text-left hover-elevate active-elevate-2 transition-transform"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <img src={linkedinFreeBadge} alt="" aria-hidden className="h-[18px] w-[18px] shrink-0" />
+                      <span className="text-[13px] font-semibold tracking-[-0.005em] text-foreground flex-1 min-w-0">
+                        LinkedIn profile
+                      </span>
+                      <ChevronRight size={18} strokeWidth={1.8} className="text-icon-muted shrink-0" />
+                    </div>
+                    {aboutSnippet && (
+                      <p className="mt-2 text-[12.5px] leading-[1.5] text-foreground/55 line-clamp-2 m-0">
+                        {aboutSnippet}
+                      </p>
+                    )}
+                    {postCount > 0 && (
+                      <div className="mt-2 text-[12px] text-foreground/45">
+                        {postCount} recent {postCount === 1 ? 'post' : 'posts'}
+                      </div>
+                    )}
+                  </button>
+                );
+              })()}
 
               {!hasCompany && !title && !hasContact ? (
                 <div className="text-[12.5px] text-foreground/45 leading-relaxed">

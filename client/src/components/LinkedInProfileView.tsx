@@ -316,6 +316,19 @@ export function LinkedInProfileView({
             safe-area + the 88px top-chrome zone (matching the lead panel).
             Desktop: enough to clear the floating ActionPill (52px pill at
             top-3 plus breathing room). */}
+        {/* v-fix-profile-veil — The shared MobileTopChromeShell veil lives at
+            z-30 OUTSIDE this view, but this push-in view sits inside the
+            z-[60] lead-panel stacking context at z-[70], so the global veil
+            ends up BEHIND the view and cannot frost its scrolling content (the
+            name/headline scrolled SHARP through the title + back pill). So the
+            view carries its OWN top frosting veil, same `.mobile-chrome-veil`
+            recipe, mobile-only, sitting above the scroll content but below the
+            floating chrome pills — exactly the inbox/lead-panel behaviour. */}
+        <div
+          aria-hidden
+          className="md:hidden absolute inset-x-0 top-0 z-[1] mobile-chrome-veil pointer-events-none"
+          style={{ height: 'calc(env(safe-area-inset-top, 0px) + 88px)' }}
+        />
         <div
           className="flex-1 min-h-0 overflow-y-auto no-scrollbar"
         >
