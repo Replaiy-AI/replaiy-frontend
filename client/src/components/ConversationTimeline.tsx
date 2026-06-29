@@ -1498,11 +1498,18 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
                   sits directly under that floating chrome with the same
                   top spacing the other mobile screens use
                   (safe-area-inset-top + 80px). */}
+              {/* v-fix-no-dense-bar — The wrapper no longer pads the content
+                  down by 80px. That padding created a DENSE bg-background slab
+                  in the top zone where the floating back-pill + "Lead context"
+                  title sit, so it read as a solid bar (not glass) with content
+                  hidden beneath it — unlike every other mobile screen where
+                  content scrolls to the very top behind the floating glass
+                  pills. Now the scroll surface fills to the top; LeadContextPanel
+                  carries the safe-area + title-zone offset INTERNALLY (mobile)
+                  so content scrolls UNDER the title and the lead-tab-fade veil
+                  frosts it uniformly, exactly like the inbox. */}
               <LeadPanelChromeSlot onClose={() => setLeadPanelOpen(false)} />
-              <div
-                className="flex-1 min-h-0"
-                style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
-              >
+              <div className="flex-1 min-h-0">
                 <LeadContextPanel mail={mail} />
               </div>
             </motion.div>

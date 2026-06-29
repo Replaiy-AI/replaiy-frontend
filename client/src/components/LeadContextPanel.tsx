@@ -797,6 +797,11 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
     <div
       data-testid="lead-context-panel"
       className="h-full overflow-y-auto no-scrollbar"
+      style={
+        isMobile
+          ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }
+          : undefined
+      }
     >
       {/* ── Tab control (sticky, transparent) ───────────────────────────
           Mirrors the platform's TopBar pattern (Chrome.tsx ~L173): the header
@@ -816,7 +821,32 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
           the opaque `lg-card`, so blurred content reads through it like real
           glass. Fade `::before` is pointer-events-none so scroll passes
           through; pill wrapper keeps `pointer-events-auto`. */}
-      <div className="lead-tab-fade sticky top-0 z-20 pointer-events-none px-4 pt-4 pb-3">
+      {/* v-fix-mobile-veil — On mobile the floating "Lead context" title lives
+          in the shared MobileTopChrome ABOVE this panel, and the panel content
+          starts at paddingTop ~80px. Without coverage there, sharp content
+          scrolls visibly through the gap beside/under the title (the "glass
+          debris" Simon flagged). We pull the fade strip UP on mobile (negative
+          top margin + matching pt) so the same top-anchored frosting veil now
+          spans the WHOLE title+tabs zone — content dissolves uniformly under
+          both, exactly like the inbox glass. Desktop is unchanged. */}
+      <div
+        className="lead-tab-fade sticky z-20 pointer-events-none px-4 pb-3"
+        style={
+          isMobile
+            ? {
+                // Pull the strip up THROUGH the title zone (the root scroll
+                // container pads content down by safe-area+80px). The fade
+                // veil now starts at the very top of the panel, frosting the
+                // back-pill + "Lead context" title region as well as the tabs
+                // — no dense bg slab. Sticky offset keeps the tabs pinned just
+                // below the title while scrolling.
+                top: 0,
+                marginTop: 'calc((env(safe-area-inset-top, 0px) + 80px) * -1)',
+                paddingTop: 'calc(env(safe-area-inset-top, 0px) + 88px)',
+              }
+            : { top: 0, paddingTop: '1rem' }
+        }
+      >
         {/* v-vadik-textmode — The lead tabs now use the SAME premium
             VadikLiquidSwitcher as the nav rail (identical glass recipe,
             color tokens, sliding indicator + wobble motion), in TEXT mode
