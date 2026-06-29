@@ -537,9 +537,14 @@ function DossierRow({
       <span className={ROW_LABEL_CLS}>{label}</span>
       <span className={ROW_VALUE_CLS}>{value}</span>
       {(hasCopy || hasOpen) && (
-        // v-mobile-leadpanel — More space between the two glyphs on mobile so
-        // fat fingers don't mis-tap copy vs open; desktop keeps the tight gap.
-        <span className="shrink-0 ml-auto flex items-center gap-1.5 md:gap-0.5">
+        // v-mobile-leadpanel-pairfix — Copy + open-tab must read as ONE tidy,
+        // right-aligned PAIR flush against the row edge. The hit areas stay
+        // 44px on mobile for comfortable touch, but the *visual* spacing
+        // between the two glyphs is tightened by overlapping the hit areas
+        // (negative gap) so the icons sit close together instead of floating
+        // far apart. `ml-auto` pushes the group flush right; the value text
+        // takes the flexible middle space. Desktop keeps a small even gap.
+        <span className="shrink-0 ml-auto inline-flex items-center -space-x-1 md:space-x-0 md:gap-0.5">
           {hasCopy && (
             <button
               type="button"

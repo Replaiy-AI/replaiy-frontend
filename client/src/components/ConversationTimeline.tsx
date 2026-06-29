@@ -1490,21 +1490,19 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
               exit={{ x: '100%' }}
               transition={APPLE_SPRING}
               className="md:hidden absolute inset-0 z-[60] flex flex-col bg-background"
-              style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
             >
-              <div className="flex items-center gap-2 px-3 pt-3 pb-1 shrink-0">
-                <button
-                  type="button"
-                  aria-label="Back to conversation"
-                  data-testid="lead-panel-close"
-                  onClick={() => setLeadPanelOpen(false)}
-                  className="glass-pill h-10 w-10 inline-flex items-center justify-center rounded-full hover-elevate active-elevate-2 shrink-0"
-                >
-                  <ArrowLeft size={20} strokeWidth={1.9} className="text-icon" />
-                </button>
-                <span className="text-[14px] font-semibold text-foreground">Lead context</span>
-              </div>
-              <div className="flex-1 min-h-0">
+              {/* v-mobile-leadpanel-chromereuse — No hand-rolled header here.
+                  We REUSE the shared mobile top-chrome system + ActionPill via
+                  LeadPanelChromeSlot (registered at priority 200 so it wins
+                  over the conversation chrome while open). The panel content
+                  sits directly under that floating chrome with the same
+                  top spacing the other mobile screens use
+                  (safe-area-inset-top + 80px). */}
+              <LeadPanelChromeSlot onClose={() => setLeadPanelOpen(false)} />
+              <div
+                className="flex-1 min-h-0"
+                style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
+              >
                 <LeadContextPanel mail={mail} />
               </div>
             </motion.div>
@@ -1601,6 +1599,43 @@ function ThreadChromeSlot({
         ),
     }),
     [name, avatar, threadCount, onBack, onDone, onSnooze, onForward, onIdentityClick, chromeHidden],
+  );
+  useMobileTopChromeSlot(slot);
+  return null;
+}
+
+// ─── Mobile lead-panel top chrome ─────────────────────────────────
+// v-mobile-leadpanel-chromereuse — When the full-screen mobile lead panel is
+// open we REUSE the exact same shared mobile top-chrome system + ActionPill as
+// every other screen (ConversationDetail, CampaignDetail, MijnAi) instead of a
+// hand-rolled flat-arrow header. We register a SECOND slot at a HIGHER
+// priority (200) than the conversation's ThreadChromeSlot (100) so it WINS
+// while the panel is open; when the panel closes this component renders only
+// when leadPanelOpen is true, so its registration goes away and the normal
+// conversation chrome (back + identity pill + Done) returns automatically.
+//   leftSlot  = ActionPill glass back button → closes the panel.
+//   togglePill = centered "Lead context" title (matches CampaignDetail title).
+//   rightSlot  = empty 52×52 spacer to keep the title centered.
+// Desktop is unaffected: the chrome shell is md:hidden.
+function LeadPanelChromeSlot({ onClose }: { onClose: () => void }) {
+  const slot = useMemo(
+    () => ({
+      priority: 200,
+      leftSlot: (
+        <ActionPill testId="lead-panel-close" label="Back to conversation" onClick={onClose}>
+          <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+        </ActionPill>
+      ),
+      togglePill: (
+        <div className="inline-flex items-center px-1 h-[52px]">
+          <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
+            Lead context
+          </span>
+        </div>
+      ),
+      rightSlot: <div style={{ width: 52, height: 52 }} aria-hidden="true" />,
+    }),
+    [onClose],
   );
   useMobileTopChromeSlot(slot);
   return null;
