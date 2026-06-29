@@ -22,7 +22,7 @@
 // goalStage (No reply -> Replied -> In conversation -> Interested -> Ready)
 // stays the single source of truth for how warm / far the thread is.
 // ─────────────────────────────────────────────────────────────────
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   MapPin,
@@ -37,6 +37,7 @@ import {
   Globe,
   Briefcase,
   Sparkles,
+  Loader2,
   ArrowUpRight,
   UserPlus,
   ThumbsUp,
@@ -460,9 +461,111 @@ function DossierRow({
   );
 }
 
+// ── Per-field enrichment state (Apollo-style) ──────────────────────
+// Only email + phone cost credits, so each is revealed on demand and moves
+// through three states: 'locked' (masked, with an Access affordance),
+// 'searching' (a brief lookup spinner) and 'resolved' (either the real value
+// as a copyable DossierRow, or a calm not-found line). State is INDEPENDENT
+// per field and reset whenever the lead changes.
+type FieldState = 'locked' | 'searching' | 'resolved';
+
+// ── An enrichable contact row · email / phone (locked -> searching -> resolved)
+// In the locked state it shows the label + a subtle dotted placeholder + a
+// small blue "Access" pill (the actionable unlock). On click it goes straight
+// to a brief "Searching..." beat (no confirmation popup), then resolves: if a
+// value exists it renders a copyable DossierRow (with the existing copy testid);
+// if not, a quiet "No verified ... found" line. No credit numbers anywhere.
+function EnrichableRow({
+  icon: Icon,
+  label,
+  value,
+  state,
+  notFoundText,
+  onAccess,
+  accessTestId,
+  copyTestId,
+}: {
+  icon: typeof Mail;
+  label: string;
+  /** The resolved value when found; undefined means the lookup found nothing. */
+  value?: string;
+  state: FieldState;
+  notFoundText: string;
+  onAccess: () => void;
+  accessTestId: string;
+  copyTestId: string;
+}) {
+  // Resolved + found -> reuse the copyable DossierRow verbatim (copy testid).
+  if (state === 'resolved' && value) {
+    return (
+      <DossierRow
+        icon={Icon}
+        label={label}
+        value={value}
+        copyValue={value}
+        testId={copyTestId}
+      />
+    );
+  }
+
+  // Resolved + not found -> a calm, muted line (no value, no error-red).
+  if (state === 'resolved' && !value) {
+    return (
+      <div className="flex items-center gap-2.5 py-2 px-1.5 -mx-1.5">
+        <Icon size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
+        <span className="text-[11px] text-foreground/40 w-[58px] shrink-0">{label}</span>
+        <span className="text-[12px] text-foreground/40 italic truncate flex-1">
+          {notFoundText}
+        </span>
+      </div>
+    );
+  }
+
+  // Locked / searching -> label + (placeholder | spinner) + access affordance.
+  const searching = state === 'searching';
+  return (
+    <div className="flex items-center gap-2.5 py-2 px-1.5 -mx-1.5">
+      <Icon size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
+      <span className="text-[11px] text-foreground/40 w-[58px] shrink-0">{label}</span>
+      {searching ? (
+        <span className="flex items-center gap-1.5 flex-1 min-w-0 text-[12px] text-foreground/45">
+          <Loader2 size={13} strokeWidth={2.2} className="animate-spin shrink-0" />
+          Searching...
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className="flex-1 min-w-0 overflow-hidden whitespace-nowrap text-[13px] tracking-[0.16em] text-foreground/25 select-none"
+        >
+          • • • • •
+        </span>
+      )}
+      <button
+        type="button"
+        data-testid={accessTestId}
+        onClick={onAccess}
+        disabled={searching}
+        className="shrink-0 glass-pill rounded-full inline-flex items-center gap-1 h-[24px] pl-2 pr-2.5 text-[11px] font-semibold whitespace-nowrap transition-transform hover:scale-[1.03] active:scale-[0.97] disabled:opacity-60 disabled:hover:scale-100"
+        style={{ color: ACCENT }}
+      >
+        <Lock size={11} strokeWidth={2.2} />
+        Access {label.toLowerCase()}
+      </button>
+    </div>
+  );
+}
+
 export function LeadContextPanel({ mail }: { mail: Conversation }) {
   const [tab, setTab] = useState<Tab>('overview');
-  const [revealed, setRevealed] = useState(false);
+
+  // ── Per-field enrichment state for email + phone, keyed per lead ──
+  // Each field is independent. We reset both to 'locked' whenever the lead
+  // changes (the component is reused across conversations), so opening a new
+  // lead always shows the gated fields locked again, never stuck revealed from
+  // a previous lead. Pending search timers are cleared on lead switch / unmount.
+  const [emailState, setEmailState] = useState<FieldState>('locked');
+  const [phoneState, setPhoneState] = useState<FieldState>('locked');
+  const timersRef = useRef<number[]>([]);
 
   // Live persona drives the talking mascot avatar + its fin colour, exactly
   // like the AI-draft avatar in the reply bar. Active "warm" = the blue-fin
@@ -502,23 +605,65 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
   // ICP fit · defined per campaign. Shown as a quiet key/value, omitted if null.
   const fitScore = lead?.fitScore ?? null;
 
+  // ── Reset per-field enrichment whenever the lead changes ──────────
+  // The panel is reused across conversations, so when mail.id changes we drop
+  // both fields back to 'locked' and clear any pending search timers. This
+  // guarantees a freshly opened lead shows email / phone gated again, never
+  // stuck on a previous lead's revealed value.
+  useEffect(() => {
+    setEmailState('locked');
+    setPhoneState('locked');
+    return () => {
+      timersRef.current.forEach((id) => window.clearTimeout(id));
+      timersRef.current = [];
+    };
+  }, [mail.id]);
+
+  // The "found" result comes straight from the mock lead data: a field that
+  // exists resolves to that value, an absent field resolves to not-found. We
+  // keep the ~1s "Searching..." beat in BOTH cases so the lookup always reads.
+  function runSearch(setState: (s: FieldState) => void) {
+    setState('searching');
+    // 900-1400ms, randomised slightly so email + phone don't resolve in lockstep.
+    const delay = 950 + Math.floor(Math.random() * 450);
+    const id = window.setTimeout(() => setState('resolved'), delay);
+    timersRef.current.push(id);
+  }
+
+  const accessEmail = () => {
+    if (emailState === 'locked') runSearch(setEmailState);
+  };
+  const accessPhone = () => {
+    if (phoneState === 'locked') runSearch(setPhoneState);
+  };
+  // Reveal all · triggers both gated fields at once; each still runs its own
+  // independent search -> resolve. Only fires the fields still locked.
+  const revealAll = () => {
+    if (emailState === 'locked') runSearch(setEmailState);
+    if (phoneState === 'locked') runSearch(setPhoneState);
+  };
+  const anyLocked = emailState === 'locked' || phoneState === 'locked';
+
   return (
     <div
       data-testid="lead-context-panel"
-      className="h-full flex flex-col overflow-hidden"
+      className="h-full overflow-y-auto no-scrollbar"
     >
-      {/* ── Tab control ─────────────────────────────────────────────── */}
-      {/* Text-only Overview / Contact tabs.
-          Reuses the platform's GlassSegmentedToggle (the SAME component that
-          powers the top inbox toggle / calendar toggle / bottom nav) so the
-          glass indicator, springy snap, hover and tap-to-switch behaviour are
-          100% shared. TEXT-ONLY here via hideIcons, so no icons render and the
-          segments carry no icon at all (icon is optional under hideIcons).
-          'glass-rich' indicator matches the premium inbox toggle. Two
-          near-equal segments (158 / 142) fill the ~308px header row without
-          overflow. */}
-      <div className="px-4 pt-4 pb-3 shrink-0">
-        <div className="lg-card rounded-full inline-flex" style={{ height: 34 }}>
+      {/* ── Tab control (sticky, transparent) ───────────────────────────
+          Mirrors the platform's TopBar pattern (Chrome.tsx ~L173): the header
+          is `sticky top-0 z-20 bg-transparent pointer-events-none`, so the
+          content scrolls visibly BEHIND it and the wheel/scroll events pass
+          through to the scroll surface. NO opaque fill and NO custom backdrop
+          bar — the glass pill (lg-card) carries its OWN blur, which frosts
+          whatever scrolls behind it, exactly like the nav/inbox tabs. The
+          pill wrapper re-enables `pointer-events-auto` so the toggle stays
+          interactive. `pb-3` spacing under the pill keeps the first card from
+          tucking under the tabs on initial load. */}
+      <div className="sticky top-0 z-20 bg-transparent pointer-events-none px-4 pt-4 pb-3">
+        <div
+          className="lg-card rounded-full inline-flex pointer-events-auto"
+          style={{ height: 34 }}
+        >
           <GlassSegmentedToggle<Tab>
             testId="lead-tab"
             pad={4}
@@ -534,7 +679,9 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-6">
+      {/* Content area. The sticky tabs above scroll-overlap this content, so
+          the cards softly pass behind the glass pill as you scroll. */}
+      <div className="px-4 pb-6">
         <AnimatePresence mode="wait">
           {tab === 'overview' ? (
             <motion.div
@@ -686,99 +833,109 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
               transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
               className="flex flex-col gap-5"
             >
-              {/* Lead identity header */}
-              <div className="flex items-center gap-3">
-                <ReplaiyAvatar name={mail.from.name} src={mail.from.avatar} size={42} className="shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-[14.5px] font-semibold tracking-[-0.01em] text-foreground truncate">
-                    {mail.from.name}
-                  </div>
-                  <div className="text-[12px] text-foreground/50 truncate leading-snug">
-                    {[title, company].filter(Boolean).join(' · ') || 'Lead'}
+              {/* Lead identity card · the strong opening, mirroring the
+                  Overview AI card (same rp-card glass treatment + rhythm).
+                  Avatar + name + title / company sit inside the card; a quiet
+                  ICP-fit line and the LinkedIn action live in a divided footer.
+                  LinkedIn is not credit-gated, so it belongs with identity
+                  here (not in the gated Contact section). */}
+              <div className="rp-card rounded-[20px] px-4 pt-3.5 pb-3">
+                <div className="flex items-center gap-3">
+                  <ReplaiyAvatar name={mail.from.name} src={mail.from.avatar} size={42} className="shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14.5px] font-semibold tracking-[-0.01em] text-foreground truncate">
+                      {mail.from.name}
+                    </div>
+                    {/* Title and company separated purely by spatial layout,
+                        never a "·" between label and value. */}
+                    <div className="text-[12px] text-foreground/50 truncate leading-snug">
+                      {title && company
+                        ? `${title} at ${company}`
+                        : title || company || 'Lead'}
+                    </div>
                   </div>
                 </div>
+
+                {(fitScore != null || lead?.linkedinUrl) && (
+                  <div className="mt-3 pt-3 border-t border-foreground/[0.07] flex items-center justify-between gap-2">
+                    {fitScore != null ? (
+                      <MetaLine label="ICP fit" value={`${fitScore}%`} />
+                    ) : (
+                      <span />
+                    )}
+                    {lead?.linkedinUrl && (
+                      <a
+                        href={linkedinHref ?? '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid="open-linkedin"
+                        className="shrink-0 glass-pill rounded-full inline-flex items-center gap-1.5 h-[24px] pl-2 pr-2.5 text-[11px] font-semibold whitespace-nowrap transition-transform hover:scale-[1.03] active:scale-[0.97]"
+                        style={{ color: ACCENT }}
+                      >
+                        <Linkedin size={12} strokeWidth={2} />
+                        LinkedIn
+                        <ArrowUpRight size={12} strokeWidth={2} />
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
 
               {!hasContact && !hasCompany ? (
                 <div className="text-[12.5px] text-foreground/45 leading-relaxed">
                   No contact details on file yet.
                 </div>
-              ) : !revealed ? (
-                /* Locked state · tasteful reveal affordance. */
-                <div className="lg-card rounded-[20px] px-5 py-7 flex flex-col items-center text-center gap-3.5">
-                  <div
-                    className="h-[46px] w-[46px] rounded-[14px] flex items-center justify-center"
-                    style={{
-                      background: 'hsl(var(--foreground) / 0.04)',
-                      boxShadow: 'inset 0 0 0 1px hsl(var(--foreground) / 0.06)',
-                    }}
-                  >
-                    <Lock size={19} strokeWidth={1.8} className="text-icon-muted" />
-                  </div>
-                  <div>
-                    <div className="text-[13.5px] font-semibold text-foreground">
-                      Contact details hidden
-                    </div>
-                    <div className="text-[12px] text-foreground/45 leading-[1.45] mt-1 max-w-[210px]">
-                      Email, phone, LinkedIn and the full company profile. Fetched on demand when
-                      you need them.
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    data-testid="reveal-contact"
-                    onClick={() => setRevealed(true)}
-                    className="mt-1 inline-flex items-center justify-center gap-2 h-[38px] px-4 rounded-[12px] text-[12.5px] font-semibold text-white whitespace-nowrap transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                    style={{
-                      background: `linear-gradient(180deg, ${ACCENT}, #2A60E6)`,
-                      boxShadow: `0 8px 18px -8px ${ACCENT}99, inset 0 1px 0 rgba(255,255,255,0.25)`,
-                    }}
-                  >
-                    <Lock size={14} strokeWidth={2} />
-                    Reveal contact info
-                  </button>
-                </div>
               ) : (
-                /* Revealed dossier · grouped, dense, copyable. */
+                /* Apollo-style dossier. Company / Role / LinkedIn are shown
+                   immediately (not credit-gated); only email + phone are
+                   revealed on demand, each through its own locked -> searching
+                   -> resolved flow. */
                 <>
-                  {hasContact && (
-                    <div>
-                      <SectionLabel>Contact</SectionLabel>
-                      <div className="lg-card rounded-[16px] px-3.5 py-1">
-                        {lead?.email && (
-                          <DossierRow
-                            icon={Mail}
-                            label="Email"
-                            value={lead.email}
-                            copyValue={lead.email}
-                            testId="copy-email"
-                          />
-                        )}
-                        {lead?.phone && (
-                          <DossierRow
-                            icon={Phone}
-                            label="Phone"
-                            value={lead.phone}
-                            copyValue={lead.phone}
-                            testId="copy-phone"
-                          />
-                        )}
-                        {lead?.linkedinUrl && (
-                          <DossierRow
-                            icon={Linkedin}
-                            label="LinkedIn"
-                            value={
-                              linkedinHref
-                                ? linkedinHref.replace(/^https?:\/\/(www\.)?/, '')
-                                : 'View profile'
-                            }
-                            href={linkedinHref ?? '#'}
-                            testId="open-linkedin"
-                          />
-                        )}
+                  {/* 1 · Contact. The two credit-gated fields: email + phone,
+                         each per-field enrichable. A quiet "Reveal all" link
+                         sits in the section header to unlock both at once when
+                         any is still locked. LinkedIn lives in the identity
+                         card above (it is not credit-gated). */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-foreground/40">
+                        Contact
                       </div>
+                      {anyLocked && (
+                        <button
+                          type="button"
+                          data-testid="reveal-all-contact"
+                          onClick={revealAll}
+                          className="text-[11px] font-semibold tracking-[-0.005em] transition-opacity hover:opacity-70"
+                          style={{ color: ACCENT }}
+                        >
+                          Reveal all
+                        </button>
+                      )}
                     </div>
-                  )}
+                    <div className="lg-card rounded-[16px] px-3.5 py-1">
+                      <EnrichableRow
+                        icon={Mail}
+                        label="Email"
+                        value={lead?.email}
+                        state={emailState}
+                        notFoundText="No verified email found"
+                        onAccess={accessEmail}
+                        accessTestId="access-email"
+                        copyTestId="copy-email"
+                      />
+                      <EnrichableRow
+                        icon={Phone}
+                        label="Phone"
+                        value={lead?.phone}
+                        state={phoneState}
+                        notFoundText="No phone number found"
+                        onAccess={accessPhone}
+                        accessTestId="access-phone"
+                        copyTestId="copy-phone"
+                      />
+                    </div>
+                  </div>
 
                   {hasCompany && (
                     <div>
@@ -816,7 +973,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
 
                   <div className="flex items-center gap-1.5 text-[11px] text-foreground/40">
                     <Sparkles size={12} strokeWidth={2} style={{ color: ACCENT }} className="shrink-0" />
-                    Enriched on demand
+                    Email and phone are enriched on demand
                   </div>
                 </>
               )}

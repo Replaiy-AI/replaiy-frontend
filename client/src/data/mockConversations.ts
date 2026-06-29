@@ -322,7 +322,6 @@ export const mockConversations: Conversation[] = [
       ],
       linkedinUrl: '#',
       email: 'hannah.mueller@kettleandco.com',
-      phone: '+43 660 123 45 67',
     },
     smartReplies: [
       "Great to hear, Hannah! Easiest first step is a quick 25-min onboarding call — we connect your inbox, set your tone, and you'll have your first reviewed drafts the same day. Does Thursday morning or Friday around lunch suit you better?",
