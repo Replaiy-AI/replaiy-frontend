@@ -38,9 +38,18 @@ import {
   Briefcase,
   Sparkles,
   ArrowUpRight,
+  Megaphone,
+  Target,
+  ChevronRight,
 } from 'lucide-react';
 import type { Conversation } from '@/data/mockConversations';
 import { STAGE_META } from '@/data/mockConversations';
+import {
+  GOAL_META,
+  DEFAULT_FLOW,
+  FLOW_STEP_META,
+  type FlowStep,
+} from '@/data/mockCampaigns';
 import { GoalPill, ConversionBar } from '@/components/CampaignsList';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { activePersona } from '@/data/mockPersona';
@@ -56,6 +65,32 @@ type Tab = 'overview' | 'contact';
 // strictly em-dash-free, so normalise to a mid-dot.
 function noDash(s: string) {
   return s.replace(/\s*\u2014\s*/g, ' · ');
+}
+
+// ── Soft flow-position derivation ──────────────────────────────────
+// A conversation carries NO step index and NO per-lead flow, so we never
+// claim a precise "Step N of M". Instead we softly map goalStage onto the
+// campaign's DEFAULT_FLOW kinds to gently emphasise roughly where the lead
+// sits. This is a visual hint only — if the kind isn't in the flow, nothing
+// is highlighted. Returns the FlowStepKind to softly emphasise, or null.
+function softCurrentStepKind(
+  stage: keyof typeof STAGE_META,
+): FlowStep['kind'] | null {
+  switch (stage) {
+    case 'no_reply':
+      // Invite is out, conversation not yet open.
+      return 'connect';
+    case 'replied':
+    case 'in_conversation':
+      // The conversation is open · the message step.
+      return 'message';
+    case 'interested':
+    case 'ready':
+      // Warm and late · nudging toward the goal.
+      return 'follow_up';
+    default:
+      return null;
+  }
 }
 
 // ── Quiet uppercase section label (Persona-page rhythm) ────────────
@@ -82,6 +117,97 @@ function ContextRow({
       <Icon size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
       <span className="text-[12.5px] text-foreground/45 w-[58px] shrink-0">{label}</span>
       <span className="text-[12.5px] text-foreground/85 truncate">{value}</span>
+    </div>
+  );
+}
+
+// ── Compact, single-word chip labels for the flow mini-sequence ────────
+// FLOW_STEP_META labels ("Connection request", "Like a recent post") are too
+// long for a chip row in a ~340px column, so the chips use a short word and
+// the full FLOW_STEP_META label rides along as the title tooltip.
+const FLOW_CHIP_LABEL: Record<FlowStep['kind'], string> = {
+  connect: 'Connect',
+  like: 'Like',
+  comment: 'Comment',
+  message: 'Message',
+  follow_up: 'Follow-up',
+};
+
+// ── CAMPAIGN section · a quiet peer of Context / Signals ──────────────
+// Mirrors the Context / Signals section shape exactly (uppercase label + an
+// lg-card). Shows the campaign name + goal, then the campaign's per-lead flow
+// as a READ-ONLY mini-sequence of small chips. We softly emphasise the chip
+// that roughly matches the lead's stage — never a hard "Step N of M", since
+// no step index exists in the data. Chips wrap gracefully within the column.
+function CampaignSection({
+  campaignName,
+  goalLabel,
+  flow,
+  currentKind,
+}: {
+  campaignName: string;
+  goalLabel: string;
+  flow: FlowStep[];
+  currentKind: FlowStep['kind'] | null;
+}) {
+  return (
+    <div data-testid="lead-campaign-section">
+      <SectionLabel>Campaign</SectionLabel>
+      <div className="lg-card rounded-[16px] px-3.5 py-3">
+        {/* Name + goal · the primary line. Quiet, not louder than the AI card. */}
+        <div className="flex items-center gap-2.5">
+          <Megaphone size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
+          <span className="text-[12.5px] font-semibold text-foreground/90 truncate flex-1 min-w-0">
+            {noDash(campaignName)}
+          </span>
+          <span className="inline-flex items-center gap-1 glass-pill rounded-full px-2 h-[20px] shrink-0">
+            <Target size={11} strokeWidth={2} style={{ color: ACCENT }} className="shrink-0" />
+            <span className="text-[10.5px] font-medium text-foreground/70 whitespace-nowrap">
+              {noDash(goalLabel)}
+            </span>
+          </span>
+        </div>
+
+        {/* Flow mini-sequence · read-only chips, wrap within the column. The
+            soft-current chip gets a quiet blue emphasis; everything else stays
+            neutral. The arrows between chips imply order without a counter. */}
+        <div className="mt-3 pt-3 border-t border-foreground/[0.07] flex flex-wrap items-center gap-x-1 gap-y-1.5">
+          {flow.map((step, i) => {
+            const isCurrent = currentKind != null && step.kind === currentKind;
+            return (
+              <span key={i} className="inline-flex items-center gap-1">
+                <span
+                  title={FLOW_STEP_META[step.kind].label}
+                  className="inline-flex items-center h-[22px] rounded-full px-2 text-[10.5px] font-medium whitespace-nowrap transition-colors"
+                  style={
+                    isCurrent
+                      ? {
+                          color: ACCENT,
+                          background: `${ACCENT}14`,
+                          boxShadow: `inset 0 0 0 1px ${ACCENT}33`,
+                        }
+                      : {
+                          color: 'hsl(var(--foreground) / 0.6)',
+                          background: 'hsl(var(--foreground) / 0.04)',
+                          boxShadow: 'inset 0 0 0 1px hsl(var(--foreground) / 0.06)',
+                        }
+                  }
+                >
+                  {FLOW_CHIP_LABEL[step.kind]}
+                </span>
+                {i < flow.length - 1 && (
+                  <ChevronRight
+                    size={12}
+                    strokeWidth={2}
+                    aria-hidden
+                    className="text-foreground/25 shrink-0"
+                  />
+                )}
+              </span>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -184,6 +310,14 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
 
   // The AI read text, em-dash-free. Pure interpretation, never an action.
   const readText = mail.aiRead ? noDash(mail.aiRead) : null;
+
+  // Campaign context · what campaign this lead lives in, its goal, and the
+  // per-lead flow. The conversation carries no flow of its own, so we use the
+  // campaign DEFAULT_FLOW and softly hint at stage position (never a counter).
+  const campaignName = mail.campaignName;
+  const goalLabel = GOAL_META[goalType].label;
+  const flow = DEFAULT_FLOW;
+  const currentStepKind = softCurrentStepKind(stage);
 
   return (
     <div
@@ -295,7 +429,19 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                 </div>
               </div>
 
-              {/* 2 · Context. Quiet, secondary. What the AI knows. */}
+              {/* 2 · Campaign. The campaign this lead belongs to, its goal,
+                     and the per-lead flow as a read-only mini-sequence. A
+                     quiet peer of Context / Signals, sits under the AI card. */}
+              {campaignName && (
+                <CampaignSection
+                  campaignName={campaignName}
+                  goalLabel={goalLabel}
+                  flow={flow}
+                  currentKind={currentStepKind}
+                />
+              )}
+
+              {/* 3 · Context. Quiet, secondary. What the AI knows. */}
               {hasContext && (
                 <div>
                   <SectionLabel>Context</SectionLabel>
@@ -319,18 +465,24 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
               {(lead?.signals?.length ?? 0) > 0 && (
                 <div>
                   <SectionLabel>Signals</SectionLabel>
+                  {/* Signals rows mirror the Context rows' rhythm: same card
+                      padding, same gap, same even vertical spacing. There is no
+                      label/value pair (each is a sentence), so a small accent
+                      marker stands in for the Context icon — nudged down to sit
+                      on the first line — and the text gets a comfortable
+                      line-height so rows breathe instead of cramping. */}
                   <div className="lg-card rounded-[16px] px-3.5 py-1.5">
                     {lead!.signals!.map((s, i) => (
                       <div
                         key={i}
-                        className="flex items-start gap-2.5 py-[7px] text-[12.5px] text-foreground/80 leading-snug"
+                        className="flex items-start gap-2.5 py-[7px] text-[12.5px] text-foreground/85 leading-[1.5]"
                       >
                         <span
                           aria-hidden
-                          className="mt-[6px] h-[5px] w-[5px] rounded-full shrink-0"
+                          className="mt-[7px] h-[5px] w-[5px] rounded-full shrink-0"
                           style={{ background: ACCENT, opacity: 0.85 }}
                         />
-                        <span>{noDash(s)}</span>
+                        <span className="flex-1 min-w-0">{noDash(s)}</span>
                       </div>
                     ))}
                   </div>
