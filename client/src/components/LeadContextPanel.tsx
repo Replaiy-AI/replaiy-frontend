@@ -1,21 +1,30 @@
 // ─────────────────────────────────────────────────────────────────
-// LeadContextPanel — the right-hand context column of a conversation.
+// LeadContextPanel · the right-hand context column of a conversation.
 //
-// Home for the AI read, the enriched lead context, and on-demand
-// contact enrichment (reveal email / phone). Matches the
-// Persona / Knowledge / Campaign gold standard: single blue accent
-// (#2F6BFF), real glass primitives (rp-card / lg-card / glass-pill),
-// the Persona-style label pattern, and no block-in-block nesting.
+// Two tabs:
+//   • Overview · the AI mascot TALKS first (a warm, first-person read of how
+//     the conversation is going + what phase it is in: interpretation only,
+//     never a to-do), then the factual gradient status bar (GoalPill +
+//     ConversionBar + stage label, reused 1:1 from the inbox row), then a
+//     quiet Context block (location / size / industry + signal bullets).
+//   • Contact · a rich lead dossier (Contact / Company / Role), revealed on
+//     demand. Locked state shows a tasteful reveal affordance; revealed state
+//     is a clean, dense set of copyable rows.
 //
-// IMPORTANT: there is NO sentiment / temperature indicator anywhere.
-// The conversation goalStage (No reply -> Replied -> In conversation ->
-// Interested -> Ready) is the single source of truth for how warm / far
-// the thread is, reused 1:1 from the inbox row (STAGE_META + ConversionBar).
-// The AI read only ADDS interpretation + the next best action.
+// Design system: single blue accent (#2F6BFF). The ONLY colour exception is
+// the persona fin colour carried by the talking mascot (activePersona). Real
+// glass primitives (rp-card / lg-card / glass-pill), Apple-spring motion, the
+// Persona "Example message" soul brought here as a living AI read.
+//
+// IMPORTANT: there is NO "next best action" element anywhere. The drafts are
+// already queued or auto-sent by autopilot, so the AI read is pure
+// interpretation of the conversation state, never a recommended action.
+// goalStage (No reply -> Replied -> In conversation -> Interested -> Ready)
+// stays the single source of truth for how warm / far the thread is.
 // ─────────────────────────────────────────────────────────────────
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Sparkles,
   MapPin,
   Building2,
   Users,
@@ -23,37 +32,42 @@ import {
   Copy,
   Check,
   Linkedin,
+  Mail,
+  Phone,
+  Globe,
+  Briefcase,
+  Sparkles,
+  ArrowUpRight,
 } from 'lucide-react';
 import type { Conversation } from '@/data/mockConversations';
 import { STAGE_META } from '@/data/mockConversations';
-import { GOAL_META } from '@/data/mockCampaigns';
 import { GoalPill, ConversionBar } from '@/components/CampaignsList';
 import { ReplaiyAvatar } from '@/components/Avatar';
+import { activePersona } from '@/data/mockPersona';
+import { useReplaiy } from '@/state/ReplaiyContext';
+import { APPLE_SPRING } from '@/lib/motion';
 
 const ACCENT = '#2F6BFF';
 
-// Persona-style section header: title + quiet one-line sub.
-function SectionHeader({ title, sub }: { title: string; sub?: string }) {
+type Tab = 'overview' | 'contact';
+
+// ── Small em-dash-free normaliser ──────────────────────────────────
+// Shared summary / read copy may contain em-dashes; the design system is
+// strictly em-dash-free, so normalise to a mid-dot.
+function noDash(s: string) {
+  return s.replace(/\s*\u2014\s*/g, ' · ');
+}
+
+// ── Quiet uppercase section label (Persona-page rhythm) ────────────
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2">
-      <div className="text-[12.5px] font-semibold text-foreground">{title}</div>
-      {sub && <div className="text-[11.5px] text-foreground/45 leading-snug">{sub}</div>}
+    <div className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-foreground/40 mb-2.5">
+      {children}
     </div>
   );
 }
 
-// A small blue accent dot used by the fit pill + the AI read sparkle row.
-function AccentDot() {
-  return (
-    <span
-      aria-hidden
-      className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-      style={{ background: ACCENT }}
-    />
-  );
-}
-
-// Quiet labelled row for the Context section (icon + label + value).
+// ── A quiet labelled context row (icon + label + value) ────────────
 function ContextRow({
   icon: Icon,
   label,
@@ -64,221 +78,412 @@ function ContextRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-2.5 py-1">
+    <div className="flex items-center gap-2.5 py-[7px]">
       <Icon size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
-      <span className="text-[12.5px] text-foreground/50 w-[64px] shrink-0">{label}</span>
+      <span className="text-[12.5px] text-foreground/45 w-[58px] shrink-0">{label}</span>
       <span className="text-[12.5px] text-foreground/85 truncate">{value}</span>
     </div>
   );
 }
 
-// A copyable contact row — quiet, with a small copy affordance.
-function CopyableRow({ label, value }: { label: string; value: string }) {
+// ── A copyable dossier row · quiet, dense, with a copy affordance ───
+function DossierRow({
+  icon: Icon,
+  label,
+  value,
+  href,
+  copyValue,
+  testId,
+}: {
+  icon: typeof Mail;
+  label: string;
+  value: string;
+  /** When set, the row is a link (LinkedIn / website) with an external glyph. */
+  href?: string;
+  /** When set, the row is copyable with a copy / check glyph. */
+  copyValue?: string;
+  testId?: string;
+}) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
+    if (copyValue == null) return;
     try {
-      navigator.clipboard?.writeText(value);
+      navigator.clipboard?.writeText(copyValue);
     } catch {
       /* clipboard not available in this context */
     }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
   };
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      data-testid={`copy-${label.toLowerCase()}`}
-      className="w-full flex items-center gap-2.5 py-1.5 text-left rounded-lg px-1 -mx-1 hover-elevate active-elevate-2"
-    >
-      <span className="text-[12.5px] text-foreground/50 w-[48px] shrink-0">{label}</span>
+
+  const inner = (
+    <>
+      <Icon size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
+      <span className="text-[11px] text-foreground/40 w-[58px] shrink-0">{label}</span>
       <span className="text-[12.5px] text-foreground/90 truncate flex-1">{value}</span>
-      {copied ? (
-        <Check size={13} strokeWidth={2} style={{ color: ACCENT }} className="shrink-0" />
-      ) : (
+      {href ? (
+        <ArrowUpRight size={14} strokeWidth={1.9} style={{ color: ACCENT }} className="shrink-0" />
+      ) : copied ? (
+        <Check size={13} strokeWidth={2.2} style={{ color: ACCENT }} className="shrink-0" />
+      ) : copyValue != null ? (
         <Copy size={13} strokeWidth={1.8} className="text-icon-muted shrink-0" />
-      )}
+      ) : null}
+    </>
+  );
+
+  const cls =
+    'w-full flex items-center gap-2.5 py-2 text-left rounded-lg px-1.5 -mx-1.5 hover-elevate active-elevate-2';
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid={testId}
+        className={cls}
+      >
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <button type="button" onClick={copy} data-testid={testId} className={cls}>
+      {inner}
     </button>
   );
 }
 
 export function LeadContextPanel({ mail }: { mail: Conversation }) {
+  const [tab, setTab] = useState<Tab>('overview');
   const [revealed, setRevealed] = useState(false);
+
+  // Live persona drives the talking mascot avatar + its fin colour, exactly
+  // like the AI-draft avatar in the reply bar. Active "warm" = the blue-fin
+  // mascot, so the column feels like the Persona page Simon loves.
+  const { persona: livePersona } = useReplaiy();
+  const persona = activePersona(livePersona);
 
   const lead = mail.lead;
   const title = lead?.title ?? mail.leadHeadline;
   const company = lead?.company ?? mail.leadCompany;
-  const fit = lead?.fitScore;
 
-  // Conversation status — reuse the EXACT inbox-row treatment.
+  // Conversation status · reuse the EXACT inbox-row treatment.
   const goalType = mail.goalType ?? 'meeting';
   const stage = mail.goalStage ?? 'no_reply';
   const stageMeta = STAGE_META[stage];
 
   const hasContext =
-    !!lead && (!!lead.location || !!lead.companySize || !!lead.industry || (lead.signals?.length ?? 0) > 0);
-  const hasContact = !!lead && (!!lead.email || !!lead.phone);
-  const fitLabel =
-    fit == null ? null : fit >= 85 ? 'Strong fit' : fit >= 65 ? 'Good fit' : 'Possible fit';
+    !!lead &&
+    (!!lead.location || !!lead.companySize || !!lead.industry || (lead.signals?.length ?? 0) > 0);
+  const hasContact = !!lead && (!!lead.email || !!lead.phone || !!lead.linkedinUrl);
+  const hasCompany =
+    !!lead && (!!lead.company || !!lead.industry || !!lead.companySize || !!lead.location);
+
+  const linkedinHref = lead?.linkedinUrl && lead.linkedinUrl !== '#' ? lead.linkedinUrl : undefined;
+
+  // The AI read text, em-dash-free. Pure interpretation, never an action.
+  const readText = mail.aiRead ? noDash(mail.aiRead) : null;
 
   return (
     <div
       data-testid="lead-context-panel"
-      className="h-full overflow-y-auto no-scrollbar px-4 py-5 flex flex-col gap-5"
+      className="h-full flex flex-col overflow-hidden"
     >
-      {/* 1 — Identity + fit */}
-      <div>
-        <div className="flex items-start gap-3">
-          <ReplaiyAvatar name={mail.from.name} src={mail.from.avatar} size={44} className="shrink-0" />
-          <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-semibold tracking-[-0.01em] text-foreground truncate">
-              {mail.from.name}
-            </div>
-            <div className="text-[12.5px] text-foreground/55 truncate leading-snug">
-              {[title, company].filter(Boolean).join(' · ') || 'Lead'}
-            </div>
-          </div>
+      {/* ── Tab control ─────────────────────────────────────────────── */}
+      <div className="px-4 pt-4 pb-3 shrink-0">
+        <div className="lg-card rounded-full p-1 flex items-center gap-1">
+          {(['overview', 'contact'] as const).map((t) => {
+            const active = tab === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                data-testid={`lead-tab-${t}`}
+                onClick={() => setTab(t)}
+                aria-pressed={active}
+                className="relative flex-1 h-[30px] rounded-full text-[12.5px] font-semibold tracking-[-0.005em] transition-colors"
+                style={{ color: active ? 'var(--foreground)' : 'hsl(var(--foreground) / 0.5)' }}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="lead-tab-pill"
+                    transition={APPLE_SPRING}
+                    className="glass-pill absolute inset-0 rounded-full"
+                    aria-hidden
+                  />
+                )}
+                <span className="relative z-[1]">{t === 'overview' ? 'Overview' : 'Contact'}</span>
+              </button>
+            );
+          })}
         </div>
-        {fitLabel && (
-          <span className="glass-pill pill inline-flex items-center gap-1.5 h-[24px] pl-2 pr-2.5 mt-3 text-[12px] font-medium text-foreground/80">
-            <AccentDot />
-            <span className="whitespace-nowrap">
-              {fitLabel} · {fit}%
-            </span>
-          </span>
-        )}
       </div>
 
-      {/* 2 — AI read (the core). Single rp-card, no block-in-block. */}
-      <div className="rp-card rounded-2xl px-3.5 py-3">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Sparkles size={13} strokeWidth={2} style={{ color: ACCENT }} className="shrink-0" />
-          <span className="text-[12.5px] font-semibold text-foreground">AI read</span>
-        </div>
-
-        {mail.aiRead && (
-          <p className="text-[13px] leading-[1.5] text-foreground/75 m-0">{mail.aiRead}</p>
-        )}
-
-        {mail.nextAction && (
-          <div className="mt-2.5 flex items-start gap-2">
-            <span
-              className="text-[11px] font-semibold uppercase tracking-wide shrink-0 mt-[2px]"
-              style={{ color: ACCENT }}
+      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-6">
+        <AnimatePresence mode="wait">
+          {tab === 'overview' ? (
+            <motion.div
+              key="overview"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="flex flex-col gap-5"
             >
-              Next
-            </span>
-            <span className="text-[13.5px] font-semibold leading-[1.45]" style={{ color: ACCENT }}>
-              {mail.nextAction}
-            </span>
-          </div>
-        )}
+              {/* 1 · THE AI, TALKING. The hero. Mascot as a living sender,
+                     a first-person read of how the conversation is going. */}
+              <div
+                className="rp-card rounded-[20px] px-4 pt-3.5 pb-3.5"
+                style={{ ['--ai-accent' as never]: persona.color }}
+              >
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className="relative w-[36px] h-[36px] shrink-0 flex items-center justify-center">
+                    {/* Soft persona-colour podium behind the mascot, so it
+                        reads as a character (Persona-page treatment). */}
+                    <motion.span
+                      aria-hidden
+                      className="absolute inset-[-2px] rounded-full"
+                      style={{
+                        background: `radial-gradient(circle at 50% 50%, ${persona.color}, transparent 68%)`,
+                        filter: 'blur(7px)',
+                        opacity: 0.5,
+                      }}
+                      animate={{ opacity: [0.42, 0.58, 0.42] }}
+                      transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                    <motion.img
+                      src={persona.mascot}
+                      alt=""
+                      aria-hidden
+                      draggable={false}
+                      className="relative w-[36px] h-[36px] object-contain select-none pointer-events-none"
+                      animate={{ y: [0, -2.5, 0] }}
+                      transition={{ duration: 3.6, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                  </div>
+                  <div className="min-w-0 leading-tight">
+                    <div className="text-[13px] font-semibold tracking-[-0.01em] text-foreground">
+                      Your AI
+                    </div>
+                    {/* The conversation phase · the exact same stage label the
+                        inbox row uses, for platform consistency. No dot. */}
+                    <div className="text-[11.5px] text-foreground/45 mt-0.5">
+                      {stageMeta.label}
+                    </div>
+                  </div>
+                </div>
 
-        {mail.summary && (
-          <p className="mt-2.5 text-[12px] leading-[1.5] text-foreground/45 m-0">
-            {/* Shared summary data may contain em-dashes; normalise to a colon
-               so this panel stays em-dash-free per the design system. */}
-            {mail.summary.replace(/\s*\u2014\s*/g, ' · ')}
-          </p>
-        )}
+                {readText && (
+                  <p className="text-[13.5px] leading-[1.55] text-foreground/80 m-0">{readText}</p>
+                )}
 
-        {typeof mail.confidence === 'number' && (
-          <div className="mt-2.5 flex items-center gap-1.5 text-[11.5px] text-foreground/45">
-            <Sparkles size={11} strokeWidth={2} className="text-icon-muted shrink-0" />
-            <span>Draft ready · {mail.confidence}%</span>
-          </div>
-        )}
-      </div>
-
-      {/* 3 — Conversation status. REUSE inbox-row STAGE_META + ConversionBar.
-             The single warmth / progress indicator. */}
-      <div>
-        <SectionHeader title="Conversation status" />
-        {mail.campaignName && (
-          <div className="text-[12.5px] text-foreground/55 truncate mb-2">{mail.campaignName}</div>
-        )}
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="shrink-0">
-            <GoalPill goalType={goalType} />
-          </span>
-          <span className="flex-1 min-w-0 flex items-center">
-            <ConversionBar pct={stageMeta.progress} />
-          </span>
-          <span className="shrink-0 text-[12px] text-muted-foreground whitespace-nowrap">
-            {stageMeta.label}
-          </span>
-        </div>
-        <div className="text-[11.5px] text-foreground/40 mt-1.5">
-          Goal: {GOAL_META[goalType].label}
-        </div>
-      </div>
-
-      {/* 4 — Context (enriched). lg-card grouping, no block-in-block. */}
-      {hasContext && (
-        <div>
-          <SectionHeader title="Context" sub="What your AI knows about this lead." />
-          <div className="lg-card rounded-2xl px-3.5 py-2.5">
-            {lead?.location && <ContextRow icon={MapPin} label="Location" value={lead.location} />}
-            {lead?.companySize && <ContextRow icon={Users} label="Size" value={lead.companySize} />}
-            {lead?.industry && <ContextRow icon={Building2} label="Industry" value={lead.industry} />}
-          </div>
-          {(lead?.signals?.length ?? 0) > 0 && (
-            <ul className="mt-3 flex flex-col gap-1.5">
-              {lead!.signals!.map((s, i) => (
-                <li key={i} className="flex items-start gap-2 text-[12.5px] text-foreground/75 leading-snug">
-                  <span className="mt-[7px] shrink-0">
-                    <AccentDot />
+                {/* Status bar · goal pill + gradient ConversionBar + stage
+                    label, reused 1:1 from the inbox row, folded INTO the AI
+                    card under the summary. The AI tells the story and shows
+                    where the conversation stands in one place. */}
+                <div className="mt-3.5 pt-3.5 border-t border-foreground/[0.07] flex items-center gap-2.5 min-w-0">
+                  <span className="shrink-0">
+                    <GoalPill goalType={goalType} />
                   </span>
-                  <span>{s}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* 5 — Contact (the reveal). Hidden until opt-in. No cost / credit copy,
-             no provider names. */}
-      {hasContact && (
-        <div>
-          <SectionHeader title="Contact" sub="Fetched on demand when you need it." />
-          {!revealed ? (
-            <button
-              type="button"
-              data-testid="reveal-contact"
-              onClick={() => setRevealed(true)}
-              className="glass-pill pill inline-flex items-center gap-2 h-[34px] pl-3 pr-3.5 text-[12.5px] font-medium text-foreground/85 hover-elevate active-elevate-2 transition-transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Lock size={13} strokeWidth={1.9} className="text-icon-muted" />
-              Reveal contact info
-            </button>
-          ) : (
-            <>
-              <div className="lg-card rounded-2xl px-3.5 py-1.5">
-                {lead?.email && <CopyableRow label="Email" value={lead.email} />}
-                {lead?.phone && <CopyableRow label="Phone" value={lead.phone} />}
+                  <span className="flex-1 min-w-0 flex items-center">
+                    <ConversionBar pct={stageMeta.progress} />
+                  </span>
+                  <span className="shrink-0 text-[12px] font-medium text-foreground/65 whitespace-nowrap">
+                    {stageMeta.label}
+                  </span>
+                </div>
               </div>
-              <div className="text-[11px] text-foreground/40 mt-1.5">Fetched on demand.</div>
-            </>
-          )}
-        </div>
-      )}
 
-      {/* 6 — Quick actions (minimal). */}
-      {lead?.linkedinUrl && (
-        <div className="mt-auto pt-1">
-          <a
-            href={lead.linkedinUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="open-linkedin"
-            className="glass-pill pill inline-flex items-center gap-2 h-[34px] pl-3 pr-3.5 text-[12.5px] font-medium text-foreground/85 hover-elevate active-elevate-2 transition-transform hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <Linkedin size={14} strokeWidth={1.9} style={{ color: ACCENT }} />
-            Open LinkedIn profile
-          </a>
-        </div>
-      )}
+              {/* 2 · Context. Quiet, secondary. What the AI knows. */}
+              {hasContext && (
+                <div>
+                  <SectionLabel>Context</SectionLabel>
+                  <div className="lg-card rounded-[16px] px-3.5 py-1.5">
+                    {lead?.location && (
+                      <ContextRow icon={MapPin} label="Location" value={lead.location} />
+                    )}
+                    {lead?.companySize && (
+                      <ContextRow icon={Users} label="Size" value={lead.companySize} />
+                    )}
+                    {lead?.industry && (
+                      <ContextRow icon={Building2} label="Industry" value={lead.industry} />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 3 · Signals. A proper section that mirrors Context exactly ·
+                     same header + glass card + row rhythm, so the two read as
+                     a consistent pair (no floating bullets). */}
+              {(lead?.signals?.length ?? 0) > 0 && (
+                <div>
+                  <SectionLabel>Signals</SectionLabel>
+                  <div className="lg-card rounded-[16px] px-3.5 py-1.5">
+                    {lead!.signals!.map((s, i) => (
+                      <div
+                        key={i}
+                        className="flex items-start gap-2.5 py-[7px] text-[12.5px] text-foreground/80 leading-snug"
+                      >
+                        <span
+                          aria-hidden
+                          className="mt-[6px] h-[5px] w-[5px] rounded-full shrink-0"
+                          style={{ background: ACCENT, opacity: 0.85 }}
+                        />
+                        <span>{noDash(s)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="contact"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="flex flex-col gap-5"
+            >
+              {/* Lead identity header */}
+              <div className="flex items-center gap-3">
+                <ReplaiyAvatar name={mail.from.name} src={mail.from.avatar} size={42} className="shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14.5px] font-semibold tracking-[-0.01em] text-foreground truncate">
+                    {mail.from.name}
+                  </div>
+                  <div className="text-[12px] text-foreground/50 truncate leading-snug">
+                    {[title, company].filter(Boolean).join(' · ') || 'Lead'}
+                  </div>
+                </div>
+              </div>
+
+              {!hasContact && !hasCompany ? (
+                <div className="text-[12.5px] text-foreground/45 leading-relaxed">
+                  No contact details on file yet.
+                </div>
+              ) : !revealed ? (
+                /* Locked state · tasteful reveal affordance. */
+                <div className="lg-card rounded-[20px] px-5 py-7 flex flex-col items-center text-center gap-3.5">
+                  <div
+                    className="h-[46px] w-[46px] rounded-[14px] flex items-center justify-center"
+                    style={{
+                      background: 'hsl(var(--foreground) / 0.04)',
+                      boxShadow: 'inset 0 0 0 1px hsl(var(--foreground) / 0.06)',
+                    }}
+                  >
+                    <Lock size={19} strokeWidth={1.8} className="text-icon-muted" />
+                  </div>
+                  <div>
+                    <div className="text-[13.5px] font-semibold text-foreground">
+                      Contact details hidden
+                    </div>
+                    <div className="text-[12px] text-foreground/45 leading-[1.45] mt-1 max-w-[210px]">
+                      Email, phone, LinkedIn and the full company profile. Fetched on demand when
+                      you need them.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="reveal-contact"
+                    onClick={() => setRevealed(true)}
+                    className="mt-1 inline-flex items-center justify-center gap-2 h-[38px] px-4 rounded-[12px] text-[12.5px] font-semibold text-white whitespace-nowrap transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                    style={{
+                      background: `linear-gradient(180deg, ${ACCENT}, #2A60E6)`,
+                      boxShadow: `0 8px 18px -8px ${ACCENT}99, inset 0 1px 0 rgba(255,255,255,0.25)`,
+                    }}
+                  >
+                    <Lock size={14} strokeWidth={2} />
+                    Reveal contact info
+                  </button>
+                </div>
+              ) : (
+                /* Revealed dossier · grouped, dense, copyable. */
+                <>
+                  {hasContact && (
+                    <div>
+                      <SectionLabel>Contact</SectionLabel>
+                      <div className="lg-card rounded-[16px] px-3.5 py-1">
+                        {lead?.email && (
+                          <DossierRow
+                            icon={Mail}
+                            label="Email"
+                            value={lead.email}
+                            copyValue={lead.email}
+                            testId="copy-email"
+                          />
+                        )}
+                        {lead?.phone && (
+                          <DossierRow
+                            icon={Phone}
+                            label="Phone"
+                            value={lead.phone}
+                            copyValue={lead.phone}
+                            testId="copy-phone"
+                          />
+                        )}
+                        {lead?.linkedinUrl && (
+                          <DossierRow
+                            icon={Linkedin}
+                            label="LinkedIn"
+                            value={
+                              linkedinHref
+                                ? linkedinHref.replace(/^https?:\/\/(www\.)?/, '')
+                                : 'View profile'
+                            }
+                            href={linkedinHref ?? '#'}
+                            testId="open-linkedin"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {hasCompany && (
+                    <div>
+                      <SectionLabel>Company</SectionLabel>
+                      <div className="lg-card rounded-[16px] px-3.5 py-1">
+                        {lead?.company && (
+                          <DossierRow
+                            icon={Building2}
+                            label="Company"
+                            value={lead.company}
+                            copyValue={lead.company}
+                          />
+                        )}
+                        {lead?.industry && (
+                          <DossierRow icon={Globe} label="Industry" value={lead.industry} />
+                        )}
+                        {lead?.companySize && (
+                          <DossierRow icon={Users} label="Size" value={lead.companySize} />
+                        )}
+                        {lead?.location && (
+                          <DossierRow icon={MapPin} label="Location" value={lead.location} />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {title && (
+                    <div>
+                      <SectionLabel>Role</SectionLabel>
+                      <div className="lg-card rounded-[16px] px-3.5 py-1">
+                        <DossierRow icon={Briefcase} label="Title" value={title} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1.5 text-[11px] text-foreground/40">
+                    <Sparkles size={12} strokeWidth={2} style={{ color: ACCENT }} className="shrink-0" />
+                    Enriched on demand
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
