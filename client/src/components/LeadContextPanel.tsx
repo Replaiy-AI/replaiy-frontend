@@ -58,7 +58,7 @@ import { GoalPill, ConversionBar } from '@/components/CampaignsList';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { activePersona } from '@/data/mockPersona';
 import { useReplaiy } from '@/state/ReplaiyContext';
-import { GlassSegmentedToggle } from '@/components/GlassSegmentedToggle';
+import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 
 const ACCENT = '#2F6BFF';
 
@@ -668,20 +668,27 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
           glass. Fade `::before` is pointer-events-none so scroll passes
           through; pill wrapper keeps `pointer-events-auto`. */}
       <div className="lead-tab-fade sticky top-0 z-20 pointer-events-none px-4 pt-4 pb-3">
-        <div
-          className="lg-pill rounded-full inline-flex pointer-events-auto"
-          style={{ height: 34 }}
-        >
-          <GlassSegmentedToggle<Tab>
+        {/* v-vadik-textmode — The lead tabs now use the SAME premium
+            VadikLiquidSwitcher as the nav rail (identical glass recipe,
+            color tokens, sliding indicator + wobble motion), in TEXT mode
+            so they read "Overview" / "Contact" instead of icons. The pill
+            carries its own glass, so no extra lg-pill wrapper is needed —
+            just an inline-flex with pointer-events-auto so it stays
+            interactive inside the pointer-events-none sticky header.
+            optionWidth 148 + scale 0.85 sizes the two text segments to fit
+            the ~308px column header comfortably and keeps the indicator
+            stride exact under each segment. */}
+        <div className="inline-flex pointer-events-auto">
+          <VadikLiquidSwitcher<Tab>
             testId="lead-tab"
-            pad={4}
-            hideIcons
-            indicatorStyle="glass-rich"
+            variant="text"
+            optionWidth={148}
+            scale={0.85}
             value={tab}
             onChange={setTab}
             segments={[
-              { key: 'overview', label: 'Overview', activeWidth: 158, inactiveWidth: 142 },
-              { key: 'contact', label: 'Contact', activeWidth: 158, inactiveWidth: 142 },
+              { key: 'overview', label: 'Overview' },
+              { key: 'contact', label: 'Contact' },
             ]}
           />
         </div>

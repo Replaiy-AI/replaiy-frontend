@@ -25,7 +25,10 @@ import {
 
 export interface VadikSegment<K extends string> {
   key: K;
-  icon: LucideIcon;
+  // v-textmode — icon is OPTIONAL. In the default 'icon' variant it is
+  // required-in-practice (the segment renders the icon). In 'text' variant
+  // the segment renders its `label` text instead and needs no icon at all.
+  icon?: LucideIcon;
   label: string;
 }
 
@@ -38,6 +41,17 @@ export interface VadikLiquidSwitcherProps<K extends string> {
   /** Override orientation. Default horizontal (Vadik's original). Vertical
      rotates the entire track 90° via CSS transform. */
   orientation?: 'horizontal' | 'vertical';
+  /** v-textmode — Content variant. 'icon' (default) renders the segment icon
+     EXACTLY as before (full backward-compat for the nav rail). 'text' renders
+     the segment's `label` text instead of an icon, using the same color
+     tokens and the same glass / indicator / wobble recipe. */
+  variant?: 'icon' | 'text';
+  /** v-textmode — Per-segment option width in UNSCALED px (i.e. like Vadik's
+     V_OPTION_W = 68). Text labels are wider than a single icon, so callers in
+     text mode pass a larger value sized for the longest label. The indicator
+     width + stride math derives from this so the sliding indicator always
+     lands exactly under the active segment. Defaults to Vadik's 68. */
+  optionWidth?: number;
   testId?: string;
 }
 
@@ -66,8 +80,18 @@ export function VadikLiquidSwitcher<K extends string>({
   onChange,
   scale = 1,
   orientation = 'horizontal',
+  variant = 'icon',
+  optionWidth,
   testId,
 }: VadikLiquidSwitcherProps<K>) {
+  const isText = variant === 'text';
+  // v-textmode — Vadik's indicator overhangs the option by exactly
+  //   V_IND_W - V_OPTION_W = 84 - 68 = 16 unscaled px (8px each side).
+  // We preserve this SAME overhang for any chosen option width so the
+  // indicator reads identically (slightly wider than the segment, centered).
+  const V_IND_OVERHANG = V_IND_W - V_OPTION_W; // 16
+  // Effective unscaled option width: caller override > Vadik default.
+  const baseOptionW = optionWidth ?? V_OPTION_W;
   const filterId = useId().replace(/:/g, '_');
   const activeIdx = Math.max(0, segments.findIndex((s) => s.key === value));
   const prevIdxRef = useRef(activeIdx);
@@ -95,20 +119,26 @@ export function VadikLiquidSwitcher<K extends string>({
   // De indicator-stride (activeIdx * stride) schaalt al mee, dus dit is de
   // enige plek die moest meegroeien. Cross-axis (V_TRACK_H) blijft gelijk.
   const segCount = segments.length;
+  // v-textmode — trackW, indicator width and stride all derive from
+  // baseOptionW (caller-overridable) instead of the hardcoded V_OPTION_W.
+  // In icon mode baseOptionW === V_OPTION_W (68) so every value is identical
+  // to before. In text mode the caller passes a wider option width; the
+  // indicator (= option + 16 overhang) and stride (= option + gap) scale with
+  // it so the indicator still lands exactly under the active segment.
   const dynamicTrackW =
-    V_PAD_LEFT * 2 + V_OPTION_W * segCount + V_GAP * (segCount - 1);
+    V_PAD_LEFT * 2 + baseOptionW * segCount + V_GAP * (segCount - 1);
   const trackW = dynamicTrackW * scale;
   const trackH = V_TRACK_H * scale;
   const padTop = V_PAD_TOP * scale;
   const padLeft = V_PAD_LEFT * scale;
   const padBottom = V_PAD_BOTTOM * scale;
-  const optionW = V_OPTION_W * scale;
+  const optionW = baseOptionW * scale;
   const gap = V_GAP * scale;
-  const indW = V_IND_W * scale;
+  const indW = (baseOptionW + V_IND_OVERHANG) * scale;
   const indTop = V_IND_TOP * scale;
   const indLeft = V_IND_LEFT * scale;
   const indHeight = trackH - V_IND_HEIGHT_REDUCTION * scale;
-  const stride = V_TAB_STRIDE * scale;
+  const stride = (baseOptionW + V_GAP) * scale;
 
   // Translate offset per active tab (Vadik: 0 / 76 / 152 — i.e. activeIdx * stride)
   const translateX = activeIdx * stride;
@@ -283,24 +313,51 @@ export function VadikLiquidSwitcher<K extends string>({
                   border: 0,
                 }}
               />
-              <I
-                // v30.36 — Vaste 19px (GLASS_ICON_SIZE). Was schalend
-                // met de tab-pill scale (22 * scale = 16.5 bij scale 0.75)
-                // wat te klein voelde t.o.v. de andere glass icon buttons.
-                // Nu absolute 19 zodat alle icon-buttons in de hele app
-                // identiek zijn, ongeacht of de pill compact of full-size is.
-                size={19}
-                strokeWidth={1.75}
-                // v30.35 — Icon color geerfd van de <label> wrapper hierboven
-                // (currentColor). Active/inactive logica zit daar centraal in
-                // het icon color system (--icon-primary / --icon-active).
-                color="currentColor"
-                style={{
-                  display: 'block',
-                  transition: 'transform 180ms cubic-bezier(0.32, 0.72, 0, 1)',
-                  transform: 'scale(1)',
-                }}
-              />
+              {/* v-textmode — In TEXT variant render the segment label TEXT
+                  instead of the icon, using the SAME inherited color tokens
+                  (--icon-active active / --icon-primary inactive) from the
+                  <label> wrapper. Same font treatment as the app's tab text:
+                  ~13.5px, font-medium, tight tracking, no wrap. In ICON
+                  variant we render Vadik's icon EXACTLY as before. */}
+              {isText ? (
+                <span
+                  style={{
+                    display: 'block',
+                    color: 'currentColor',
+                    fontSize: 13.5,
+                    fontWeight: 500,
+                    letterSpacing: '-0.01em',
+                    lineHeight: 1,
+                    whiteSpace: 'nowrap',
+                    transition: 'color 200ms ease, transform 180ms cubic-bezier(0.32, 0.72, 0, 1)',
+                    transform: 'scale(1)',
+                    userSelect: 'none',
+                  }}
+                >
+                  {seg.label}
+                </span>
+              ) : (
+                I && (
+                  <I
+                    // v30.36 — Vaste 19px (GLASS_ICON_SIZE). Was schalend
+                    // met de tab-pill scale (22 * scale = 16.5 bij scale 0.75)
+                    // wat te klein voelde t.o.v. de andere glass icon buttons.
+                    // Nu absolute 19 zodat alle icon-buttons in de hele app
+                    // identiek zijn, ongeacht of de pill compact of full-size is.
+                    size={19}
+                    strokeWidth={1.75}
+                    // v30.35 — Icon color geerfd van de <label> wrapper hierboven
+                    // (currentColor). Active/inactive logica zit daar centraal in
+                    // het icon color system (--icon-primary / --icon-active).
+                    color="currentColor"
+                    style={{
+                      display: 'block',
+                      transition: 'transform 180ms cubic-bezier(0.32, 0.72, 0, 1)',
+                      transform: 'scale(1)',
+                    }}
+                  />
+                )
+              )}
             </label>
           );
         })}
