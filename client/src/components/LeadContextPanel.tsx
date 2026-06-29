@@ -35,6 +35,8 @@ import {
   Phone,
   Globe,
   Briefcase,
+  Flag,
+  Languages,
   Loader2,
   ArrowUpRight,
   UserPlus,
@@ -1075,6 +1077,28 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                       mobile={isMobile}
                     />
                   )}
+                  {/* v-person-attrs — Person attributes live in the SAME identity
+                     card (Simon): Title/Role, Country and Languages all describe
+                     the human, so they sit with Email/Phone/LinkedIn rather than
+                     in a separate section or the Company block. Country is shown
+                     whenever known (derived from the LinkedIn location); Languages
+                     is shown only when present (LinkedIn profiles often omit it —
+                     a not-found line would just add noise). The standalone Role
+                     section below is therefore removed. */}
+                  {title && (
+                    <DossierRow icon={Briefcase} label="Role" value={title} mobile={isMobile} />
+                  )}
+                  {lead?.country && (
+                    <DossierRow icon={Flag} label="Country" value={lead.country} mobile={isMobile} />
+                  )}
+                  {lead?.languages && lead.languages.length > 0 && (
+                    <DossierRow
+                      icon={Languages}
+                      label="Languages"
+                      value={lead.languages.join(', ')}
+                      mobile={isMobile}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -1127,14 +1151,6 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                     </div>
                   )}
 
-                  {title && (
-                    <div>
-                      <SectionLabel>Role</SectionLabel>
-                      <div className="lg-card rounded-[16px] px-3.5 py-1">
-                        <DossierRow icon={Briefcase} label="Title" value={title} mobile={isMobile} />
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
             </motion.div>

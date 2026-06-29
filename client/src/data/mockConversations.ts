@@ -52,6 +52,8 @@ export interface LeadContext {
   companySize?: string; // '50-200'
   industry?: string; // 'B2B SaaS'
   website?: string; // 'northwavelabs.com' — company domain, shown in Contact
+  country?: string; // 'Netherlands' — person's country, derived from LinkedIn location
+  languages?: string[]; // ['Dutch', 'English'] — from LinkedIn profile; omitted when unknown
   fitScore?: number; // 0-100 ICP match
   signals?: string[]; // why the AI personalizes this thread
   linkedinUrl?: string;
@@ -222,6 +224,8 @@ export const mockConversations: Conversation[] = [
       companySize: '50-200',
       industry: 'B2B SaaS',
       website: 'northwavelabs.com',
+      country: 'Netherlands',
+      languages: ['Dutch', 'English'],
       fitScore: 91,
       signals: [
         'Replied positively today',
@@ -270,6 +274,7 @@ export const mockConversations: Conversation[] = [
       companySize: '200-500',
       industry: 'Dev tooling',
       website: 'acmesoftware.com',
+      country: 'Netherlands',
       fitScore: 78,
       signals: [
         'Tried an outbound tool last year',
@@ -318,6 +323,8 @@ export const mockConversations: Conversation[] = [
       companySize: '10-50',
       industry: 'D2C commerce',
       website: 'kettleandco.com',
+      country: 'Austria',
+      languages: ['German', 'English'],
       fitScore: 84,
       signals: [
         'Asked how to get started',
