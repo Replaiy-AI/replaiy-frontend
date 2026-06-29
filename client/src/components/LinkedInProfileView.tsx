@@ -450,8 +450,12 @@ export function LinkedInProfileView({
             ends up BEHIND the view and cannot frost its scrolling content (the
             name/headline scrolled SHARP through the title + back pill). So the
             view carries its OWN top frosting veil, same `.mobile-chrome-veil`
-            recipe, mobile-only, sitting above the scroll content but below the
-            floating chrome pills.
+            recipe, on BOTH platforms (responsive height: mobile safe-area+88px,
+            desktop 76px to cover the floating ActionPill zone), sitting above
+            the scroll content (z-[1]) but BELOW the floating chrome pills
+            (z-[2]) so the back pill + title stay crisp on top while the
+            name/badges/headline frost behind them. The masked gradient is
+            percentage-based so it scales cleanly to either height.
 
             CRITICAL: this veil MUST be the LAST CHILD of this motion.div, i.e.
             AFTER the scroll container in the DOM. backdrop-filter only blurs
@@ -462,8 +466,7 @@ export function LinkedInProfileView({
             Exactly the inbox/lead-panel behaviour. */}
         <div
           aria-hidden
-          className="md:hidden absolute inset-x-0 top-0 z-[2] mobile-chrome-veil pointer-events-none"
-          style={{ height: 'calc(env(safe-area-inset-top, 0px) + 88px)' }}
+          className="absolute inset-x-0 top-0 z-[1] h-[calc(env(safe-area-inset-top,0px)+88px)] md:h-[76px] mobile-chrome-veil pointer-events-none"
         />
       </motion.div>
     </>
