@@ -486,6 +486,7 @@ function DossierRow({
   label,
   value,
   href,
+  onOpen,
   copyValue,
   testId,
   openTestId,
@@ -494,13 +495,18 @@ function DossierRow({
   icon: typeof Mail;
   label: string;
   value: string;
-  /** When set, adds an open-in-new-tab action glyph linking out. */
+  /** When set, the open glyph is an open-in-new-tab anchor linking out. */
   href?: string;
+  /** When set, the open glyph becomes an in-app <button> firing this handler
+   *  instead of linking out (e.g. the LinkedIn row opening the embedded
+   *  profile push-in rather than linkedin.com in a new tab). Takes precedence
+   *  over `href` when both are somehow set. */
+  onOpen?: () => void;
   /** When set, adds a copy action glyph that copies this value. */
   copyValue?: string;
   /** testid for the copy action (or the whole row when copy is the sole action). */
   testId?: string;
-  /** testid for the open-in-new-tab action. */
+  /** testid for the open action (anchor or button). */
   openTestId?: string;
   /** v-mobile-leadpanel — touch sizing: larger glyph hit areas + glyphs. */
   mobile?: boolean;
@@ -518,7 +524,7 @@ function DossierRow({
   };
 
   const hasCopy = copyValue != null;
-  const hasOpen = !!href;
+  const hasOpen = !!href || !!onOpen;
   const interactive = hasCopy || hasOpen;
 
   // The per-glyph hit area: a rounded square with its own hover bg, so copy /
@@ -560,18 +566,31 @@ function DossierRow({
               when present, sits to the LEFT of copy. This gives the column the
               consistent right edge Simon asked for (Company copy now lines up
               with LinkedIn / Website copy). */}
-          {hasOpen && (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid={openTestId}
-              aria-label={`Open ${label.toLowerCase()}`}
-              className={glyphCls}
-            >
-              <RowAction kind="open" mobile={mobile} />
-            </a>
-          )}
+          {hasOpen &&
+            (onOpen ? (
+              // In-app open: fire the handler (e.g. open the embedded LinkedIn
+              // profile push-in) instead of navigating out to a new tab.
+              <button
+                type="button"
+                onClick={onOpen}
+                data-testid={openTestId}
+                aria-label={`Open ${label.toLowerCase()}`}
+                className={glyphCls}
+              >
+                <RowAction kind="open" mobile={mobile} />
+              </button>
+            ) : (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid={openTestId}
+                aria-label={`Open ${label.toLowerCase()}`}
+                className={glyphCls}
+              >
+                <RowAction kind="open" mobile={mobile} />
+              </a>
+            ))}
           {hasCopy && (
             <button
               type="button"
@@ -1095,7 +1114,14 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                       label="LinkedIn"
                       value={linkedinHandle ?? 'View profile'}
                       copyValue={linkedinUrl}
-                      href={linkedinUrl}
+                      // The whole LinkedIn profile is embedded in-platform, so the
+                      // open glyph opens the SAME push-in view as the preview card
+                      // (setProfileOpen) rather than linking out to linkedin.com.
+                      // Only when there is no embedded profile do we fall back to
+                      // the outbound href. Copy still copies the URL either way.
+                      {...(hasLinkedinProfile
+                        ? { onOpen: () => setProfileOpen(true) }
+                        : { href: linkedinUrl })}
                       testId="copy-linkedin"
                       openTestId="open-linkedin"
                       mobile={isMobile}

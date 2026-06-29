@@ -275,9 +275,19 @@ export function VadikLiquidSwitcher<K extends string>({
                 // glass-pill oppervlak doet het visuele onderscheid, niet
                 // een donkerdere kleur. Apart token voor active zodat we
                 // later kunnen tunen zonder primary aan te raken.
-                color: isActive
-                  ? 'var(--icon-active)'
-                  : 'var(--icon-primary)',
+                //
+                // v-fix-tab-text-color — For the TEXT variant (the lead-panel
+                // Overview/Contact tabs) the label is TEXT, not an icon, so it
+                // must use the app's clean body text color --foreground
+                // (a clean warm off-white in dark). The --icon-* tokens are a
+                // muted warm grey (hsl(42 15% 75%) dark) that, as text on the
+                // dark tab, reads as a dirty yellow/amber tint. The ICON variant
+                // (nav rail icons) is left UNCHANGED on the --icon-* tokens.
+                color: isText
+                  ? 'hsl(var(--foreground))'
+                  : isActive
+                    ? 'var(--icon-active)'
+                    : 'var(--icon-primary)',
                 transition: 'color 200ms ease, all 160ms',
               }}
               onClick={() => onChange(seg.key)}
