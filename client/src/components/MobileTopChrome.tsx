@@ -144,10 +144,27 @@ export function MobileTopChromeShell() {
 
   return (
     <>
-      {/* No backdrop veil — the 3 chrome elements are independently floating
-          glass pills. Content scrolls UNDERNEATH them and is blurred only
-          by each pill's own backdrop-filter. Visible whitespace gaps
-          between the three elements expose the canvas/content behind. */}
+      {/* v-shared-chrome-veil — Platform-wide top frosting veil. Sits BELOW the
+          three floating pills (z-30 vs the pills' z-40) and ABOVE the scrolling
+          page content, spanning only the top chrome band. Any content scrolling
+          up behind ANY floating title/back-button (incl. PLAIN-TEXT titles like
+          the lead panel's "Lead context", which have no own background) is now
+          uniformly frosted instead of leaking sharply through. The veil is
+          top-anchored backdrop-blur + theme-aware wash, masked to taper to fully
+          clear at its bottom edge (no hard cut line) — same recipe as
+          .lead-tab-fade. pointer-events-none so scroll/taps pass through and the
+          pills stay interactive. md:hidden — desktop never renders it. The band
+          height covers the pills' zone (safe-area + 12px top inset + 52px pill +
+          ~24px fade tail). */}
+      <div
+        aria-hidden="true"
+        className="md:hidden fixed inset-x-0 top-0 z-30 mobile-chrome-veil"
+        style={{ height: 'calc(env(safe-area-inset-top, 0px) + 88px)' }}
+      />
+      {/* The 3 chrome elements are independently floating glass pills. Content
+          scrolls UNDERNEATH them; pills with their own fill cover it, and the
+          shared veil above frosts whatever shows in the gaps / behind plain
+          titles. */}
       <div
         className="md:hidden fixed inset-x-0 z-40 pointer-events-none flex items-center justify-between px-4 gap-3"
         style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}

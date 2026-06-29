@@ -797,11 +797,6 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
     <div
       data-testid="lead-context-panel"
       className="h-full overflow-y-auto no-scrollbar"
-      style={
-        isMobile
-          ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }
-          : undefined
-      }
     >
       {/* ── Tab control (sticky, transparent) ───────────────────────────
           Mirrors the platform's TopBar pattern (Chrome.tsx ~L173): the header
@@ -821,28 +816,42 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
           the opaque `lg-card`, so blurred content reads through it like real
           glass. Fade `::before` is pointer-events-none so scroll passes
           through; pill wrapper keeps `pointer-events-auto`. */}
-      {/* v-fix-mobile-veil — On mobile the floating "Lead context" title lives
-          in the shared MobileTopChrome ABOVE this panel, and the panel content
-          starts at paddingTop ~80px. Without coverage there, sharp content
-          scrolls visibly through the gap beside/under the title (the "glass
-          debris" Simon flagged). We pull the fade strip UP on mobile (negative
-          top margin + matching pt) so the same top-anchored frosting veil now
-          spans the WHOLE title+tabs zone — content dissolves uniformly under
-          both, exactly like the inbox glass. Desktop is unchanged. */}
+      {/* v-fix-platform-match — CANONICAL platform pattern. Every other mobile
+          detail screen (ConversationDetail L374, CampaignDetail L2258) pads its
+          scroll container down by safe-area+80px and lets content scroll to the
+          top behind the floating MobileTopChrome glass pills — the pills carry
+          their OWN backdrop-filter, there is NO shared top veil. The lead panel
+          now matches that EXACTLY: the root scroll div (above) uses the same
+          safe-area+80px padding, and this tab strip simply STICKS just under
+          the floating title (top = safe-area+76px) instead of being yanked up
+          through the title zone. No negative margin, no oversized pad, so the
+          tabs sit at the TOP (not pushed to the middle) and there is no empty
+          glow balk. The `lead-tab-fade` veil stays on this strip ONLY so the
+          dossier cards frost as they scroll behind the Overview/Contact tabs —
+          the lead-panel-specific sticky sub-tabs no other screen has — but it
+          no longer bleeds up into the title region. Desktop is unchanged. */}
       <div
         className="lead-tab-fade sticky z-20 pointer-events-none px-4 pb-3"
         style={
           isMobile
             ? {
-                // Pull the strip up THROUGH the title zone (the root scroll
-                // container pads content down by safe-area+80px). The fade
-                // veil now starts at the very top of the panel, frosting the
-                // back-pill + "Lead context" title region as well as the tabs
-                // — no dense bg slab. Sticky offset keeps the tabs pinned just
-                // below the title while scrolling.
-                top: 0,
-                marginTop: 'calc((env(safe-area-inset-top, 0px) + 80px) * -1)',
-                paddingTop: 'calc(env(safe-area-inset-top, 0px) + 88px)',
+                // Clearance for the floating "Lead context" title (chrome sits
+                // at safe-area+12px, pills are 52px tall) is provided by this
+                // strip's OWN marginTop — NOT a paddingTop on the scroll
+                // container. A padding-top on the scroll container combined
+                // with a sticky child triggers a Chromium quirk where the
+                // sticky `top` offset stacks on the padding (strip rests at
+                // padding+top, leaving an empty glow balk above the tabs). By
+                // moving the clearance to marginTop the strip rests right under
+                // the title at safe-area+76px and pins cleanly at the same
+                // offset while scrolling — tabs at the TOP, no balk. The
+                // lead-tab-fade veil frosts dossier cards scrolling behind the
+                // tabs (the lead-panel-specific sticky sub-tabs); content above
+                // the strip frosts under the title pill's own backdrop-filter,
+                // exactly like ConversationDetail/CampaignDetail.
+                top: 'calc(env(safe-area-inset-top, 0px) + 76px)',
+                marginTop: 'calc(env(safe-area-inset-top, 0px) + 76px)',
+                paddingTop: '0.5rem',
               }
             : { top: 0, paddingTop: '1rem' }
         }

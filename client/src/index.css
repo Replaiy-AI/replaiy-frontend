@@ -969,6 +969,49 @@
     z-index: 1;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     Shared mobile top-chrome frosting veil (platform-wide).
+
+     The persistent MobileTopChrome renders three FLOATING glass pills
+     (back/•••, center title, search/done) at the very top of every mobile
+     screen. Pills that have their own background (glass-pill, identity
+     pill) cover content scrolling behind them, but a PLAIN-TEXT title
+     (e.g. the lead-panel "Lead context") has no fill, so content scrolls
+     SHARPLY through it. This veil sits BELOW the pills and ABOVE the
+     scrolling content, spanning only the top chrome band, so ANY content
+     scrolling up behind ANY floating title/back-button is uniformly
+     frosted — never a hard leak. Same recipe as .lead-tab-fade: a soft
+     top-anchored backdrop-blur + a theme-aware background wash, both masked
+     so they taper to fully clear at the band's bottom edge (no hard cut
+     line). pointer-events-none so scroll + taps pass straight through to
+     the content and the pills above stay interactive. md:hidden via the
+     element class — desktop never renders it. */
+  .mobile-chrome-veil {
+    pointer-events: none;
+    backdrop-filter: blur(7px) saturate(140%);
+    -webkit-backdrop-filter: blur(7px) saturate(140%);
+    -webkit-mask-image: linear-gradient(180deg,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.92) 46%,
+      rgba(0,0,0,0.45) 76%,
+      rgba(0,0,0,0) 100%);
+    mask-image: linear-gradient(180deg,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.92) 46%,
+      rgba(0,0,0,0.45) 76%,
+      rgba(0,0,0,0) 100%);
+    background: linear-gradient(180deg,
+      hsl(var(--background) / 0.55) 0%,
+      hsl(var(--background) / 0.30) 46%,
+      hsl(var(--background) / 0) 100%);
+  }
+  .dark .mobile-chrome-veil {
+    background: linear-gradient(180deg,
+      hsl(var(--background) / 0.62) 0%,
+      hsl(var(--background) / 0.34) 46%,
+      hsl(var(--background) / 0) 100%);
+  }
+
   /* Sidebar — only round the right edge, shadow falls right. */
   .glass-sidebar {
     border-top-left-radius: 0;
