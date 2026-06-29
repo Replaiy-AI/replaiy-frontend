@@ -1959,11 +1959,20 @@ export function InlineReplyBar({
                    glyphs), so its left edge protrudes closer to the pill edge.
                    Nudging the content ~2px right equalizes the VISIBLE left
                    margin (edge→X) with the VISIBLE right margin (paperclip→
-                   edge) so the pill hugs the content symmetrically. */}
+                   edge) so the pill hugs the content symmetrically.
+
+                   v-fix (Simon): drop the asymmetric optical compensation
+                   entirely. The 8/4 nudge was only a marginal, barely-
+                   perceptible tweak for the rotated "+"→X bounding box, and it
+                   was the source of the not-round CLOSED circle. We now use
+                   SYMMETRIC paddingLeft 4 / paddingRight 4 in BOTH states.
+                   Closed (shape=circle, width 40): the single 36px "+" glyph
+                   sits dead-center in a true 40×40 circle. Open (width 156):
+                   the X + media icons stay symmetric and balanced. */}
                 <div
                   data-glass-content
                   className="flex items-center w-full h-full justify-center"
-                  style={{ paddingLeft: 8, paddingRight: 4 }}
+                  style={{ paddingLeft: 4, paddingRight: 4 }}
                 >
                   <span className="h-9 w-9 rounded-full flex items-center justify-center shrink-0">
                     <motion.span

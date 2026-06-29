@@ -659,9 +659,17 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
           pill wrapper re-enables `pointer-events-auto` so the toggle stays
           interactive. `pb-3` spacing under the pill keeps the first card from
           tucking under the tabs on initial load. */}
-      <div className="sticky top-0 z-20 bg-transparent pointer-events-none px-4 pt-4 pb-3">
+      {/* v-fix: strip is now `lead-tab-fade` (full-width soft top-anchored
+          backdrop-blur + theme-aware veil that fades to clear at the bottom)
+          so scrolling content dissolves UNIFORMLY under the whole header
+          rather than appearing sharp beside the pill. The pill is now
+          `lg-pill` (translucent CHROME glass, the nav-rail recipe) instead of
+          the opaque `lg-card`, so blurred content reads through it like real
+          glass. Fade `::before` is pointer-events-none so scroll passes
+          through; pill wrapper keeps `pointer-events-auto`. */}
+      <div className="lead-tab-fade sticky top-0 z-20 pointer-events-none px-4 pt-4 pb-3">
         <div
-          className="lg-card rounded-full inline-flex pointer-events-auto"
+          className="lg-pill rounded-full inline-flex pointer-events-auto"
           style={{ height: 34 }}
         >
           <GlassSegmentedToggle<Tab>
