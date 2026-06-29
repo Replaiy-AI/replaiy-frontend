@@ -36,7 +36,6 @@ import {
   Phone,
   Globe,
   Briefcase,
-  Sparkles,
   Loader2,
   ArrowUpRight,
   UserPlus,
@@ -222,21 +221,71 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ── A quiet labelled context row (icon + label + value) ────────────
+// ── ONE shared label/value row · the single source of truth for type ──
+// Every label/value row in the column (Overview Campaign/ICP + Context, and
+// every Contact dossier/contact row) runs through this so the type scale,
+// label-column width, row rhythm and gaps are IDENTICAL everywhere. A leading
+// icon (optional), a fixed-width muted label, a flexible truncating value, and
+// a RIGHT-ALIGNED trailing action slot (0, 1 or 2 action icons). When the row
+// carries an interactive action the whole row gets one consistent hover.
+//
+// The single shared type scale (matched to the old Context rows):
+//   label  -> text-[12.5px] text-foreground/45  w-[58px]
+//   value  -> text-[12.5px] text-foreground/85
+//   rhythm -> py-[7px], gap-2.5
+const ROW_LABEL_CLS = 'text-[12.5px] text-foreground/45 w-[58px] shrink-0';
+const ROW_VALUE_CLS = 'text-[12.5px] text-foreground/85 truncate min-w-0 flex-1';
+const ROW_ICON_SIZE = 14;
+
+// A trailing action glyph (copy / open-in-tab) for the right-aligned slot.
+function RowAction({
+  kind,
+  copied,
+}: {
+  kind: 'copy' | 'open';
+  copied?: boolean;
+}) {
+  if (kind === 'open') {
+    return (
+      <ArrowUpRight
+        size={14}
+        strokeWidth={1.9}
+        className="text-icon-muted group-hover:text-foreground/70 transition-colors"
+      />
+    );
+  }
+  if (copied) {
+    return <Check size={13} strokeWidth={2.2} style={{ color: ACCENT }} />;
+  }
+  return (
+    <Copy
+      size={13}
+      strokeWidth={1.8}
+      className="text-icon-muted group-hover:text-foreground/70 transition-colors"
+    />
+  );
+}
+
+// ── A quiet labelled context row (icon + label + value), no actions ──
+// Thin wrapper over the shared row scale. Used by Overview Context + Role.
 function ContextRow({
   icon: Icon,
   label,
   value,
 }: {
-  icon: typeof MapPin;
+  icon?: typeof MapPin;
   label: string;
   value: string;
 }) {
   return (
     <div className="flex items-center gap-2.5 py-[7px]">
-      <Icon size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
-      <span className="text-[12.5px] text-foreground/45 w-[58px] shrink-0">{label}</span>
-      <span className="text-[12.5px] text-foreground/85 truncate">{value}</span>
+      {Icon ? (
+        <Icon size={ROW_ICON_SIZE} strokeWidth={1.8} className="text-icon-muted shrink-0" />
+      ) : (
+        <span aria-hidden className="shrink-0" style={{ width: ROW_ICON_SIZE }} />
+      )}
+      <span className={ROW_LABEL_CLS}>{label}</span>
+      <span className={ROW_VALUE_CLS}>{value}</span>
     </div>
   );
 }
@@ -250,15 +299,12 @@ const FLOW_ICONS: Record<FlowStepKind, typeof Send> = {
   follow_up: CornerUpRight,
 };
 
+// MetaLine · the Overview Campaign/ICP rows. Now runs through the SAME shared
+// row scale as the Context rows (FIX A): identical label/value type size,
+// label-column width, vertical rhythm and gaps. No leading icon (a width
+// spacer keeps the label column aligned with the iconned Context rows below).
 function MetaLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline gap-2.5">
-      <span className="text-[11.5px] text-foreground/40 w-[64px] shrink-0">{label}</span>
-      <span className="text-[12px] font-medium text-foreground/75 truncate min-w-0">
-        {value}
-      </span>
-    </div>
-  );
+  return <ContextRow label={label} value={value} />;
 }
 
 // ── FLOW section · a vertical top-to-bottom timeline ──────────────
@@ -393,7 +439,22 @@ function FlowSection({
   );
 }
 
-// ── A copyable dossier row · quiet, dense, with a copy affordance ───
+// ── THE shared dossier / contact row ────────────────────────────
+// Leading icon + fixed-width muted label + flexible TRUNCATING value + a
+// RIGHT-ALIGNED trailing action slot holding 0, 1 or 2 action glyphs (copy
+// and/or open-in-tab). Used by Email / Phone / LinkedIn / Company / Website /
+// Industry / Size / Location / Title so every row reads as one system.
+//
+// Right-alignment: the value is the flexible middle (`flex-1 min-w-0 truncate`)
+// and the action group is `shrink-0` immediately after it, so the glyphs ALWAYS
+// sit flush against the row's right edge regardless of value length. Long
+// emails / URLs truncate and the icons never move.
+//
+// Hover: ONE consistent treatment. The whole row is a `group` carrying
+// `hover-elevate active-elevate-2` (the platform's even row highlight); the
+// action glyphs darken on row hover via `group-hover`. Each action glyph also
+// has its own subtle round hit-area with a hover background, so copy / open
+// read as proper affordances without any janky per-glyph layout shift.
 function DossierRow({
   icon: Icon,
   label,
@@ -401,15 +462,19 @@ function DossierRow({
   href,
   copyValue,
   testId,
+  openTestId,
 }: {
   icon: typeof Mail;
   label: string;
   value: string;
-  /** When set, the row is a link (LinkedIn / website) with an external glyph. */
+  /** When set, adds an open-in-new-tab action glyph linking out. */
   href?: string;
-  /** When set, the row is copyable with a copy / check glyph. */
+  /** When set, adds a copy action glyph that copies this value. */
   copyValue?: string;
+  /** testid for the copy action (or the whole row when copy is the sole action). */
   testId?: string;
+  /** testid for the open-in-new-tab action. */
+  openTestId?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -423,41 +488,56 @@ function DossierRow({
     window.setTimeout(() => setCopied(false), 1400);
   };
 
-  const inner = (
-    <>
-      <Icon size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
-      <span className="text-[11px] text-foreground/40 w-[58px] shrink-0">{label}</span>
-      <span className="text-[12.5px] text-foreground/90 truncate flex-1">{value}</span>
-      {href ? (
-        <ArrowUpRight size={14} strokeWidth={1.9} style={{ color: ACCENT }} className="shrink-0" />
-      ) : copied ? (
-        <Check size={13} strokeWidth={2.2} style={{ color: ACCENT }} className="shrink-0" />
-      ) : copyValue != null ? (
-        <Copy size={13} strokeWidth={1.8} className="text-icon-muted shrink-0" />
-      ) : null}
-    </>
-  );
+  const hasCopy = copyValue != null;
+  const hasOpen = !!href;
+  const interactive = hasCopy || hasOpen;
 
-  const cls =
-    'w-full flex items-center gap-2.5 py-2 text-left rounded-lg px-1.5 -mx-1.5 hover-elevate active-elevate-2';
+  // The per-glyph hit area: a small rounded square with its own hover bg, so
+  // copy / open feel tappable and stay vertically centred + flush right.
+  const glyphCls =
+    'shrink-0 inline-flex items-center justify-center h-6 w-6 -my-1 rounded-md ' +
+    'transition-colors hover:bg-foreground/[0.07] dark:hover:bg-white/[0.08] ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--ring]';
 
-  if (href) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        data-testid={testId}
-        className={cls}
-      >
-        {inner}
-      </a>
-    );
-  }
   return (
-    <button type="button" onClick={copy} data-testid={testId} className={cls}>
-      {inner}
-    </button>
+    <div
+      className={
+        'group flex items-center gap-2.5 py-[7px] rounded-lg px-1.5 -mx-1.5 ' +
+        (interactive ? 'hover-elevate' : '')
+      }
+      data-testid={!hasCopy && !hasOpen ? testId : undefined}
+    >
+      <Icon size={ROW_ICON_SIZE} strokeWidth={1.8} className="text-icon-muted shrink-0" />
+      <span className={ROW_LABEL_CLS}>{label}</span>
+      <span className={ROW_VALUE_CLS}>{value}</span>
+      {(hasCopy || hasOpen) && (
+        <span className="shrink-0 ml-auto flex items-center gap-0.5">
+          {hasCopy && (
+            <button
+              type="button"
+              onClick={copy}
+              data-testid={testId}
+              aria-label={`Copy ${label.toLowerCase()}`}
+              className={glyphCls}
+            >
+              <RowAction kind="copy" copied={copied} />
+            </button>
+          )}
+          {hasOpen && (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid={openTestId}
+              aria-label={`Open ${label.toLowerCase()}`}
+              className={glyphCls}
+            >
+              <RowAction kind="open" />
+            </a>
+          )}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -508,27 +588,29 @@ function EnrichableRow({
     );
   }
 
-  // Resolved + not found -> a calm, muted line (no value, no error-red).
+  // Resolved + not found -> a calm, muted line (no value, no error-red). Same
+  // shared scale + rhythm as every other row.
   if (state === 'resolved' && !value) {
     return (
-      <div className="flex items-center gap-2.5 py-2 px-1.5 -mx-1.5">
-        <Icon size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
-        <span className="text-[11px] text-foreground/40 w-[58px] shrink-0">{label}</span>
-        <span className="text-[12px] text-foreground/40 italic truncate flex-1">
+      <div className="flex items-center gap-2.5 py-[7px] px-1.5 -mx-1.5">
+        <Icon size={ROW_ICON_SIZE} strokeWidth={1.8} className="text-icon-muted shrink-0" />
+        <span className={ROW_LABEL_CLS}>{label}</span>
+        <span className="text-[12.5px] text-foreground/40 italic truncate min-w-0 flex-1">
           {notFoundText}
         </span>
       </div>
     );
   }
 
-  // Locked / searching -> label + (placeholder | spinner) + access affordance.
+  // Locked / searching -> label + (placeholder | spinner) + right-aligned
+  // access affordance. Same shared scale + rhythm.
   const searching = state === 'searching';
   return (
-    <div className="flex items-center gap-2.5 py-2 px-1.5 -mx-1.5">
-      <Icon size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
-      <span className="text-[11px] text-foreground/40 w-[58px] shrink-0">{label}</span>
+    <div className="flex items-center gap-2.5 py-[7px] px-1.5 -mx-1.5">
+      <Icon size={ROW_ICON_SIZE} strokeWidth={1.8} className="text-icon-muted shrink-0" />
+      <span className={ROW_LABEL_CLS}>{label}</span>
       {searching ? (
-        <span className="flex items-center gap-1.5 flex-1 min-w-0 text-[12px] text-foreground/45">
+        <span className="flex items-center gap-1.5 flex-1 min-w-0 text-[12.5px] text-foreground/45">
           <Loader2 size={13} strokeWidth={2.2} className="animate-spin shrink-0" />
           Searching...
         </span>
@@ -545,7 +627,7 @@ function EnrichableRow({
         data-testid={accessTestId}
         onClick={onAccess}
         disabled={searching}
-        className="shrink-0 glass-pill rounded-full inline-flex items-center gap-1 h-[24px] pl-2 pr-2.5 text-[11px] font-semibold whitespace-nowrap transition-transform hover:scale-[1.03] active:scale-[0.97] disabled:opacity-60 disabled:hover:scale-100"
+        className="shrink-0 ml-auto glass-pill rounded-full inline-flex items-center gap-1 h-[24px] pl-2 pr-2.5 text-[11px] font-semibold whitespace-nowrap transition-transform hover:scale-[1.03] active:scale-[0.97] disabled:opacity-60 disabled:hover:scale-100"
         style={{ color: ACCENT }}
       >
         <Lock size={11} strokeWidth={2.2} />
@@ -589,7 +671,29 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
   const hasCompany =
     !!lead && (!!lead.company || !!lead.industry || !!lead.companySize || !!lead.location);
 
-  const linkedinHref = lead?.linkedinUrl && lead.linkedinUrl !== '#' ? lead.linkedinUrl : undefined;
+  // LinkedIn · shown immediately as a normal row (not credit-gated). The mock
+  // carries a placeholder '#', so synthesise a believable profile URL + handle
+  // from the lead's name when no real URL exists. The displayed value is the
+  // clean handle; copy + open both use the full URL.
+  const linkedinSlug = mail.from.name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const linkedinUrl =
+    lead?.linkedinUrl && lead.linkedinUrl !== '#'
+      ? lead.linkedinUrl
+      : lead?.linkedinUrl
+        ? `https://linkedin.com/in/${linkedinSlug}`
+        : undefined;
+  const linkedinHandle = linkedinUrl
+    ? `linkedin.com/in/${linkedinSlug}`
+    : undefined;
+
+  // Company website · shown immediately with copy + open (FIX G). The full URL
+  // for copy/open; the bare domain is shown as the value.
+  const websiteDomain = lead?.website;
+  const websiteUrl = websiteDomain ? `https://${websiteDomain}` : undefined;
 
   // The AI read text, em-dash-free. Pure interpretation, never an action.
   const readText = mail.aiRead ? noDash(mail.aiRead) : null;
@@ -848,14 +952,13 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
               transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
               className="flex flex-col gap-5"
             >
-              {/* Lead identity card · the strong opening, mirroring the
-                  Overview AI card (same rp-card glass treatment + rhythm).
-                  Avatar + name + title / company sit inside the card; a quiet
-                  ICP-fit line and the LinkedIn action live in a divided footer.
-                  LinkedIn is not credit-gated, so it belongs with identity
-                  here (not in the gated Contact section). */}
+              {/* Identity card · now the COMPLETE contact hub (FIX B). Avatar +
+                  name + "Title at Company" header, a divider, then the core
+                  contact rows INSIDE this same card: Email (enrich), Phone
+                  (enrich) and LinkedIn (immediate, copy + open). No ICP line
+                  (FIX C) and no separate CONTACT section. */}
               <div className="rp-card rounded-[20px] px-4 pt-3.5 pb-3">
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3">
                   <ReplaiyAvatar name={mail.from.name} src={mail.from.avatar} size={42} className="shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-[14.5px] font-semibold tracking-[-0.01em] text-foreground truncate">
@@ -869,89 +972,70 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                         : title || company || 'Lead'}
                     </div>
                   </div>
+                  {/* Quiet "Reveal all" affordance for the two gated fields,
+                     shown only while something is still locked (FIX E). Sits
+                     top-right of the card, near the contact rows below. */}
+                  {anyLocked && (
+                    <button
+                      type="button"
+                      data-testid="reveal-all-contact"
+                      onClick={revealAll}
+                      className="shrink-0 mt-0.5 text-[11px] font-semibold tracking-[-0.005em] transition-opacity hover:opacity-70"
+                      style={{ color: ACCENT }}
+                    >
+                      Reveal all
+                    </button>
+                  )}
                 </div>
 
-                {(fitScore != null || lead?.linkedinUrl) && (
-                  <div className="mt-3 pt-3 border-t border-foreground/[0.07] flex items-center justify-between gap-2">
-                    {fitScore != null ? (
-                      <MetaLine label="ICP fit" value={`${fitScore}%`} />
-                    ) : (
-                      <span />
-                    )}
-                    {lead?.linkedinUrl && (
-                      <a
-                        href={linkedinHref ?? '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        data-testid="open-linkedin"
-                        className="shrink-0 glass-pill rounded-full inline-flex items-center gap-1.5 h-[24px] pl-2 pr-2.5 text-[11px] font-semibold whitespace-nowrap transition-transform hover:scale-[1.03] active:scale-[0.97]"
-                        style={{ color: ACCENT }}
-                      >
-                        <Linkedin size={12} strokeWidth={2} />
-                        LinkedIn
-                        <ArrowUpRight size={12} strokeWidth={2} />
-                      </a>
-                    )}
-                  </div>
-                )}
+                {/* Core contact rows, inside the identity card. Email + Phone
+                   keep the per-field enrich/reveal flow; LinkedIn shows
+                   immediately as a normal row with copy + open-in-tab. */}
+                <div className="mt-2.5 pt-2 border-t border-foreground/[0.07]">
+                  <EnrichableRow
+                    icon={Mail}
+                    label="Email"
+                    value={lead?.email}
+                    state={emailState}
+                    notFoundText="No verified email found"
+                    onAccess={accessEmail}
+                    accessTestId="access-email"
+                    copyTestId="copy-email"
+                  />
+                  <EnrichableRow
+                    icon={Phone}
+                    label="Phone"
+                    value={lead?.phone}
+                    state={phoneState}
+                    notFoundText="No phone number found"
+                    onAccess={accessPhone}
+                    accessTestId="access-phone"
+                    copyTestId="copy-phone"
+                  />
+                  {lead?.linkedinUrl && (
+                    <DossierRow
+                      icon={Linkedin}
+                      label="LinkedIn"
+                      value={linkedinHandle ?? 'View profile'}
+                      copyValue={linkedinUrl}
+                      href={linkedinUrl}
+                      testId="copy-linkedin"
+                      openTestId="open-linkedin"
+                    />
+                  )}
+                </div>
               </div>
 
-              {!hasContact && !hasCompany ? (
+              {!hasCompany && !title && !hasContact ? (
                 <div className="text-[12.5px] text-foreground/45 leading-relaxed">
                   No contact details on file yet.
                 </div>
               ) : (
-                /* Apollo-style dossier. Company / Role / LinkedIn are shown
-                   immediately (not credit-gated); only email + phone are
-                   revealed on demand, each through its own locked -> searching
-                   -> resolved flow. */
                 <>
-                  {/* 1 · Contact. The two credit-gated fields: email + phone,
-                         each per-field enrichable. A quiet "Reveal all" link
-                         sits in the section header to unlock both at once when
-                         any is still locked. LinkedIn lives in the identity
-                         card above (it is not credit-gated). */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2.5">
-                      <div className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-foreground/40">
-                        Contact
-                      </div>
-                      {anyLocked && (
-                        <button
-                          type="button"
-                          data-testid="reveal-all-contact"
-                          onClick={revealAll}
-                          className="text-[11px] font-semibold tracking-[-0.005em] transition-opacity hover:opacity-70"
-                          style={{ color: ACCENT }}
-                        >
-                          Reveal all
-                        </button>
-                      )}
-                    </div>
-                    <div className="lg-card rounded-[16px] px-3.5 py-1">
-                      <EnrichableRow
-                        icon={Mail}
-                        label="Email"
-                        value={lead?.email}
-                        state={emailState}
-                        notFoundText="No verified email found"
-                        onAccess={accessEmail}
-                        accessTestId="access-email"
-                        copyTestId="copy-email"
-                      />
-                      <EnrichableRow
-                        icon={Phone}
-                        label="Phone"
-                        value={lead?.phone}
-                        state={phoneState}
-                        notFoundText="No phone number found"
-                        onAccess={accessPhone}
-                        accessTestId="access-phone"
-                        copyTestId="copy-phone"
-                      />
-                    </div>
-                  </div>
-
+                  {/* COMPANY · Company (copy) -> Website (copy + open) ->
+                     Industry -> Size -> Location. All run through the one
+                     shared DossierRow so type + hover + right-aligned actions
+                     are identical to the contact rows in the identity card. */}
                   {hasCompany && (
                     <div>
                       <SectionLabel>Company</SectionLabel>
@@ -962,10 +1046,22 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                             label="Company"
                             value={lead.company}
                             copyValue={lead.company}
+                            testId="copy-company"
+                          />
+                        )}
+                        {websiteDomain && (
+                          <DossierRow
+                            icon={Globe}
+                            label="Website"
+                            value={websiteDomain}
+                            copyValue={websiteUrl}
+                            href={websiteUrl}
+                            testId="copy-website"
+                            openTestId="open-website"
                           />
                         )}
                         {lead?.industry && (
-                          <DossierRow icon={Globe} label="Industry" value={lead.industry} />
+                          <DossierRow icon={Briefcase} label="Industry" value={lead.industry} />
                         )}
                         {lead?.companySize && (
                           <DossierRow icon={Users} label="Size" value={lead.companySize} />
@@ -985,11 +1081,6 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                       </div>
                     </div>
                   )}
-
-                  <div className="flex items-center gap-1.5 text-[11px] text-foreground/40">
-                    <Sparkles size={12} strokeWidth={2} style={{ color: ACCENT }} className="shrink-0" />
-                    Email and phone are enriched on demand
-                  </div>
                 </>
               )}
             </motion.div>

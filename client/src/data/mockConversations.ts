@@ -51,6 +51,7 @@ export interface LeadContext {
   location?: string; // 'Amsterdam, NL'
   companySize?: string; // '50-200'
   industry?: string; // 'B2B SaaS'
+  website?: string; // 'northwavelabs.com' — company domain, shown in Contact
   fitScore?: number; // 0-100 ICP match
   signals?: string[]; // why the AI personalizes this thread
   linkedinUrl?: string;
@@ -220,6 +221,7 @@ export const mockConversations: Conversation[] = [
       location: 'Amsterdam, NL',
       companySize: '50-200',
       industry: 'B2B SaaS',
+      website: 'northwavelabs.com',
       fitScore: 91,
       signals: [
         'Replied positively today',
@@ -267,6 +269,7 @@ export const mockConversations: Conversation[] = [
       location: 'Amsterdam, NL',
       companySize: '200-500',
       industry: 'Dev tooling',
+      website: 'acmesoftware.com',
       fitScore: 78,
       signals: [
         'Tried an outbound tool last year',
@@ -314,6 +317,7 @@ export const mockConversations: Conversation[] = [
       location: 'Vienna, AT',
       companySize: '10-50',
       industry: 'D2C commerce',
+      website: 'kettleandco.com',
       fitScore: 84,
       signals: [
         'Asked how to get started',
