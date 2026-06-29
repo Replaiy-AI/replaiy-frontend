@@ -57,7 +57,7 @@ import { GoalPill, ConversionBar } from '@/components/CampaignsList';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { activePersona } from '@/data/mockPersona';
 import { useReplaiy } from '@/state/ReplaiyContext';
-import { APPLE_SPRING } from '@/lib/motion';
+import { GlassSegmentedToggle } from '@/components/GlassSegmentedToggle';
 
 const ACCENT = '#2F6BFF';
 
@@ -266,12 +266,16 @@ function MetaLine({ label, value }: { label: string; value: string }) {
 // Signals. Status comes from buildFlowTiming, which reflects that a lead shown
 // here is already in conversation: the outreach steps up to + including the
 // opening message are DONE, and the follow-up is either DONE (warm leads) or
-// SCHEDULED for a calm near-future moment (active leads). Done steps show a
-// blue icon tile + a small check and a muted "X ago" time; scheduled steps
-// get a calm neutral tile with a small clock and a softly accented "in ~X"
-// time, never the old loud "current" ring; pending steps stay quiet/grey. The
-// connector trail is blue through the done steps, neutral after. We never
-// claim a hard "Step N of M" and never emphasise a "current" outreach step.
+// SCHEDULED for a calm near-future moment (active leads).
+//
+// VISUAL RESTRAINT (matches the CampaignDetail Flow card): NEUTRAL grey icon
+// tiles + a single thin NEUTRAL connector throughout, exactly like the
+// campaign flow. Blue is a rare micro-accent only: (1) the small check badge
+// on done steps is the sole "done" signal, and (2) the soft-blue future-time
+// pill on the scheduled step is the sole "upcoming" signal. No blue tiles, no
+// blue connector trail, no blue labels. Done time pills ("X ago") stay muted;
+// the scheduled clock badge stays neutral so the blue pill is the only blue.
+// We never claim a hard "Step N of M" and never emphasise a "current" step.
 function FlowSection({
   flow,
   timing,
@@ -291,11 +295,6 @@ function FlowSection({
             const last = i === flow.length - 1;
             const isDone = t.status === 'done';
             const isScheduled = t.status === 'scheduled';
-            // The connector below a step is blue only while we are still inside
-            // the done run (this step done AND the next step done too), so the
-            // trail goes neutral exactly where scheduled / pending begins.
-            const nextDone = i < flow.length - 1 && timing[i + 1].status === 'done';
-            const trailBlue = isDone && nextDone;
             // The time pill text: relative past for done, soft future for
             // scheduled, a quiet "after previous" for pending.
             const timeText = isDone
@@ -313,36 +312,14 @@ function FlowSection({
                 data-testid={`flow-step-${step.kind}-${i}`}
                 className="flex items-start gap-3 py-2"
               >
-                {/* Icon rail + connector line. */}
+                {/* Icon rail + connector line. NEUTRAL grey tile + thin
+                    neutral connector throughout, exactly like CampaignDetail.
+                    Blue appears only as the tiny done-check badge; the
+                    scheduled clock badge stays neutral so the blue future-time
+                    pill is the sole blue on a scheduled step. */}
                 <div className="relative flex flex-col items-center shrink-0">
-                  <div
-                    className="relative h-8 w-8 rounded-xl flex items-center justify-center transition-colors"
-                    style={
-                      isDone
-                        ? { background: `${ACCENT}1A`, boxShadow: `inset 0 0 0 1px ${ACCENT}33` }
-                        : isScheduled
-                          ? {
-                              background: 'hsl(var(--foreground) / 0.05)',
-                              boxShadow: `inset 0 0 0 1px ${ACCENT}26`,
-                            }
-                          : {
-                              background: 'hsl(var(--foreground) / 0.06)',
-                              boxShadow: 'inset 0 0 0 1px hsl(var(--foreground) / 0.06)',
-                            }
-                    }
-                  >
-                    <Icon
-                      size={15}
-                      strokeWidth={1.9}
-                      style={isDone ? { color: ACCENT } : undefined}
-                      className={
-                        isDone
-                          ? ''
-                          : isScheduled
-                            ? 'text-foreground/60'
-                            : 'text-foreground/55'
-                      }
-                    />
+                  <div className="relative h-8 w-8 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center">
+                    <Icon size={15} strokeWidth={1.9} className="text-foreground/65" />
                     {isDone && (
                       <span
                         aria-hidden
@@ -355,25 +332,16 @@ function FlowSection({
                     {isScheduled && (
                       <span
                         aria-hidden
-                        className="absolute -right-1 -bottom-1 h-3.5 w-3.5 rounded-full flex items-center justify-center"
-                        style={{
-                          background: 'hsl(var(--card))',
-                          boxShadow: `inset 0 0 0 1px ${ACCENT}40`,
-                        }}
+                        className="absolute -right-1 -bottom-1 h-3.5 w-3.5 rounded-full flex items-center justify-center bg-foreground/[0.10] dark:bg-white/[0.14]"
                       >
-                        <Clock size={9} strokeWidth={2.4} style={{ color: ACCENT }} />
+                        <Clock size={9} strokeWidth={2.4} className="text-foreground/55" />
                       </span>
                     )}
                   </div>
                   {!last && (
                     <span
                       aria-hidden="true"
-                      className="absolute top-8 h-[calc(100%-1rem)] w-px"
-                      style={{
-                        background: trailBlue
-                          ? `${ACCENT}59`
-                          : 'hsl(var(--foreground) / 0.10)',
-                      }}
+                      className="absolute top-8 h-[calc(100%-1rem)] w-px bg-foreground/[0.10] dark:bg-white/[0.12]"
                     />
                   )}
                 </div>
@@ -382,10 +350,9 @@ function FlowSection({
                     <span
                       className="text-[12.5px] font-semibold tracking-[-0.005em] truncate"
                       style={{
-                        color: isDone
-                          ? 'var(--foreground)'
-                          : isScheduled
-                            ? 'hsl(var(--foreground) / 0.75)'
+                        color:
+                          isDone || isScheduled
+                            ? 'var(--foreground)'
                             : 'hsl(var(--foreground) / 0.5)',
                       }}
                     >
@@ -541,32 +508,29 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
       className="h-full flex flex-col overflow-hidden"
     >
       {/* ── Tab control ─────────────────────────────────────────────── */}
+      {/* Text-only Overview / Contact tabs.
+          Reuses the platform's GlassSegmentedToggle (the SAME component that
+          powers the top inbox toggle / calendar toggle / bottom nav) so the
+          glass indicator, springy snap, hover and tap-to-switch behaviour are
+          100% shared. TEXT-ONLY here via hideIcons, so no icons render and the
+          segments carry no icon at all (icon is optional under hideIcons).
+          'glass-rich' indicator matches the premium inbox toggle. Two
+          near-equal segments (158 / 142) fill the ~308px header row without
+          overflow. */}
       <div className="px-4 pt-4 pb-3 shrink-0">
-        <div className="lg-card rounded-full p-1 flex items-center gap-1">
-          {(['overview', 'contact'] as const).map((t) => {
-            const active = tab === t;
-            return (
-              <button
-                key={t}
-                type="button"
-                data-testid={`lead-tab-${t}`}
-                onClick={() => setTab(t)}
-                aria-pressed={active}
-                className="relative flex-1 h-[30px] rounded-full text-[12.5px] font-semibold tracking-[-0.005em] transition-colors"
-                style={{ color: active ? 'var(--foreground)' : 'hsl(var(--foreground) / 0.5)' }}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="lead-tab-pill"
-                    transition={APPLE_SPRING}
-                    className="glass-pill absolute inset-0 rounded-full"
-                    aria-hidden
-                  />
-                )}
-                <span className="relative z-[1]">{t === 'overview' ? 'Overview' : 'Contact'}</span>
-              </button>
-            );
-          })}
+        <div className="lg-card rounded-full inline-flex" style={{ height: 34 }}>
+          <GlassSegmentedToggle<Tab>
+            testId="lead-tab"
+            pad={4}
+            hideIcons
+            indicatorStyle="glass-rich"
+            value={tab}
+            onChange={setTab}
+            segments={[
+              { key: 'overview', label: 'Overview', activeWidth: 158, inactiveWidth: 142 },
+              { key: 'contact', label: 'Contact', activeWidth: 158, inactiveWidth: 142 },
+            ]}
+          />
         </div>
       </div>
 

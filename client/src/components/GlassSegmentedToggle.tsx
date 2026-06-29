@@ -31,7 +31,13 @@ import ShudingGlass from './ShudingGlass';
 
 export type ToggleSegment<K extends string> = {
   key: K;
-  icon: LucideIcon;
+  /**
+   * Segment icon. Optional so text-only callers (hideIcons) don't need a
+   * misleading placeholder icon. When hideIcons is false, every segment
+   * should supply an icon (icon + label mode). When hideIcons is true the
+   * icon is never rendered and may be omitted.
+   */
+  icon?: LucideIcon;
   label: string;
   /** Width of segment when ACTIVE (icon + label visible) */
   activeWidth: number;
@@ -55,6 +61,16 @@ export interface GlassSegmentedToggleProps<K extends string> {
   externalProgressDirection?: 'self-to-next' | 'self-to-prev';
   /** Icon-only mode — no labels ever appear; indicator just translates between equal-width icon slots. */
   iconOnly?: boolean;
+  /**
+   * Text-only mode — when true, the segment's `<I />` icon is NEVER rendered
+   * (active or inactive); only the label shows, for BOTH active and inactive
+   * segments. The segment `icon` field is optional, so text-only callers omit
+   * it entirely (no misleading placeholder icon needed). Default false =
+   * today's behaviour exactly (icon + label). Used by text-only tab controls
+   * (e.g. the lead-context Overview/Contact tabs) that want the glass
+   * indicator + spring + hover but no icons.
+   */
+  hideIcons?: boolean;
   /** Visual style of the active indicator (default 'neutral' for bottom nav, 'glass-rich' for top toggles, 'liquid' for v21 chromatic-aberration glass, 'shuding' for v23 real refraction). */
   indicatorStyle?: 'neutral' | 'glass-rich' | 'liquid' | 'shuding';
   /** Extra px of inset around the indicator (in addition to `pad`). Use for compact icon-only nav so the indicator becomes a small circle that never bleeds into the next icon slot. */
@@ -72,6 +88,7 @@ export function GlassSegmentedToggle<K extends string>({
   externalProgress,
   externalProgressDirection = 'self-to-next',
   iconOnly = false,
+  hideIcons = false,
   indicatorStyle = 'glass-rich',
   indicatorInset = 0,
   orientation = 'horizontal',
@@ -307,6 +324,8 @@ export function GlassSegmentedToggle<K extends string>({
       {/* Segments */}
       {segments.map((s, i) => {
         const I = s.icon;
+        // hideIcons may omit `icon` entirely, so guard on I as well.
+        const showIcon = !hideIcons && !!I;
         const active = i === activeIdx;
         return (
           <button
@@ -330,6 +349,9 @@ export function GlassSegmentedToggle<K extends string>({
             }
           >
             <span className={iconOnly ? 'flex items-center justify-center w-full h-full' : 'flex items-center gap-[6px] whitespace-nowrap'} style={iconOnly ? undefined : { paddingLeft: 6, paddingRight: 6 }}>
+              {/* hideIcons (text-only mode) or no icon supplied: never render
+                  the icon element. */}
+              {showIcon && I && (
               <I
                 // v30.36 — Tab-pill icon size standardized to 19 (GLASS_ICON_SIZE)
                 // when iconOnly. Label-mode keeps its 17px because then
@@ -353,7 +375,23 @@ export function GlassSegmentedToggle<K extends string>({
                   transition: 'color 200ms ease, opacity 200ms ease, transform 200ms ease',
                 }}
               />
-              {!iconOnly && active && (
+              )}
+              {/* hideIcons: label is ALWAYS visible (both active + inactive),
+                  because a text-only tab has nothing else to show. The active
+                  label keeps its foreground colour; inactive labels read at
+                  reduced strength. */}
+              {hideIcons && (
+                <span
+                  className="tracking-[-0.005em] whitespace-nowrap inline-block"
+                  style={{
+                    color: active ? 'var(--foreground)' : 'hsl(var(--foreground) / 0.5)',
+                    transition: 'color 200ms ease',
+                  }}
+                >
+                  {s.label}
+                </span>
+              )}
+              {showIcon && !iconOnly && active && (
                 <motion.span
                   initial={{ opacity: 0, width: 0 }}
                   animate={{ opacity: 1, width: 'auto' }}
