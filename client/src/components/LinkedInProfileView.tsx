@@ -314,7 +314,21 @@ function EducationEntry({ item }: { item: LinkedInEducation }) {
 // uses this to nest the profile person's own reply WITHIN the original post
 // card, so a comment reads as one unit ("post + the reply on it") rather than
 // two sibling cards of equal weight.
-function PostCard({ post, nested }: { post: LinkedInPost; nested?: ReactNode }) {
+function PostCard({
+  post,
+  nested,
+  embedded,
+}: {
+  post: LinkedInPost;
+  nested?: ReactNode;
+  // v-repost — When `embedded` the card drops its OWN rp-card surface and
+  // becomes transparent padding only, because it is rendered INSIDE the inset
+  // reshared-content container of a quote repost (which already supplies the
+  // surface + border). Everything else (header, clamp, image, stats) is
+  // identical, so a reshared post reads exactly like any other post, just
+  // contained. Default (false) keeps the standalone rp-card exactly as before.
+  embedded?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   // Same threshold rationale as AboutSection: clamp once it is worth clamping.
   const canClamp = post.text.length > 220;
@@ -326,7 +340,11 @@ function PostCard({ post, nested }: { post: LinkedInPost; nested?: ReactNode }) 
 
   return (
     <div
-      className="rp-card rounded-[20px] px-4 py-3.5"
+      className={
+        embedded
+          ? 'px-4 py-3.5'
+          : 'rp-card rounded-[20px] px-4 py-3.5'
+      }
       data-testid={`profile-post-${post.id}`}
     >
       {/* Header row · avatar + name/headline stack + time-ago (right). */}
@@ -439,21 +457,45 @@ function ActivityAttribution({
   reactionLabel,
 }: {
   profileFirstName: string;
-  verb: 'commented' | 'reacted';
-  authorName: string;
+  // v-attribution-all — Every Activity item now shows an attribution line, so
+  // the verb set grew to cover own posts and reposts, matching LinkedIn 1:1:
+  //   'posted'    → "[First] posted this"            (no author/possessive)
+  //   'reposted'  → "[First] reposted [author]'s post"
+  //   'commented' → "[First] commented on [author]'s post"
+  //   'reacted'   → "[First] reacted to [author]'s post"
+  // For a QUOTE repost the caller passes verb 'reposted' WITHOUT an authorName
+  // to get "[First] reposted this" (the added commentary header carries the
+  // original author context instead).
+  verb: 'posted' | 'reposted' | 'commented' | 'reacted';
+  authorName?: string;
   reactionLabel?: string;
 }) {
-  // Possessive that handles names already ending in s (e.g. "Lukas'").
-  const trimmed = noDash(authorName).trim();
+  // Possessive that handles names already ending in s (e.g. "Sofia Reyes'").
+  // Reuses the same rule used elsewhere in this file for the comment/reaction
+  // attribution lines, so every possessive in Activity reads identically.
+  const trimmed = noDash(authorName ?? '').trim();
   const possessive = /s$/i.test(trimmed) ? `${trimmed}'` : `${trimmed}'s`;
-  // LinkedIn's exact phrasing: "commented on ...'s post" / "reacted to ...'s post".
-  const preposition = verb === 'commented' ? 'on' : 'to';
+  // The phrase after the verb. "posted this" and the author-less "reposted this"
+  // take no possessive; the others read "<prep> <author>'s post".
+  const hasAuthor = trimmed.length > 0;
+  let tail: ReactNode;
+  if (verb === 'posted' || (verb === 'reposted' && !hasAuthor)) {
+    tail = <>this</>;
+  } else {
+    // "commented on ...'s post", "reacted to ...'s post", "reposted ...'s post".
+    const preposition = verb === 'commented' ? 'on ' : verb === 'reacted' ? 'to ' : '';
+    tail = (
+      <>
+        {preposition}
+        <span className="font-medium text-foreground/65">{possessive}</span> post
+      </>
+    );
+  }
   return (
     <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mb-1.5 px-0.5 text-[12px] text-foreground/50 leading-snug">
       <span className="min-w-0">
         <span className="font-semibold text-foreground/65">{profileFirstName}</span>{' '}
-        {verb} {preposition}{' '}
-        <span className="font-medium text-foreground/65">{possessive}</span> post
+        {verb} {tail}
       </span>
       {reactionLabel && (
         <span className="glass-pill rounded-full inline-flex items-center h-[18px] px-2 text-[11px] font-medium text-foreground/60">
@@ -504,14 +546,14 @@ function ActivityItem({
       >
         <ReplaiyAvatar name={profileName} src={profileAvatar} size={28} />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[12px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
-              {noDash(profileName)}
-            </span>
-            <span className="text-[10.5px] uppercase tracking-[0.04em] font-semibold text-foreground/35">
-              Comment
-            </span>
-          </div>
+          {/* Just the reply author's name. The redundant "COMMENT" mini-label
+              was removed: every Activity item now carries an attribution line
+              above the card ("[First] commented on X's post"), which already
+              states this is a comment, and the all-caps mini-label violated the
+              platform's no-block-letter-labels rule. Normal case throughout. */}
+          <span className="text-[12px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
+            {noDash(profileName)}
+          </span>
           <p className="text-[12.5px] leading-[1.5] text-foreground/70 m-0 mt-0.5 break-words">
             {noDash(post.activityComment)}
           </p>
@@ -546,8 +588,74 @@ function ActivityItem({
     );
   }
 
+  if (kind === 'repost') {
+    // The author*/text/image fields describe the ORIGINAL reshared post (by
+    // someone else), rendered with the SAME PostCard as everywhere else.
+    // TWO variants, switched on activityComment (the profile person's own
+    // added text):
+    //   • PLAIN reshare (no activityComment): just an attribution line
+    //     "[First] reposted [author]'s post" above the original PostCard.
+    //     Nothing else — identical chrome to a reaction, different verb.
+    //   • QUOTE repost (activityComment present): the person added commentary,
+    //     so the attribution reads "[First] reposted this", then a lightweight
+    //     commentary HEADER (their ReplaiyAvatar + name + added text) at
+    //     primary weight, then the original post rendered INSIDE an inset,
+    //     recessed container so it unmistakably reads as embedded reshared
+    //     content, not a separate equal post. This mirrors the comment
+    //     variant's nesting idea (one card = one unit) but inverted: here the
+    //     person's voice is on TOP and the reshared post is the contained body.
+    if (post.activityComment) {
+      return (
+        <div data-testid={`activity-item-${post.id}`}>
+          <ActivityAttribution profileFirstName={profileFirstName} verb="reposted" />
+          {/* Outer repost card: the person's commentary, then the reshared post
+              embedded within the SAME surface so the whole thing reads as one
+              repost unit. */}
+          <div className="rp-card rounded-[20px] px-4 py-3.5">
+            {/* Commentary header: the profile person's added text, at primary
+                weight (their avatar + name), so their voice leads. */}
+            <div
+              className="flex items-start gap-2.5"
+              data-testid={`activity-repost-comment-${post.id}`}
+            >
+              <ReplaiyAvatar name={profileName} src={profileAvatar} size={36} />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+                  {noDash(profileName)}
+                </div>
+                <p className="text-[13px] leading-[1.55] text-foreground/80 m-0 mt-1 whitespace-pre-line break-words">
+                  {noDash(post.activityComment)}
+                </p>
+              </div>
+            </div>
+            {/* Embedded reshared post: inset, recessed container with its own
+                hairline border so it reads as contained content within the
+                repost, never a sibling post of equal weight. Reuses PostCard
+                verbatim; the inset wrapper supplies the embedded affordance. */}
+            <div className="mt-3 rounded-[16px] overflow-hidden border border-foreground/[0.08] dark:border-white/[0.08] bg-foreground/[0.02] dark:bg-white/[0.02]">
+              <PostCard post={post} embedded />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div data-testid={`activity-item-${post.id}`}>
+        <ActivityAttribution
+          profileFirstName={profileFirstName}
+          verb="reposted"
+          authorName={post.authorName}
+        />
+        <PostCard post={post} />
+      </div>
+    );
+  }
+
+  // Plain own post — now ALSO carries an attribution line ("[First] posted
+  // this") so the All feed reads consistently: every item states what it is.
   return (
     <div data-testid={`activity-item-${post.id}`}>
+      <ActivityAttribution profileFirstName={profileFirstName} verb="posted" />
       <PostCard post={post} />
     </div>
   );
@@ -587,8 +695,16 @@ export function LinkedInProfileView({
   const isMobile = useIsMobile();
   const profileFirstName = (name ?? '').trim().split(/\s+/)[0] || name;
   const visiblePosts = useMemo(() => {
+    // Posts tab = own posts OR reposts. LinkedIn files a repost under the
+    // person's "Posts" activity (a repost IS a posting action), so the Posts
+    // tab shows kind 'post' (default) and kind 'repost' together. Reposts also
+    // appear in All (which renders everything in array order). Comments and
+    // Reactions stay filtered to their own kind.
     if (activityTab === 'posts')
-      return posts.filter((p) => (p.kind ?? 'post') === 'post');
+      return posts.filter((p) => {
+        const k = p.kind ?? 'post';
+        return k === 'post' || k === 'repost';
+      });
     if (activityTab === 'comments') return posts.filter((p) => p.kind === 'comment');
     if (activityTab === 'reactions') return posts.filter((p) => p.kind === 'reaction');
     return posts;
@@ -828,15 +944,23 @@ export function LinkedInProfileView({
                 muted attribution line + inset comment (or reaction chip) on top.
                 Every post still renders NEUTRALLY: usedByAI is never surfaced.
 
-                Fitting FOUR tabs in the narrow 340px desktop column: the
-                switcher track width is padLeft*2 + optionW*count + gap*(count-1),
-                all times `scale`. We use optionWidth 92 at scale 0.72 on desktop
-                -> (24 + 368 + 24) * 0.72 ≈ 300px, which sits comfortably inside
-                the ~308px content width. On mobile (~390px) we widen optionWidth
-                so the pill reads as a full-width segmented control, identical to
-                how LeadContextPanel widens its two-tab pill on phone. The
-                indicator stride math derives from optionWidth, so the sliding
-                indicator always lands exactly under the active segment. */}
+                Fitting FOUR tabs in the narrow 340px desktop column: the four
+                labels differ a lot in length ("All" 16px vs "Comments" 69px at
+                13.5px), so a single uniform optionWidth cannot win, sizing it
+                for "Comments" makes the track ~385px (overflows the column) and
+                leaves "All" with ~70px of empty space (badly over-spaced), while
+                shrinking it collides the long labels. So we use the switcher's
+                PER-SEGMENT `width` support: each segment is sized to its own
+                label + a consistent ~10px breathing margin (All 60 / Posts 85 /
+                Comments 134 / Reactions 123, UNSCALED) with a tighter text pad
+                (textPaddingX 12 instead of the icon-mode 16). At scale 0.72 the
+                track is (24 + 402 + 24) * 0.72 ≈ 324px, fitting inside both the
+                ~308–340px desktop column and the centered mobile width, with no
+                collision and "All" no longer over-wide. The indicator sizes and
+                positions from the ACTIVE segment's own width, so it lands
+                exactly under each label regardless of length. Same widths on
+                mobile and desktop: the control is identical on both, just
+                centered on phone. */}
             {posts.length > 0 && (
               <div data-testid="profile-activity">
                 <SectionLabel>Activity</SectionLabel>
@@ -852,15 +976,15 @@ export function LinkedInProfileView({
                   <VadikLiquidSwitcher<ActivityTab>
                     testId="activity-tab"
                     variant="text"
-                    optionWidth={isMobile ? 112 : 92}
                     scale={0.72}
+                    textPaddingX={12}
                     value={activityTab}
                     onChange={setActivityTab}
                     segments={[
-                      { key: 'all', label: 'All' },
-                      { key: 'posts', label: 'Posts' },
-                      { key: 'comments', label: 'Comments' },
-                      { key: 'reactions', label: 'Reactions' },
+                      { key: 'all', label: 'All', width: 60 },
+                      { key: 'posts', label: 'Posts', width: 85 },
+                      { key: 'comments', label: 'Comments', width: 134 },
+                      { key: 'reactions', label: 'Reactions', width: 123 },
                     ]}
                   />
                 </div>

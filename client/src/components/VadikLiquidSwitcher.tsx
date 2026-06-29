@@ -30,6 +30,19 @@ export interface VadikSegment<K extends string> {
   // the segment renders its `label` text instead and needs no icon at all.
   icon?: LucideIcon;
   label: string;
+  // v-perseg-width — OPTIONAL per-segment UNSCALED width override (like the
+  // top-level `optionWidth`, but for THIS segment only). When ANY segment in
+  // the set provides a `width`, the switcher runs in PER-SEGMENT-WIDTH mode:
+  // each option uses its own width (falling back to optionWidth / Vadik's 68
+  // when unset), the track grows to the sum of all widths + gaps, and the
+  // indicator sizes + positions itself from the active segment's own width and
+  // the cumulative offset of the segments before it. This is the minimal
+  // addition needed to fit FOUR labels of very different lengths (e.g.
+  // All / Posts / Comments / Reactions) snugly: a short label like "All" no
+  // longer inherits the width of the longest one, so it is not over-spaced and
+  // the long labels do not collide. When NO segment sets `width`, behaviour is
+  // byte-for-byte identical to before (uniform optionWidth for every segment).
+  width?: number;
 }
 
 export interface VadikLiquidSwitcherProps<K extends string> {
@@ -50,8 +63,15 @@ export interface VadikLiquidSwitcherProps<K extends string> {
      V_OPTION_W = 68). Text labels are wider than a single icon, so callers in
      text mode pass a larger value sized for the longest label. The indicator
      width + stride math derives from this so the sliding indicator always
-     lands exactly under the active segment. Defaults to Vadik's 68. */
+     lands exactly under the active segment. Defaults to Vadik's 68. Used as the
+     fallback width for any segment that does not set its own `width`. */
   optionWidth?: number;
+  /** v-perseg-width — Inner horizontal text padding per side, UNSCALED px.
+     Vadik's icon mode uses 16. Text labels of differing lengths read tighter
+     and more balanced with a smaller pad, so the Activity tabs pass a smaller
+     value. Defaults to 16 (every existing caller is unchanged). Only affects
+     the horizontal option padding in the HORIZONTAL orientation. */
+  textPaddingX?: number;
   testId?: string;
 }
 
@@ -82,6 +102,7 @@ export function VadikLiquidSwitcher<K extends string>({
   orientation = 'horizontal',
   variant = 'icon',
   optionWidth,
+  textPaddingX = 16,
   testId,
 }: VadikLiquidSwitcherProps<K>) {
   const isText = variant === 'text';
@@ -119,29 +140,46 @@ export function VadikLiquidSwitcher<K extends string>({
   // De indicator-stride (activeIdx * stride) schaalt al mee, dus dit is de
   // enige plek die moest meegroeien. Cross-axis (V_TRACK_H) blijft gelijk.
   const segCount = segments.length;
-  // v-textmode — trackW, indicator width and stride all derive from
-  // baseOptionW (caller-overridable) instead of the hardcoded V_OPTION_W.
-  // In icon mode baseOptionW === V_OPTION_W (68) so every value is identical
-  // to before. In text mode the caller passes a wider option width; the
-  // indicator (= option + 16 overhang) and stride (= option + gap) scale with
-  // it so the indicator still lands exactly under the active segment.
+  // v-perseg-width — Per-segment UNSCALED widths. Any segment without its own
+  // `width` falls back to baseOptionW, so when NO segment sets a width every
+  // value below collapses to the previous uniform-width behaviour exactly
+  // (segW all equal baseOptionW, cumulative offsets become activeIdx * stride).
+  const segWidths = segments.map((s) => s.width ?? baseOptionW);
+  // Cumulative UNSCALED left offset of each segment inside the flex row:
+  // sum of all preceding widths + one gap per preceding segment.
+  const segOffsets = segWidths.map(
+    (_, i) =>
+      segWidths.slice(0, i).reduce((a, b) => a + b, 0) + V_GAP * i,
+  );
+  const totalOptionsW = segWidths.reduce((a, b) => a + b, 0);
+  // v-textmode — trackW, indicator width and stride all derive from the
+  // per-segment widths (which default to baseOptionW). In icon mode every
+  // segW === V_OPTION_W (68) so every value is identical to before.
   const dynamicTrackW =
-    V_PAD_LEFT * 2 + baseOptionW * segCount + V_GAP * (segCount - 1);
+    V_PAD_LEFT * 2 + totalOptionsW + V_GAP * (segCount - 1);
   const trackW = dynamicTrackW * scale;
   const trackH = V_TRACK_H * scale;
   const padTop = V_PAD_TOP * scale;
   const padLeft = V_PAD_LEFT * scale;
   const padBottom = V_PAD_BOTTOM * scale;
-  const optionW = baseOptionW * scale;
   const gap = V_GAP * scale;
-  const indW = (baseOptionW + V_IND_OVERHANG) * scale;
+  // v-perseg-width — Indicator width tracks the ACTIVE segment's own width
+  // (plus Vadik's 16px overhang), so a narrow tab like "All" gets a narrow
+  // indicator and a wide tab like "Comments" a wide one, always centered with
+  // the same 8px-per-side overhang Vadik used.
+  const activeSegW = segWidths[activeIdx] ?? baseOptionW;
+  const indW = (activeSegW + V_IND_OVERHANG) * scale;
   const indTop = V_IND_TOP * scale;
   const indLeft = V_IND_LEFT * scale;
   const indHeight = trackH - V_IND_HEIGHT_REDUCTION * scale;
-  const stride = (baseOptionW + V_GAP) * scale;
 
-  // Translate offset per active tab (Vadik: 0 / 76 / 152 — i.e. activeIdx * stride)
-  const translateX = activeIdx * stride;
+  // v-perseg-width — Translate offset is the active segment's cumulative
+  // UNSCALED offset, scaled. In uniform mode segOffsets[i] === i * (optionW+gap)
+  // so this reduces to Vadik's original activeIdx * stride exactly. The indicator
+  // overhangs by 8px each side, so we shift it back by half the overhang to keep
+  // it centered on the (possibly wider) active segment, matching the uniform case
+  // where indLeft(4) already accounts for the 8px overhang at index 0.
+  const translateX = segOffsets[activeIdx] * scale;
 
   // v26 — helper voor scaled px. Track box-shadow nu uit gedeelde module.
   const s = (v: number) => v * scale;
@@ -252,9 +290,13 @@ export function VadikLiquidSwitcher<K extends string>({
         />
 
         {/* Per-segment options */}
-        {segments.map((seg) => {
+        {segments.map((seg, segIdx) => {
           const I = seg.icon;
           const isActive = seg.key === value;
+          // v-perseg-width — this option's own on-screen width (defaults to
+          // baseOptionW when the segment sets no width). textPaddingX defaults
+          // to 16 (Vadik's icon padding) so existing callers are unchanged.
+          const segOnScreen = segWidths[segIdx] * scale;
           return (
             <label
               key={seg.key}
@@ -263,9 +305,11 @@ export function VadikLiquidSwitcher<K extends string>({
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
-                padding: vertical ? `${16 * scale}px 0` : `0 ${16 * scale}px`,
-                width: vertical ? '100%' : optionW,
-                height: vertical ? optionW : '100%',
+                padding: vertical
+                  ? `${16 * scale}px 0`
+                  : `0 ${textPaddingX * scale}px`,
+                width: vertical ? '100%' : segOnScreen,
+                height: vertical ? segOnScreen : '100%',
                 boxSizing: 'border-box',
                 borderRadius: 9999,
                 opacity: 1,

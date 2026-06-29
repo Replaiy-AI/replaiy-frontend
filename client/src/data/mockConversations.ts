@@ -103,10 +103,13 @@ export interface LinkedInPost {
   id: string;
   /** Activity type, mirroring LinkedIn's Activity tabs:
    *  'post'     = the person published this post,
+   *  'repost'   = the person reposted someone else's post (with or without an
+   *               added comment of their own, see activityComment),
    *  'comment'  = the person commented on someone else's post,
    *  'reaction' = the person reacted (like/insightful/...) to someone else's post.
-   *  Defaults to 'post' when unset. */
-  kind?: 'post' | 'comment' | 'reaction';
+   *  Defaults to 'post' when unset. For repost/comment/reaction the author* +
+   *  text/image fields describe the ORIGINAL post (by someone else). */
+  kind?: 'post' | 'repost' | 'comment' | 'reaction';
   authorName: string;
   authorHeadline?: string;
   authorAvatarUrl?: string;
@@ -116,7 +119,9 @@ export interface LinkedInPost {
   likes?: number;
   comments?: number;
   reposts?: number;
-  /** For 'comment' items: the text the person wrote on the original post. */
+  /** For 'comment' items: the text the person wrote on the original post.
+   *  For 'repost' items: when set, this is a quote-repost (the person added
+   *  their own text above the reshared post); when absent, a plain reshare. */
   activityComment?: string;
   /** For 'reaction' items: which reaction the person gave to the original post. */
   activityReaction?: LinkedInReactionKind;
@@ -431,6 +436,32 @@ export const mockConversations: Conversation[] = [
             reposts: 19,
           },
           {
+            id: 'p-emma-rp1',
+            kind: 'repost',
+            authorName: 'Priya Sharma',
+            authorHeadline: 'Director of Demand Gen at Loomwork',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=16',
+            timeAgo: '2d',
+            text: 'Your pipeline is not a volume problem, it is a relevance problem. We deleted half our sequences last quarter and replaced the rest with messages that reference one specific thing about the account. Reply rate tripled. The lesson is not send less, it is mean more.',
+            likes: 421,
+            comments: 58,
+            reposts: 34,
+          },
+          {
+            id: 'p-emma-rp2',
+            kind: 'repost',
+            authorName: 'Karl Jensen',
+            authorHeadline: 'CRO at Brightpath',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=53',
+            timeAgo: '6d',
+            text: 'The teams hitting number this year share one habit: they read before they reach out. Every winning rep on my team can name the trigger that made them message an account. The losing motion is a spreadsheet of names and a template. Relevance is a discipline, not a tactic.',
+            imageUrl: 'https://i.pravatar.cc/600?img=12',
+            likes: 287,
+            comments: 33,
+            reposts: 26,
+            activityComment: 'Saving this for every new SDR I onboard. If you cannot name the trigger, you are not ready to send. We made this the first rule of our playbook and it changed everything.',
+          },
+          {
             id: 'p-emma-1',
             authorName: 'Emma Chen',
             authorHeadline: 'Head of Growth at Northwave Labs',
@@ -686,6 +717,31 @@ export const mockConversations: Conversation[] = [
             reposts: 27,
           },
           {
+            id: 'p-jan-rp1',
+            kind: 'repost',
+            authorName: 'Henrik Solberg',
+            authorHeadline: 'Staff Platform Engineer at Cloudreef',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=67',
+            timeAgo: '4d',
+            text: 'The fastest way to lose an engineering team is to ship a roadmap nobody believes in. Write down the three problems you are actually solving this quarter, delete everything else, and let your engineers tell you which order. Trust beats process every time.',
+            likes: 392,
+            comments: 41,
+            reposts: 29,
+            activityComment: 'This is the playbook. We cut our roadmap to three real problems and let the team sequence them. Velocity went up because people finally believed the plan. Sharing for every eng leader who is still managing a wish list.',
+          },
+          {
+            id: 'p-jan-rp2',
+            kind: 'repost',
+            authorName: 'Dana Whitfield',
+            authorHeadline: 'VP Engineering at Cobalt Systems',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=49',
+            timeAgo: '1w',
+            text: 'Reliability is a product feature, not a backlog item. The moment you treat uptime as something you get to after the roadmap, you have already decided your customers come second. Fund the boring work that keeps the lights on.',
+            likes: 256,
+            comments: 22,
+            reposts: 17,
+          },
+          {
             id: 'p-jan-1',
             authorName: 'Jan de Vries',
             authorHeadline: 'CTO at Acme Software',
@@ -938,6 +994,32 @@ export const mockConversations: Conversation[] = [
             likes: 312,
             comments: 40,
             reposts: 22,
+          },
+          {
+            id: 'p-hannah-rp1',
+            kind: 'repost',
+            authorName: 'Camille Laurent',
+            authorHeadline: 'Head of Brand at Maisonette',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=26',
+            timeAgo: '3d',
+            text: 'Stop treating your email list like a megaphone and start treating it like a relationship. The brands people actually open send fewer, better messages that sound like a person wrote them. We cut our send frequency in half and revenue per subscriber went up. Restraint is a growth strategy.',
+            likes: 274,
+            comments: 35,
+            reposts: 21,
+            activityComment: 'This is exactly how we rebuilt our lifecycle program. Fewer sends, every one earning its place in the inbox. Our unsubscribe rate dropped and revenue climbed. Reposting for every marketer still measuring success by volume.',
+          },
+          {
+            id: 'p-hannah-rp2',
+            kind: 'repost',
+            authorName: 'Oscar Lindgren',
+            authorHeadline: 'Founder at Northbloom',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=60',
+            timeAgo: '1w',
+            text: 'The unboxing moment is the most underused marketing channel in D2C. You already have their attention and their goodwill. A single thoughtful insert card outperforms most of our paid retargeting. Spend less on ads and more on the first thirty seconds after the box opens.',
+            imageUrl: 'https://i.pravatar.cc/600?img=33',
+            likes: 198,
+            comments: 19,
+            reposts: 12,
           },
           {
             id: 'p-hannah-1',
