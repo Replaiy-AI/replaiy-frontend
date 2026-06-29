@@ -23,10 +23,10 @@
 // and the existing PostCard for every original post (posts, comment targets and
 // reaction targets alike).
 // ─────────────────────────────────────────────────────────────────
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useContext, createContext } from 'react';
 import type { ReactNode } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowLeft, UserPlus, Building2, MapPin, GraduationCap } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, UserPlus, Building2, MapPin, GraduationCap, ChevronRight } from 'lucide-react';
 import { APPLE_SPRING } from '@/lib/motion';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { SectionLabel } from '@/components/LeadContextPanel';
@@ -34,12 +34,16 @@ import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  engagersFor,
+} from '@/data/mockConversations';
 import type {
   Conversation,
   LinkedInExperience,
   LinkedInEducation,
   LinkedInPost,
   LinkedInReactionKind,
+  LinkedInEngager,
 } from '@/data/mockConversations';
 // Real LinkedIn BRAND badges (not UI accents). These deliberately use LinkedIn
 // brand colours (LinkedIn blue, premium orange, Sales Navigator compass) which
@@ -63,6 +67,33 @@ const ACTIVITY_EMPTY: Record<ActivityTab, string> = {
   comments: 'No comments yet',
   reactions: 'No reactions yet',
 };
+
+// ─── Engagers push-in · the kind a tapped count opens ─────────────
+// Tapping a post's "X likes" / "Y comments" / "Z reposts" count opens a push-in
+// list of the PEOPLE who engaged. These three kinds map 1:1 onto engagersFor().
+type EngageKind = 'reactions' | 'comments' | 'reposts';
+
+// Title shown in the engagers view chrome (mobile slot + desktop centered
+// title), mirroring LinkedIn's screen titles. Normal case, English only.
+const ENGAGE_TITLE: Record<EngageKind, string> = {
+  reactions: 'Reactions',
+  comments: 'Comments',
+  reposts: 'Reposts',
+};
+
+// A request to open the engagers view for a specific post + kind. Any PostCard
+// anywhere in the profile tree raises this through context; the top-level
+// LinkedInProfileView owns the actual push-in view + its chrome, so there is
+// exactly ONE engagers view stacked over the profile (never one per card).
+interface EngageRequest {
+  post: LinkedInPost;
+  kind: EngageKind;
+}
+
+// Context lets a deeply-nested PostCard's stats buttons open the single
+// top-level engagers view without prop-drilling through ActivityItem. Defaults
+// to a no-op so a PostCard rendered outside a profile (none today) is inert.
+const EngageContext = createContext<(req: EngageRequest) => void>(() => {});
 
 // ─── LinkedIn tier brand badges ───────────────────────────────────
 // Driven purely by mail.lead.linkedinProfile.linkedinTier (defaults to 'free').
@@ -140,6 +171,45 @@ export function ProfileChromeSlot({ onClose }: { onClose: () => void }) {
       rightSlot: <div style={{ width: 52, height: 52 }} aria-hidden="true" />,
     }),
     [onClose],
+  );
+  useMobileTopChromeSlot(slot);
+  return null;
+}
+
+// ─── Mobile top-chrome slot for the ENGAGERS view ─────────────────
+// Registered at priority 400 — HIGHER than the profile view's ProfileChromeSlot
+// (300) — so its back button + the engagement-kind title (Reactions / Comments
+// / Reposts) WIN while the engagers view is open, stacked over the profile.
+// Mounted by LinkedInProfileView tied directly to the engagers `open` boolean
+// (OUTSIDE the exit-animating div), so it de-registers the instant Back is
+// tapped and the chrome hands straight back to the profile view's slot (300),
+// which re-shows "LinkedIn profile" immediately. Same v-fix-chrome-handoff
+// pattern as ProfileChromeSlot / LeadPanelChromeSlot.
+export function EngagersChromeSlot({
+  title,
+  onClose,
+}: {
+  title: string;
+  onClose: () => void;
+}) {
+  const slot = useMemo(
+    () => ({
+      priority: 400,
+      leftSlot: (
+        <ActionPill testId="engagers-back" label="Back to profile" onClick={onClose}>
+          <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+        </ActionPill>
+      ),
+      togglePill: (
+        <div className="inline-flex items-center px-1 h-[52px]">
+          <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
+            {title}
+          </span>
+        </div>
+      ),
+      rightSlot: <div style={{ width: 52, height: 52 }} aria-hidden="true" />,
+    }),
+    [title, onClose],
   );
   useMobileTopChromeSlot(slot);
   return null;
@@ -333,10 +403,33 @@ function PostCard({
   // Same threshold rationale as AboutSection: clamp once it is worth clamping.
   const canClamp = post.text.length > 220;
 
-  const stats: string[] = [];
-  if (post.likes) stats.push(`${formatCount(post.likes)} likes`);
-  if (post.comments) stats.push(`${formatCount(post.comments)} comments`);
-  if (post.reposts) stats.push(`${formatCount(post.reposts)} reposts`);
+  // Tappable stats segments. Each non-zero count becomes its OWN <button> that
+  // opens the engagers push-in for that kind (likes -> reactions, since
+  // LinkedIn files reactions under the likes count). Zero counts are omitted,
+  // exactly as before. The visual style is unchanged from the old muted spans:
+  // same text scale + muted colour; the only addition is a tasteful underline-
+  // on-hover + hover-elevate affordance so it reads as tappable without looking
+  // like a bordered button.
+  const openEngagers = useContext(EngageContext);
+  const statSegments: { key: EngageKind; label: string; testId: string }[] = [];
+  if (post.likes)
+    statSegments.push({
+      key: 'reactions',
+      label: `${formatCount(post.likes)} likes`,
+      testId: `post-${post.id}-open-reactions`,
+    });
+  if (post.comments)
+    statSegments.push({
+      key: 'comments',
+      label: `${formatCount(post.comments)} comments`,
+      testId: `post-${post.id}-open-comments`,
+    });
+  if (post.reposts)
+    statSegments.push({
+      key: 'reposts',
+      label: `${formatCount(post.reposts)} reposts`,
+      testId: `post-${post.id}-open-reposts`,
+    });
 
   return (
     <div
@@ -411,11 +504,23 @@ function PostCard({
         </div>
       )}
 
-      {/* Stats row · muted counts separated by spacing (never a middot). */}
-      {stats.length > 0 && (
+      {/* Stats row · each count is its OWN tappable <button> opening the
+          engagers push-in (who reacted / commented / reposted), mirroring
+          LinkedIn. Same muted text + spacing as before (never a middot); the
+          buttons add only an underline-on-hover + hover-elevate affordance so
+          they read as tappable without looking like bordered controls. */}
+      {statSegments.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-3 text-[12px] text-foreground/50 tabular-nums">
-          {stats.map((s, i) => (
-            <span key={i}>{s}</span>
+          {statSegments.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              data-testid={s.testId}
+              onClick={() => openEngagers({ post, kind: s.key })}
+              className="rounded-md px-1 -mx-1 hover-elevate active-elevate-2 hover:text-foreground/70 hover:underline underline-offset-2 transition-colors"
+            >
+              {s.label}
+            </button>
           ))}
         </div>
       )}
@@ -444,6 +549,26 @@ const REACTION_LABEL: Record<LinkedInReactionKind, string> = {
   insightful: 'Insightful',
   funny: 'Funny',
 };
+
+// Tiny reaction glyph LinkedIn shows next to each reactor in its reactions
+// list. A small emoji is the calmest way to indicate the reaction type without
+// adding any new icon primitive or off-palette colour. Used by the engagers
+// list (reactions kind) and the reaction filter tabs.
+const REACTION_GLYPH: Record<LinkedInReactionKind, string> = {
+  like: '\uD83D\uDC4D',
+  celebrate: '\uD83D\uDC4F',
+  support: '\uD83E\uDEF6',
+  love: '\u2764\uFE0F',
+  insightful: '\uD83D\uDCA1',
+  funny: '\uD83D\uDE04',
+};
+
+// Order in which reaction filter tabs appear (LinkedIn's own ordering), so the
+// tab row is stable regardless of the order reactions happen to appear in the
+// list. Only types actually present in the list get a tab.
+const REACTION_ORDER: LinkedInReactionKind[] = [
+  'like', 'celebrate', 'support', 'love', 'insightful', 'funny',
+];
 
 // ─── Activity · attribution line ──────────────────────────────────
 // The small muted line LinkedIn shows ABOVE a comment / reaction card, e.g.
@@ -661,6 +786,211 @@ function ActivityItem({
   );
 }
 
+// ─── Engagers · single person row ─────────────────────────────────
+// One person who engaged with the post. Mirrors LinkedIn's reactions /
+// comments / reposts list rows: ReplaiyAvatar (44) + name (semibold) + headline
+// (muted, truncated). For 'reactions' a tiny reaction glyph + normal-case label
+// sits on the trailing edge showing which reaction they gave. For 'comments'
+// the person's comment text renders beneath their name/headline (muted, like a
+// comment). The WHOLE row is a tappable button carrying a trailing chevron so
+// it reads as "open this person"; see EngagersView for what the tap does.
+// Reuses ReplaiyAvatar verbatim; no new avatar/row primitive is introduced.
+function EngagerRow({
+  engager,
+  kind,
+  onOpen,
+}: {
+  engager: LinkedInEngager;
+  kind: EngageKind;
+  onOpen: (engager: LinkedInEngager) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(engager)}
+      data-testid={`engager-${engager.id}`}
+      className="w-full text-left rp-card rounded-[16px] px-3.5 py-3 flex items-start gap-3 hover-elevate active-elevate-2"
+    >
+      <ReplaiyAvatar name={engager.name} src={engager.avatarUrl} size={44} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 text-[14px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+            {noDash(engager.name)}
+          </span>
+          {/* Reaction indicator (reactions kind only): a tiny glyph + a small
+              NORMAL-CASE label (e.g. "Insightful"), never all-caps. */}
+          {kind === 'reactions' && engager.reaction && (
+            <span className="shrink-0 inline-flex items-center gap-1 text-[11.5px] text-foreground/55">
+              <span aria-hidden className="text-[13px] leading-none">
+                {REACTION_GLYPH[engager.reaction]}
+              </span>
+              {REACTION_LABEL[engager.reaction]}
+            </span>
+          )}
+        </div>
+        {engager.headline && (
+          <div className="text-[12px] text-foreground/55 leading-snug truncate mt-0.5">
+            {noDash(engager.headline)}
+          </div>
+        )}
+        {/* Comments kind: the person's comment text beneath their identity,
+            muted, reading like a comment. */}
+        {kind === 'comments' && engager.comment && (
+          <p className="text-[12.5px] leading-[1.5] text-foreground/70 m-0 mt-1.5 break-words">
+            {noDash(engager.comment)}
+          </p>
+        )}
+      </div>
+      {/* Trailing chevron · the "open this person" affordance. */}
+      <ChevronRight
+        size={16}
+        strokeWidth={1.8}
+        className="shrink-0 text-foreground/30 mt-0.5"
+        aria-hidden
+      />
+    </button>
+  );
+}
+
+// ─── Engagers · push-in view ──────────────────────────────────────
+// The list of PEOPLE who engaged with a post, pushed in OVER the profile view
+// using the EXACT same recipe as LinkedInProfileView itself: a motion.div with
+// initial x:'100%' / animate x:0 / exit x:'100%' + APPLE_SPRING, absolute
+// inset-0, here at z-[80] so it sits ABOVE the profile view (z-[70]) inside the
+// z-[60] lead-panel column. It carries the SAME desktop floating-back ActionPill
+// + centered title block and the SAME .mobile-chrome-veil last-child top
+// frosting as the profile view. Its MOBILE chrome lives in EngagersChromeSlot
+// (priority 400), mounted by the caller on the open boolean (not here), so the
+// chrome hands back to the profile's slot (300) the instant Back is tapped.
+//
+// Content: for 'reactions' a reaction-type filter row (All + only the reaction
+// types actually present), reusing VadikLiquidSwitcher (text variant) with
+// per-segment widths exactly like the Activity filter; then an EngagerRow per
+// person. noDash() guards all text; a muted empty state shows if somehow empty.
+function EngagersView({
+  post,
+  kind,
+  onClose,
+  onOpenEngager,
+}: {
+  post: LinkedInPost;
+  kind: EngageKind;
+  onClose: () => void;
+  onOpenEngager: (engager: LinkedInEngager) => void;
+}) {
+  const isMobile = useIsMobile();
+  const engagers = useMemo(() => engagersFor(post, kind), [post, kind]);
+  const title = ENGAGE_TITLE[kind];
+
+  // Reaction-type filter (reactions kind only). Tabs = 'all' plus only the
+  // reaction types that actually appear in this list, in LinkedIn's order. Each
+  // reaction tab is a tiny glyph (LinkedIn's own reactions-modal pattern) so up
+  // to seven tabs fit the narrow column; 'All' is a short text segment. Reuses
+  // the SAME VadikLiquidSwitcher text variant + per-segment width approach as
+  // the Activity filter (scale 0.72, textPaddingX 12).
+  const [reactionFilter, setReactionFilter] = useState<'all' | LinkedInReactionKind>('all');
+  const presentReactions = useMemo(() => {
+    if (kind !== 'reactions') return [] as LinkedInReactionKind[];
+    const set = new Set<LinkedInReactionKind>();
+    engagers.forEach((e) => e.reaction && set.add(e.reaction));
+    return REACTION_ORDER.filter((r) => set.has(r));
+  }, [engagers, kind]);
+
+  const filterSegments = useMemo(() => {
+    const segs: { key: 'all' | LinkedInReactionKind; label: string; width: number }[] = [
+      { key: 'all', label: 'All', width: 60 },
+    ];
+    presentReactions.forEach((r) => {
+      segs.push({ key: r, label: REACTION_GLYPH[r], width: 50 });
+    });
+    return segs;
+  }, [presentReactions]);
+
+  const visible = useMemo(() => {
+    if (kind !== 'reactions' || reactionFilter === 'all') return engagers;
+    return engagers.filter((e) => e.reaction === reactionFilter);
+  }, [engagers, kind, reactionFilter]);
+
+  return (
+    <motion.div
+      key="linkedin-engagers-view"
+      data-testid="linkedin-engagers-view"
+      initial={{ x: '100%' }}
+      animate={{ x: 0 }}
+      exit={{ x: '100%' }}
+      transition={APPLE_SPRING}
+      className="absolute inset-0 z-[80] flex flex-col bg-background overflow-hidden"
+    >
+      {/* Desktop chrome row · identical to LinkedInProfileView's: floating back
+          ActionPill (left, 52px), a truly-centered title, and a 52px right
+          spacer to balance it. md:flex only; mobile uses EngagersChromeSlot. */}
+      <div className="hidden md:flex items-center justify-between gap-2.5 absolute top-3 left-3 right-3 z-[2] pointer-events-none">
+        <div className="pointer-events-auto shrink-0">
+          <ActionPill testId="engagers-back" label="Back to profile" onClick={onClose}>
+            <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+          </ActionPill>
+        </div>
+        <span className="min-w-0 flex-1 text-center text-[13px] font-semibold tracking-[-0.005em] text-foreground truncate">
+          {title}
+        </span>
+        <div className="shrink-0" style={{ width: 52, height: 52 }} aria-hidden="true" />
+      </div>
+
+      {/* Scroll surface · same top padding as the profile view so content
+          scrolls UNDER the floating back pill (mobile safe-area+88px, desktop
+          72px). */}
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+        <div className="px-4 pb-10 flex flex-col gap-3 pt-[calc(env(safe-area-inset-top,0px)+88px)] md:pt-[72px]">
+          {/* Reaction-type filter (reactions kind, when more than one type is
+              present — a single type needs no filter). */}
+          {kind === 'reactions' && presentReactions.length > 1 && (
+            <div className={(isMobile ? 'flex justify-center w-full' : 'inline-flex') + ' mb-1'}>
+              <VadikLiquidSwitcher<'all' | LinkedInReactionKind>
+                testId="engagers-reaction-filter"
+                variant="text"
+                scale={0.72}
+                textPaddingX={12}
+                value={reactionFilter}
+                onChange={setReactionFilter}
+                segments={filterSegments}
+              />
+            </div>
+          )}
+
+          {visible.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {visible.map((e) => (
+                <EngagerRow
+                  key={e.id}
+                  engager={e}
+                  kind={kind}
+                  onOpen={onOpenEngager}
+                />
+              ))}
+            </div>
+          ) : (
+            <p
+              className="text-[12.5px] text-foreground/40 italic m-0 px-0.5"
+              data-testid="engagers-empty"
+            >
+              No people to show
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Top frosting veil · same .mobile-chrome-veil last-child trick as the
+          profile view (responsive height mobile safe-area+88px / desktop 76px),
+          MUST be the last child so it frosts the scroll content painting before
+          it, below the floating chrome (z-[2]) but above content (z-[1]). */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 z-[1] h-[calc(env(safe-area-inset-top,0px)+88px)] md:h-[76px] mobile-chrome-veil pointer-events-none"
+      />
+    </motion.div>
+  );
+}
+
 export function LinkedInProfileView({
   mail,
   open,
@@ -694,6 +1024,30 @@ export function LinkedInProfileView({
   const [activityTab, setActivityTab] = useState<ActivityTab>('all');
   const isMobile = useIsMobile();
   const profileFirstName = (name ?? '').trim().split(/\s+/)[0] || name;
+
+  // ── Engagers push-in (who reacted / commented / reposted) ──
+  // A single engagers view is stacked OVER this profile view at z-[80]. Any
+  // PostCard's tapped count raises an EngageRequest through EngageContext; we
+  // own the open request + its chrome here. Mounting the EngagersChromeSlot on
+  // the open boolean OUTSIDE the engagers exit-animating div (in the top-level
+  // fragment) is the v-fix-chrome-handoff pattern: the slot (priority 400)
+  // de-registers the instant Back is tapped, so the chrome hands straight back
+  // to the profile's slot (300) and the title returns to "LinkedIn profile".
+  const [engage, setEngage] = useState<EngageRequest | null>(null);
+  const openEngagers = useMemo(() => (req: EngageRequest) => setEngage(req), []);
+  const closeEngagers = useMemo(() => () => setEngage(null), []);
+  // Row tap: opening a full nested profile for an engager is out of scope (mock
+  // engagers have no full LinkedInProfile), so the affordance is intentionally
+  // a no-op for now (logged), keeping the chevron + tappable row so the wiring
+  // is ready when engager profiles land. The primary deliverable is the
+  // clickable counts -> people list with reaction filtering.
+  const onOpenEngager = useMemo(
+    () => (e: LinkedInEngager) => {
+      // eslint-disable-next-line no-console
+      console.debug('[engager] open profile (no-op for now):', e.name);
+    },
+    [],
+  );
   const visiblePosts = useMemo(() => {
     // Posts tab = own posts OR reposts. LinkedIn files a repost under the
     // person's "Posts" activity (a repost IS a posting action), so the Posts
@@ -711,7 +1065,7 @@ export function LinkedInProfileView({
   }, [posts, activityTab]);
 
   return (
-    <>
+    <EngageContext.Provider value={openEngagers}>
       {/* NOTE: the mobile ProfileChromeSlot is NOT mounted here. Mounting it
           inside this component fails the chrome handoff, because this whole
           component sits inside the parent's <AnimatePresence> and stays mounted
@@ -721,6 +1075,14 @@ export function LinkedInProfileView({
           `profileOpen`, OUTSIDE its AnimatePresence, so the chrome hands back
           to the lead panel the instant Back is tapped. Same v-fix-chrome-handoff
           pattern used for LeadPanelChromeSlot. */}
+      {/* Engagers MOBILE chrome slot (priority 400). Mounted here, on the open
+          boolean and OUTSIDE the engagers exit-animating div below, so it
+          de-registers the instant Back is tapped and the chrome hands straight
+          back to the profile's slot (300). Same v-fix-chrome-handoff pattern as
+          ProfileChromeSlot is mounted by LeadContextPanel. */}
+      {engage && (
+        <EngagersChromeSlot title={ENGAGE_TITLE[engage.kind]} onClose={closeEngagers} />
+      )}
       <motion.div
         key="linkedin-profile-view"
         data-testid="linkedin-profile-view"
@@ -1043,7 +1405,25 @@ export function LinkedInProfileView({
           aria-hidden
           className="absolute inset-x-0 top-0 z-[1] h-[calc(env(safe-area-inset-top,0px)+88px)] md:h-[76px] mobile-chrome-veil pointer-events-none"
         />
+
+        {/* Engagers push-in, stacked OVER this profile view at z-[80] (above the
+            profile's own content + veil). It is a sibling INSIDE this motion.div
+            so it shares this push-in's stacking context and slides within the
+            same lead-panel column. AnimatePresence drives its own x:'100%' slide
+            on open/close. The mobile chrome slot for it is mounted in the
+            top-level fragment above (on `engage`), not here, for clean handoff. */}
+        <AnimatePresence>
+          {engage && (
+            <EngagersView
+              key={`engagers-${engage.post.id}-${engage.kind}`}
+              post={engage.post}
+              kind={engage.kind}
+              onClose={closeEngagers}
+              onOpenEngager={onOpenEngager}
+            />
+          )}
+        </AnimatePresence>
       </motion.div>
-    </>
+    </EngageContext.Provider>
   );
 }

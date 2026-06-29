@@ -99,6 +99,20 @@ export type LinkedInReactionKind =
   | 'insightful'
   | 'funny';
 
+/** A person who engaged with a post (reacted / commented / reposted). These are
+ *  surfaced when the user taps a post's likes / comments / reposts count, and
+ *  are the people who get collected as leads in the background. */
+export interface LinkedInEngager {
+  id: string;
+  name: string;
+  headline?: string;
+  avatarUrl?: string;
+  /** For reaction engagers: which reaction they gave (drives the per-type filter). */
+  reaction?: LinkedInReactionKind;
+  /** For comment engagers: the comment text they wrote. */
+  comment?: string;
+}
+
 export interface LinkedInPost {
   id: string;
   /** Activity type, mirroring LinkedIn's Activity tabs:
@@ -1489,3 +1503,77 @@ export const detectTone = (text: string): { label: string; ok: boolean; hint?: s
   }
   return { label: 'Neutral', ok: true };
 };
+
+// ─── Engagement → people (mock) ───────────────────────────────────
+// When the user taps a post's likes / comments / reposts count, we show the
+// people who engaged. In production these come from Unipile (list post
+// reactions / comments / reposters) and are collected as leads in the
+// background. Here we derive a deterministic, realistic set per post from a
+// shared pool so the same post always shows the same people.
+
+const ENGAGER_POOL: { name: string; headline: string; img: number }[] = [
+  { name: 'Lucas Meijer', headline: 'VP Sales at Northbeam', img: 12 },
+  { name: 'Sophie Bakker', headline: 'Head of Demand Gen at Loopline', img: 5 },
+  { name: 'Daniel Okafor', headline: 'VP Sales at Brightloop', img: 13 },
+  { name: 'Marta Kowalski', headline: 'SDR Lead at Cadence', img: 9 },
+  { name: 'Tom Visser', headline: 'Founder at Replyloop', img: 33 },
+  { name: 'Aisha Rahman', headline: 'RevOps Manager at Flowstate', img: 16 },
+  { name: 'Karl Jensen', headline: 'CRO at Brightpath', img: 52 },
+  { name: 'Elena Rossi', headline: 'Growth Lead at Mavenly', img: 20 },
+  { name: 'James Park', headline: 'Account Executive at Northwave Labs', img: 8 },
+  { name: 'Nadia Haddad', headline: 'Marketing Director at Kettle and Co', img: 25 },
+  { name: 'Pieter de Groot', headline: 'Sales Manager at Cadence', img: 60 },
+  { name: 'Yuki Tanaka', headline: 'Demand Gen at Brightloop', img: 41 },
+  { name: 'Olivia Chen', headline: 'Head of Outbound at Loopline', img: 47 },
+  { name: 'Ben Carter', headline: 'BDR at Flowstate', img: 11 },
+  { name: 'Fatima Said', headline: 'VP Marketing at Mavenly', img: 31 },
+  { name: 'Hugo Lambert', headline: 'CEO at Northbeam', img: 3 },
+];
+
+const REACTION_CYCLE: LinkedInReactionKind[] = [
+  'like', 'insightful', 'like', 'celebrate', 'like', 'support', 'insightful', 'love', 'like', 'funny',
+];
+
+const SAMPLE_COMMENTS = [
+  'This is exactly the shift we made last quarter. Spot on.',
+  'Saving this. The point about relevance over volume is underrated.',
+  'Completely agree. We saw the same lift when we cut account counts.',
+  'Great breakdown. Sharing this with my team today.',
+  'This matches what we are seeing in our pipeline data too.',
+  'Needed to read this. Reply quality is everything right now.',
+];
+
+function hashId(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/** Deterministic list of engagers for a given post + engagement kind. The
+ *  length is capped to the post's real count (likes/comments/reposts) so the
+ *  list reads consistently with the number shown on the card. */
+export function engagersFor(
+  post: LinkedInPost,
+  kind: 'reactions' | 'comments' | 'reposts',
+): LinkedInEngager[] {
+  const count =
+    kind === 'reactions' ? post.likes ?? 0 : kind === 'comments' ? post.comments ?? 0 : post.reposts ?? 0;
+  if (count <= 0) return [];
+  // Show up to a sensible page of people (the rest exist but are not all listed).
+  const shown = Math.min(count, 24);
+  const base = hashId(post.id + kind);
+  const out: LinkedInEngager[] = [];
+  for (let i = 0; i < shown; i++) {
+    const p = ENGAGER_POOL[(base + i * 7) % ENGAGER_POOL.length];
+    const e: LinkedInEngager = {
+      id: `${post.id}-${kind}-${i}`,
+      name: p.name,
+      headline: p.headline,
+      avatarUrl: `https://i.pravatar.cc/120?img=${p.img}`,
+    };
+    if (kind === 'reactions') e.reaction = REACTION_CYCLE[(base + i) % REACTION_CYCLE.length];
+    if (kind === 'comments') e.comment = SAMPLE_COMMENTS[(base + i) % SAMPLE_COMMENTS.length];
+    out.push(e);
+  }
+  return out;
+}
