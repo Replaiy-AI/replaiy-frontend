@@ -114,6 +114,10 @@ export interface LinkedInProfile {
   /** Connection degree badge, e.g. '1st' / '2nd' / '3rd'. */
   degree?: string;
   premium?: boolean;
+  /** LinkedIn account tier, drives the real LinkedIn brand badge shown next to
+   *  the name: 'free' = blue in, 'premium' = orange in, 'salesnav' = orange in
+   *  + Sales Navigator compass. Defaults to 'free' when unset. */
+  linkedinTier?: 'free' | 'premium' | 'salesnav';
   experience?: LinkedInExperience[];
   education?: LinkedInEducation[];
   skills?: string[];
@@ -301,6 +305,7 @@ export const mockConversations: Conversation[] = [
         connections: 201,
         degree: '2nd',
         premium: true,
+        linkedinTier: 'salesnav',
         experience: [
           {
             company: 'Northwave Labs',
@@ -504,6 +509,7 @@ export const mockConversations: Conversation[] = [
         connections: 487,
         degree: '2nd',
         premium: false,
+        linkedinTier: 'premium',
         experience: [
           {
             company: 'Acme Software',
@@ -705,6 +711,7 @@ export const mockConversations: Conversation[] = [
         connections: 312,
         degree: '3rd',
         premium: false,
+        linkedinTier: 'free',
         experience: [
           {
             company: 'Kettle & Co',

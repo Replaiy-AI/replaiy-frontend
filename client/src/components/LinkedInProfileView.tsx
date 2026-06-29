@@ -29,8 +29,53 @@ import { SectionLabel } from '@/components/LeadContextPanel';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import type { Conversation, LinkedInExperience } from '@/data/mockConversations';
+// Real LinkedIn BRAND badges (not UI accents). These deliberately use LinkedIn
+// brand colours (LinkedIn blue, premium orange, Sales Navigator compass) which
+// differ from the app's single #2F6BFF accent — allowed here because they are
+// brand marks (like a verified checkmark), NOT UI accents. Use the SVGs as-is;
+// never recolour them to #2F6BFF and never reuse these colours elsewhere.
+import linkedinFree from '@/assets/linkedin-free.png';
+import linkedinPremium from '@/assets/linkedin-premium.png';
+import linkedinSalesnav from '@/assets/linkedin-salesnav.png';
 
 const ACCENT = '#2F6BFF';
+
+// ─── LinkedIn tier brand badges ───────────────────────────────────
+// Driven purely by mail.lead.linkedinProfile.linkedinTier (defaults to 'free').
+//   free      → blue "in" badge
+//   premium   → orange "in" badge (instead of the blue one)
+//   salesnav  → orange "in" badge AND the Sales Navigator compass badge
+// So: always exactly one "in" badge, plus the compass appended only for salesnav.
+function LinkedInTierBadges({
+  tier = 'free',
+}: {
+  tier?: 'free' | 'premium' | 'salesnav';
+}) {
+  const inBadge = tier === 'free' ? linkedinFree : linkedinPremium;
+  const inAlt =
+    tier === 'free' ? 'LinkedIn' : 'LinkedIn Premium';
+  return (
+    <span
+      className="inline-flex items-center gap-1"
+      data-testid="profile-tier-badges"
+    >
+      <img
+        src={inBadge}
+        alt={inAlt}
+        className="h-[18px] w-[18px] shrink-0"
+        data-testid="profile-tier-in"
+      />
+      {tier === 'salesnav' && (
+        <img
+          src={linkedinSalesnav}
+          alt="LinkedIn Sales Navigator"
+          className="h-[18px] w-[18px] shrink-0"
+          data-testid="profile-tier-salesnav"
+        />
+      )}
+    </span>
+  );
+}
 
 // Strict no em-dash normaliser (the design system bans em-dashes in all
 // user-facing text). Shared mock copy is already clean, but we guard anyway.
@@ -204,6 +249,8 @@ export function LinkedInProfileView({
   const followers = profile?.followers;
   const connections = profile?.connections;
   const experience = profile?.experience ?? [];
+  // Account tier drives the LinkedIn brand badge(s) shown after the name.
+  const tier = profile?.linkedinTier ?? 'free';
 
   return (
     <>
@@ -240,19 +287,28 @@ export function LinkedInProfileView({
             needs an in-panel back affordance. We satisfy that by reusing
             ActionPill verbatim (the one back-button primitive used everywhere)
             rather than inventing any new desktop chrome. */}
-        <div className="hidden md:flex items-center gap-2.5 absolute top-3 left-3 right-3 z-[2] pointer-events-none">
-          <div className="pointer-events-auto">
+        {/* Desktop chrome row. Mirrors the mobile MobileTopChrome layout EXACTLY:
+            a `justify-between` flex with a left pill (52px), a centered title,
+            and an equal-width right spacer (52px). The matched left/right widths
+            make the title TRULY centered across the 340px lead-panel column
+            (not merely offset by the pill), just like the mobile chrome centers
+            its togglePill between leftSlot and the 52px right spacer. */}
+        <div className="hidden md:flex items-center justify-between gap-2.5 absolute top-3 left-3 right-3 z-[2] pointer-events-none">
+          <div className="pointer-events-auto shrink-0">
             <ActionPill testId="profile-back" label="Back to contact" onClick={onClose}>
               <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
             </ActionPill>
           </div>
-          {/* Title next to the back pill, mirroring the mobile chrome's
-              "LinkedIn profile" title so desktop has the same "where am I"
-              context. pointer-events-none on the row lets the hero scroll/click
-              through; only the pill is interactive. */}
-          <span className="text-[13px] font-semibold tracking-[-0.005em] text-foreground">
+          {/* Centered title, mirroring the mobile chrome's "LinkedIn profile"
+              title so desktop has the same "where am I" context. min-w-0 + the
+              equal 52px flanks keep it optically centered without overlapping
+              the pill at the narrow 340px width. */}
+          <span className="min-w-0 flex-1 text-center text-[13px] font-semibold tracking-[-0.005em] text-foreground truncate">
             LinkedIn profile
           </span>
+          {/* Equal-width right spacer to balance the left ActionPill (52px),
+              identical to MobileTopChrome's right spacer slot. */}
+          <div className="shrink-0" style={{ width: 52, height: 52 }} aria-hidden="true" />
         </div>
 
         {/* Scroll surface. On BOTH platforms the content scrolls UNDER the
@@ -301,11 +357,11 @@ export function LinkedInProfileView({
                   <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-foreground m-0 leading-tight">
                     {name}
                   </h2>
-                  {profile?.premium && (
-                    <span className="glass-pill rounded-full inline-flex items-center h-[20px] px-2 text-[11px] font-medium text-foreground/70">
-                      Premium
-                    </span>
-                  )}
+                  {/* LinkedIn brand tier badge(s), driven by linkedinTier. These
+                      replace the old "Premium" TEXT pill: always one "in" badge
+                      (blue=free, orange=premium/salesnav) plus the Sales
+                      Navigator compass appended only for salesnav. */}
+                  <LinkedInTierBadges tier={tier} />
                   {profile?.degree && (
                     <span className="glass-pill rounded-full inline-flex items-center h-[20px] px-2 text-[11px] font-medium text-foreground/55 tabular-nums">
                       {profile.degree}
