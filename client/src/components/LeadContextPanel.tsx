@@ -43,6 +43,7 @@ import {
   MessageSquare,
   Send,
   CornerUpRight,
+  Clock,
 } from 'lucide-react';
 import type { Conversation } from '@/data/mockConversations';
 import { STAGE_META } from '@/data/mockConversations';
@@ -69,30 +70,146 @@ function noDash(s: string) {
   return s.replace(/\s*\u2014\s*/g, ' · ');
 }
 
-// ── Soft flow-position derivation ──────────────────────────────────
-// A conversation carries NO step index and NO per-lead flow, so we never
-// claim a precise "Step N of M". Instead we softly map goalStage onto the
-// campaign's DEFAULT_FLOW kinds to gently emphasise roughly where the lead
-// sits. This is a visual hint only — if the kind isn't in the flow, nothing
-// is highlighted. Returns the FlowStepKind to softly emphasise, or null.
-function softCurrentStepKind(
-  stage: keyof typeof STAGE_META,
-): FlowStep['kind'] | null {
+// ── Flow timing model ──────────────────────────────────────────────
+// A lead shown in this column is BY DEFINITION already in conversation, so
+// every outreach step up to and including the opening message has already
+// HAPPENED. We never claim a "current" outreach step. Instead each step is
+// either 'done' (executed in the past), 'scheduled' (queued for the near
+// future) or 'pending' (not yet scheduled). The real backend will carry true
+// timestamps later; until then we synthesise REALISTIC times that are stable
+// per lead and vary believably by goalStage.
+type FlowStatus = 'done' | 'scheduled' | 'pending';
+type GoalStage = keyof typeof STAGE_META;
+
+// The outreach steps that lead up to and including the opening message. For
+// any lead shown here, these always happened.
+const DONE_BEFORE_MESSAGE: FlowStepKind[] = ['like', 'connect', 'comment', 'message'];
+
+// A tiny, stable, dependency-free string hash. Used to derive a per-lead
+// offset from the conversation id so the synthetic times stay stable between
+// renders but DO differ from lead to lead.
+function hashId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+// How long ago (in days) each stage roughly started its outreach. A 'ready'
+// lead has been worked longer than a fresh 'in_conversation' one, so its done
+// steps sit further in the past and its follow-up has already gone out.
+function stageAgeDays(stage: GoalStage): number {
   switch (stage) {
     case 'no_reply':
-      // Invite is out, conversation not yet open.
-      return 'connect';
+      return 2;
     case 'replied':
+      return 3;
     case 'in_conversation':
-      // The conversation is open · the message step.
-      return 'message';
+      return 4;
     case 'interested':
+      return 6;
     case 'ready':
-      // Warm and late · nudging toward the goal.
-      return 'follow_up';
+      return 8;
     default:
-      return null;
+      return 4;
   }
+}
+
+// For later stages a nudge has already gone out, so follow_up reads as done.
+function followUpIsDone(stage: GoalStage): boolean {
+  return stage === 'ready' || stage === 'interested';
+}
+
+export interface FlowTiming {
+  status: FlowStatus;
+  executedAt?: Date;
+  scheduledFor?: Date;
+}
+
+// Per-step status + a synthetic timestamp, derived deterministically from the
+// conversation id (stable per lead) and goalStage (varies the picture). The
+// done steps are spread monotonically across the lead's outreach window so
+// earlier steps always read as having happened earlier; the follow-up is
+// either a recent 'done' nudge (warm leads) or a calm near-future 'scheduled'
+// moment (active leads).
+function buildFlowTiming(
+  mail: Conversation,
+  flow: FlowStep[],
+  stage: GoalStage,
+): FlowTiming[] {
+  const now = Date.now();
+  const seed = hashId(mail.id);
+  // A small stable per-lead jitter (0..11 hours) so two same-stage leads still
+  // differ a little.
+  const jitterHours = seed % 12;
+
+  // The done outreach steps span from windowStartDays ago up to the most
+  // recent one a few hours / a day ago, scaled by stage.
+  const windowStartDays = stageAgeDays(stage);
+  const msgIdx = flow.findIndex((f) => f.kind === 'message');
+
+  // Which steps read as done: everything up to + including message, plus
+  // follow_up (or any post-message step) when the stage says a nudge went out.
+  const doneFlags = flow.map((s, i) => {
+    if (DONE_BEFORE_MESSAGE.includes(s.kind)) return true;
+    if (msgIdx >= 0 && i > msgIdx) return followUpIsDone(stage);
+    return true;
+  });
+  const doneCount = doneFlags.filter(Boolean).length;
+
+  let doneSeen = 0;
+  return flow.map((_step, i) => {
+    const isDone = doneFlags[i];
+    if (isDone) {
+      // Spread done steps monotonically: first done step furthest in the past,
+      // last done step most recent. The most recent done step lands a few
+      // hours / up to ~1 day ago depending on the per-lead jitter.
+      const frac = doneCount <= 1 ? 1 : doneSeen / (doneCount - 1);
+      doneSeen++;
+      // From windowStartDays ago (frac 0) down to ~0.25 day ago (frac 1).
+      const agoDays = windowStartDays - frac * (windowStartDays - 0.25);
+      const executedAt = new Date(now - agoDays * DAY_MS - jitterHours * HOUR_MS);
+      return { status: 'done' as FlowStatus, executedAt };
+    }
+    // Scheduled: a calm near-future moment. Warmer active leads are closer to
+    // their next touch; the per-lead jitter keeps it believable.
+    const baseHours = stage === 'in_conversation' ? 30 : stage === 'replied' ? 40 : 48;
+    const scheduledFor = new Date(now + (baseHours + jitterHours) * HOUR_MS);
+    return { status: 'scheduled' as FlowStatus, scheduledFor };
+  });
+}
+
+// ── Relative time formatting · simple, dependency-free, no em-dashes ──
+function formatRelativePast(date: Date): string {
+  const ms = Date.now() - date.getTime();
+  if (ms < 60 * 1000) return 'just now';
+  const mins = Math.round(ms / (60 * 1000));
+  if (mins < 60) return `${mins} ${mins === 1 ? 'minute' : 'minutes'} ago`;
+  const hours = Math.round(ms / HOUR_MS);
+  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+  const days = Math.round(ms / DAY_MS);
+  if (days < 7) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+  const weeks = Math.round(days / 7);
+  return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
+}
+
+function formatRelativeFuture(date: Date): string {
+  const ms = date.getTime() - Date.now();
+  if (ms <= 0) return 'shortly';
+  const hours = Math.round(ms / HOUR_MS);
+  if (hours < 20) return `in ~${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  // Within roughly the next day: show "tomorrow ~HH:MM".
+  const days = Math.round(ms / DAY_MS);
+  if (days <= 1) {
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `tomorrow ~${hh}:${mm}`;
+  }
+  return `in ~${days} days`;
 }
 
 // ── Quiet uppercase section label (Persona-page rhythm) ────────────
@@ -132,22 +249,6 @@ const FLOW_ICONS: Record<FlowStepKind, typeof Send> = {
   follow_up: CornerUpRight,
 };
 
-type FlowStatus = 'done' | 'current' | 'todo';
-
-function flowStatuses(
-  flow: FlowStep[],
-  currentKind: FlowStep['kind'] | null,
-): FlowStatus[] {
-  const currentIdx =
-    currentKind == null ? -1 : flow.findIndex((s) => s.kind === currentKind);
-  return flow.map((_, i) => {
-    if (currentIdx < 0) return 'todo';
-    if (i < currentIdx) return 'done';
-    if (i === currentIdx) return 'current';
-    return 'todo';
-  });
-}
-
 function MetaLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2.5">
@@ -159,22 +260,25 @@ function MetaLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ── FLOW section · a vertical top-to-bottom timeline ──────────────────
-// Mirrors the CampaignDetail Flow card (icon rail + connector line + label +
-// delay pill + hint), wrapped in an lg-card to match Context / Signals. Adds
-// a per-step status derived softly from goalStage: done steps get a blue icon
-// tile + a small check and a muted delay; the current step is emphasised
-// (accent ring + accent label); todo steps stay quiet/grey. The connector
-// trail is blue up to the current step, grey after — a tasteful progress
-// trail. We never claim a hard "Step N of M".
+// ── FLOW section · a vertical top-to-bottom timeline ──────────────
+// Same look as the CampaignDetail Flow card (icon rail + connector line +
+// label + a time pill + hint), wrapped in an lg-card to match Context /
+// Signals. Status comes from buildFlowTiming, which reflects that a lead shown
+// here is already in conversation: the outreach steps up to + including the
+// opening message are DONE, and the follow-up is either DONE (warm leads) or
+// SCHEDULED for a calm near-future moment (active leads). Done steps show a
+// blue icon tile + a small check and a muted "X ago" time; scheduled steps
+// get a calm neutral tile with a small clock and a softly accented "in ~X"
+// time, never the old loud "current" ring; pending steps stay quiet/grey. The
+// connector trail is blue through the done steps, neutral after. We never
+// claim a hard "Step N of M" and never emphasise a "current" outreach step.
 function FlowSection({
   flow,
-  currentKind,
+  timing,
 }: {
   flow: FlowStep[];
-  currentKind: FlowStep['kind'] | null;
+  timing: FlowTiming[];
 }) {
-  const statuses = flowStatuses(flow, currentKind);
   return (
     <div data-testid="lead-flow-section">
       <SectionLabel>Flow</SectionLabel>
@@ -183,11 +287,26 @@ function FlowSection({
           {flow.map((step, i) => {
             const meta = FLOW_STEP_META[step.kind];
             const Icon = FLOW_ICONS[step.kind];
-            const status = statuses[i];
+            const t = timing[i];
             const last = i === flow.length - 1;
-            const isDone = status === 'done';
-            const isCurrent = status === 'current';
-            const trailBlue = isDone;
+            const isDone = t.status === 'done';
+            const isScheduled = t.status === 'scheduled';
+            // The connector below a step is blue only while we are still inside
+            // the done run (this step done AND the next step done too), so the
+            // trail goes neutral exactly where scheduled / pending begins.
+            const nextDone = i < flow.length - 1 && timing[i + 1].status === 'done';
+            const trailBlue = isDone && nextDone;
+            // The time pill text: relative past for done, soft future for
+            // scheduled, a quiet "after previous" for pending.
+            const timeText = isDone
+              ? t.executedAt
+                ? formatRelativePast(t.executedAt)
+                : null
+              : isScheduled
+                ? t.scheduledFor
+                  ? formatRelativeFuture(t.scheduledFor)
+                  : null
+                : 'after previous';
             return (
               <div
                 key={`${step.kind}-${i}`}
@@ -201,8 +320,11 @@ function FlowSection({
                     style={
                       isDone
                         ? { background: `${ACCENT}1A`, boxShadow: `inset 0 0 0 1px ${ACCENT}33` }
-                        : isCurrent
-                          ? { background: `${ACCENT}14`, boxShadow: `inset 0 0 0 1.5px ${ACCENT}` }
+                        : isScheduled
+                          ? {
+                              background: 'hsl(var(--foreground) / 0.05)',
+                              boxShadow: `inset 0 0 0 1px ${ACCENT}26`,
+                            }
                           : {
                               background: 'hsl(var(--foreground) / 0.06)',
                               boxShadow: 'inset 0 0 0 1px hsl(var(--foreground) / 0.06)',
@@ -212,8 +334,14 @@ function FlowSection({
                     <Icon
                       size={15}
                       strokeWidth={1.9}
-                      style={isDone || isCurrent ? { color: ACCENT } : undefined}
-                      className={isDone || isCurrent ? '' : 'text-foreground/55'}
+                      style={isDone ? { color: ACCENT } : undefined}
+                      className={
+                        isDone
+                          ? ''
+                          : isScheduled
+                            ? 'text-foreground/60'
+                            : 'text-foreground/55'
+                      }
                     />
                     {isDone && (
                       <span
@@ -222,6 +350,18 @@ function FlowSection({
                         style={{ background: ACCENT }}
                       >
                         <Check size={9} strokeWidth={3} className="text-white" />
+                      </span>
+                    )}
+                    {isScheduled && (
+                      <span
+                        aria-hidden
+                        className="absolute -right-1 -bottom-1 h-3.5 w-3.5 rounded-full flex items-center justify-center"
+                        style={{
+                          background: 'hsl(var(--card))',
+                          boxShadow: `inset 0 0 0 1px ${ACCENT}40`,
+                        }}
+                      >
+                        <Clock size={9} strokeWidth={2.4} style={{ color: ACCENT }} />
                       </span>
                     )}
                   </div>
@@ -242,23 +382,25 @@ function FlowSection({
                     <span
                       className="text-[12.5px] font-semibold tracking-[-0.005em] truncate"
                       style={{
-                        color: isCurrent
-                          ? ACCENT
-                          : isDone
-                            ? 'var(--foreground)'
+                        color: isDone
+                          ? 'var(--foreground)'
+                          : isScheduled
+                            ? 'hsl(var(--foreground) / 0.75)'
                             : 'hsl(var(--foreground) / 0.5)',
                       }}
                     >
                       {noDash(meta.label)}
                     </span>
-                    {step.delay && (
+                    {timeText && (
                       <span
                         className="shrink-0 glass-pill rounded-full inline-flex items-center h-[20px] px-2 text-[10.5px] font-medium tabular-nums whitespace-nowrap"
                         style={{
-                          color: isCurrent ? ACCENT : 'hsl(var(--foreground) / 0.55)',
+                          color: isScheduled
+                            ? ACCENT
+                            : 'hsl(var(--foreground) / 0.5)',
                         }}
                       >
-                        {noDash(step.delay)}
+                        {timeText}
                       </span>
                     )}
                   </div>
@@ -266,7 +408,7 @@ function FlowSection({
                     className="mt-0.5 text-[11.5px] leading-snug m-0"
                     style={{
                       color:
-                        isCurrent || isDone
+                        isDone || isScheduled
                           ? 'hsl(var(--foreground) / 0.5)'
                           : 'hsl(var(--foreground) / 0.38)',
                     }}
@@ -384,10 +526,12 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
 
   // Campaign context · what campaign this lead lives in, its goal, and the
   // per-lead flow. The conversation carries no flow of its own, so we use the
-  // campaign DEFAULT_FLOW and softly hint at stage position (never a counter).
+  // campaign DEFAULT_FLOW. buildFlowTiming then derives per-step done /
+  // scheduled status + a stable, per-lead synthetic time from the conversation
+  // id and goalStage (never a counter, never a "current" outreach step).
   const campaignName = mail.campaignName;
   const flow = DEFAULT_FLOW;
-  const currentStepKind = softCurrentStepKind(stage);
+  const flowTiming = buildFlowTiming(mail, flow, stage);
   // ICP fit · defined per campaign. Shown as a quiet key/value, omitted if null.
   const fitScore = lead?.fitScore ?? null;
 
@@ -567,7 +711,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
               {/* 4 · Flow. The campaign's per-lead action sequence as a
                      vertical timeline, with per-step status. Sits last,
                      under Signals, mirroring the CampaignDetail Flow card. */}
-              <FlowSection flow={flow} currentKind={currentStepKind} />
+              <FlowSection flow={flow} timing={flowTiming} />
             </motion.div>
           ) : (
             <motion.div
