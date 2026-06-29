@@ -791,13 +791,6 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
   const accessPhone = () => {
     if (phoneState === 'locked') runSearch(setPhoneState);
   };
-  // Reveal all · triggers both gated fields at once; each still runs its own
-  // independent search -> resolve. Only fires the fields still locked.
-  const revealAll = () => {
-    if (emailState === 'locked') runSearch(setEmailState);
-    if (phoneState === 'locked') runSearch(setPhoneState);
-  };
-  const anyLocked = emailState === 'locked' || phoneState === 'locked';
 
   return (
     <div
@@ -1040,20 +1033,6 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                         : title || company || 'Lead'}
                     </div>
                   </div>
-                  {/* Quiet "Reveal all" affordance for the two gated fields,
-                     shown only while something is still locked (FIX E). Sits
-                     top-right of the card, near the contact rows below. */}
-                  {anyLocked && (
-                    <button
-                      type="button"
-                      data-testid="reveal-all-contact"
-                      onClick={revealAll}
-                      className="shrink-0 -mt-1 -mr-2 md:mt-0.5 md:mr-0 inline-flex items-center min-h-[40px] md:min-h-0 px-2 md:px-0 text-[12.5px] md:text-[11px] font-semibold tracking-[-0.005em] transition-opacity hover:opacity-70"
-                      style={{ color: ACCENT }}
-                    >
-                      Reveal all
-                    </button>
-                  )}
                 </div>
 
                 {/* Core contact rows, inside the identity card. Email + Phone
