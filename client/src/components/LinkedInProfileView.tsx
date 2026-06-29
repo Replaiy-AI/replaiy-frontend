@@ -28,7 +28,7 @@ import { ReplaiyAvatar } from '@/components/Avatar';
 import { SectionLabel } from '@/components/LeadContextPanel';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
-import type { Conversation, LinkedInExperience, LinkedInEducation } from '@/data/mockConversations';
+import type { Conversation, LinkedInExperience, LinkedInEducation, LinkedInPost } from '@/data/mockConversations';
 // Real LinkedIn BRAND badges (not UI accents). These deliberately use LinkedIn
 // brand colours (LinkedIn blue, premium orange, Sales Navigator compass) which
 // differ from the app's single #2F6BFF accent — allowed here because they are
@@ -272,6 +272,107 @@ function EducationEntry({ item }: { item: LinkedInEducation }) {
   );
 }
 
+// ─── Activity · single post card ──────────────────────────────────
+// A calm, read-only embedded post card (NOT a copy of LinkedIn's chrome).
+// Header row: ReplaiyAvatar + author name (semibold) and truncated headline
+// stacked, with timeAgo muted on the right (no "·" separator, pure layout).
+// Body: post text using the SAME clamp recipe as AboutSection (maxHeight cap +
+// WebkitMaskImage gradient fade + a "See more" / "Show less" toggle). Optional
+// image in a rounded, height-capped container. Stats row shows likes /
+// comments / reposts as muted counts separated by spacing (never a middot),
+// omitting any count that is undefined or zero. usedByAI is deliberately NOT
+// surfaced: every post renders neutrally and identically.
+function PostCard({ post }: { post: LinkedInPost }) {
+  const [expanded, setExpanded] = useState(false);
+  // Same threshold rationale as AboutSection: clamp once it is worth clamping.
+  const canClamp = post.text.length > 220;
+
+  const stats: string[] = [];
+  if (post.likes) stats.push(`${formatCount(post.likes)} likes`);
+  if (post.comments) stats.push(`${formatCount(post.comments)} comments`);
+  if (post.reposts) stats.push(`${formatCount(post.reposts)} reposts`);
+
+  return (
+    <div
+      className="rp-card rounded-[20px] px-4 py-3.5"
+      data-testid={`profile-post-${post.id}`}
+    >
+      {/* Header row · avatar + name/headline stack + time-ago (right). */}
+      <div className="flex items-start gap-2.5">
+        <ReplaiyAvatar name={post.authorName} src={post.authorAvatarUrl} size={36} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+            {noDash(post.authorName)}
+          </div>
+          {post.authorHeadline && (
+            <div className="text-[11.5px] text-foreground/55 leading-snug truncate">
+              {noDash(post.authorHeadline)}
+            </div>
+          )}
+        </div>
+        <span className="text-[11.5px] text-foreground/45 leading-snug shrink-0 tabular-nums mt-0.5">
+          {noDash(post.timeAgo)}
+        </span>
+      </div>
+
+      {/* Body · clamped post text (AboutSection recipe). */}
+      <div
+        className="relative mt-2.5"
+        style={
+          !expanded && canClamp
+            ? {
+                maxHeight: 'calc(1.55em * 4)',
+                overflow: 'hidden',
+                WebkitMaskImage:
+                  'linear-gradient(to bottom, black 60%, transparent 100%)',
+                maskImage:
+                  'linear-gradient(to bottom, black 60%, transparent 100%)',
+              }
+            : undefined
+        }
+      >
+        <p
+          className="text-[13px] leading-[1.55] text-foreground/80 m-0 whitespace-pre-line break-words"
+          data-testid={`profile-post-text-${post.id}`}
+        >
+          {noDash(post.text)}
+        </p>
+      </div>
+      {canClamp && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          data-testid={`profile-post-toggle-${post.id}`}
+          className="mt-1 inline-flex items-center text-[12.5px] font-semibold text-foreground/70 hover-elevate active-elevate-2 rounded-md px-1 -mx-1"
+        >
+          {expanded ? 'Show less' : 'See more'}
+        </button>
+      )}
+
+      {/* Optional image · rounded, height-capped so one image never dominates. */}
+      {post.imageUrl && (
+        <div className="mt-3 rounded-xl overflow-hidden bg-foreground/[0.06] dark:bg-white/[0.07]">
+          <img
+            src={post.imageUrl}
+            alt=""
+            loading="lazy"
+            className="w-full max-h-[240px] object-cover block"
+          />
+        </div>
+      )}
+
+      {/* Stats row · muted counts separated by spacing (never a middot). */}
+      {stats.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-3 text-[12px] text-foreground/50 tabular-nums">
+          {stats.map((s, i) => (
+            <span key={i}>{s}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function LinkedInProfileView({
   mail,
   open,
@@ -292,6 +393,7 @@ export function LinkedInProfileView({
   const experience = profile?.experience ?? [];
   const education = profile?.education ?? [];
   const skills = profile?.skills ?? [];
+  const posts = profile?.posts ?? [];
   // Account tier drives the LinkedIn brand badge(s) shown after the name.
   const tier = profile?.linkedinTier ?? 'free';
 
@@ -517,12 +619,25 @@ export function LinkedInProfileView({
               </div>
             )}
 
-            {/* TODO(step 4) · RECENT POSTS — render profile.posts as full post
-                cards (author avatar/name/headline, time-ago, text with
-                "See more" using the same clamp pattern as AboutSection, optional
-                image, likes/comments/reposts, Like/Comment/Repost actions,
-                scrollable through many posts). Show the "usedByAI" tag on posts
-                Replaiy referenced. Data already exists on profile.posts. */}
+            {/* ── ACTIVITY ──────────────────────────────────────────
+                ALL of the lead's LinkedIn posts (LinkedIn calls this tab
+                "Activity"), rendered as calm read-only PostCards in their own
+                gap-3 stack while the section itself stays a sibling in the
+                outer gap-5 flow. Every post renders NEUTRALLY: the usedByAI
+                field is intentionally NOT surfaced here. When researching a
+                lead the user is reading the person, not inspecting AI
+                behaviour. Each PostCard reuses ReplaiyAvatar, the AboutSection
+                clamp/See-more recipe, the rp-card surface and noDash(). */}
+            {posts.length > 0 && (
+              <div data-testid="profile-activity">
+                <SectionLabel>Activity</SectionLabel>
+                <div className="flex flex-col gap-3">
+                  {posts.map((post) => (
+                    <PostCard key={post.id} post={post} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* TODO(step 4) · The polished compact "LinkedIn profile" preview
                 card that triggers this view lives in the Contact tab and
