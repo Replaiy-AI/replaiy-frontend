@@ -28,7 +28,6 @@ import {
   MapPin,
   Building2,
   Users,
-  Lock,
   Copy,
   Check,
   Linkedin,
@@ -645,8 +644,12 @@ function EnrichableRow({
     );
   }
 
-  // Locked / searching -> label + (placeholder | spinner) + right-aligned
-  // access affordance. Same shared scale + rhythm.
+  // Locked / searching -> Apollo-style. The locked affordance is NOT a heavy
+  // pill with a lock icon; it is a quiet blue text LINK sitting on the VALUE
+  // position (where the resolved value would render), so the row reads exactly
+  // like every other dossier row — the link simply IS the value until it's
+  // found. No dotted placeholder, no lock glyph, no credit cost. Searching
+  // shows the same inline spinner on the value position.
   const searching = state === 'searching';
   return (
     <div className="flex items-center gap-2.5 py-2.5 md:py-[7px] px-1.5 -mx-1.5">
@@ -658,24 +661,16 @@ function EnrichableRow({
           Searching...
         </span>
       ) : (
-        <span
-          aria-hidden
-          className="flex-1 min-w-0 overflow-hidden whitespace-nowrap text-[13px] tracking-[0.16em] text-foreground/25 select-none"
+        <button
+          type="button"
+          data-testid={accessTestId}
+          onClick={onAccess}
+          className="min-w-0 flex-1 text-left text-[13px] md:text-[12.5px] font-medium whitespace-nowrap transition-opacity hover:opacity-70 active:opacity-60 focus-visible:outline-none"
+          style={{ color: ACCENT }}
         >
-          • • • • •
-        </span>
+          Find {label.toLowerCase()}
+        </button>
       )}
-      <button
-        type="button"
-        data-testid={accessTestId}
-        onClick={onAccess}
-        disabled={searching}
-        className="shrink-0 ml-auto glass-pill rounded-full inline-flex items-center gap-1.5 md:gap-1 h-[34px] md:h-[24px] pl-3 pr-3.5 md:pl-2 md:pr-2.5 text-[12.5px] md:text-[11px] font-semibold whitespace-nowrap transition-transform hover:scale-[1.03] active:scale-[0.97] disabled:opacity-60 disabled:hover:scale-100"
-        style={{ color: ACCENT }}
-      >
-        <Lock size={mobile ? 13 : 11} strokeWidth={2.2} />
-        Access {label.toLowerCase()}
-      </button>
     </div>
   );
 }
