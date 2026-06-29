@@ -682,8 +682,8 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
           <VadikLiquidSwitcher<Tab>
             testId="lead-tab"
             variant="text"
-            optionWidth={148}
-            scale={0.85}
+            optionWidth={198}
+            scale={0.7}
             value={tab}
             onChange={setTab}
             segments={[
