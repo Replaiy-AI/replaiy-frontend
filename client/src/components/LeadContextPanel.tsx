@@ -545,17 +545,12 @@ function DossierRow({
         // far apart. `ml-auto` pushes the group flush right; the value text
         // takes the flexible middle space. Desktop keeps a small even gap.
         <span className="shrink-0 ml-auto inline-flex items-center -space-x-1 md:space-x-0 md:gap-0.5">
-          {hasCopy && (
-            <button
-              type="button"
-              onClick={copy}
-              data-testid={testId}
-              aria-label={`Copy ${label.toLowerCase()}`}
-              className={glyphCls}
-            >
-              <RowAction kind="copy" copied={copied} mobile={mobile} />
-            </button>
-          )}
+          {/* v-fix-copy-rightmost — Copy is ALWAYS the rightmost (outer) action
+              so the copy glyph aligns vertically across every row, whether or
+              not the row also has an open-in-new-tab action. The open arrow,
+              when present, sits to the LEFT of copy. This gives the column the
+              consistent right edge Simon asked for (Company copy now lines up
+              with LinkedIn / Website copy). */}
           {hasOpen && (
             <a
               href={href}
@@ -567,6 +562,17 @@ function DossierRow({
             >
               <RowAction kind="open" mobile={mobile} />
             </a>
+          )}
+          {hasCopy && (
+            <button
+              type="button"
+              onClick={copy}
+              data-testid={testId}
+              aria-label={`Copy ${label.toLowerCase()}`}
+              className={glyphCls}
+            >
+              <RowAction kind="copy" copied={copied} mobile={mobile} />
+            </button>
           )}
         </span>
       )}
