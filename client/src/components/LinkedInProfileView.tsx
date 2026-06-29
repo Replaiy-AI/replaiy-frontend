@@ -86,6 +86,7 @@ function LinkedInTierBadges({
       <img
         src={inBadge}
         alt={inAlt}
+        decoding="sync"
         className="h-[18px] w-[18px] shrink-0"
         data-testid="profile-tier-in"
       />
@@ -93,6 +94,7 @@ function LinkedInTierBadges({
         <img
           src={linkedinSalesnav}
           alt="LinkedIn Sales Navigator"
+          decoding="sync"
           className="h-[18px] w-[18px] shrink-0"
           data-testid="profile-tier-salesnav"
         />

@@ -1171,7 +1171,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                     className="rp-card rounded-[20px] px-4 py-3.5 w-full text-left hover-elevate active-elevate-2 transition-transform"
                   >
                     <div className="flex items-center gap-2.5">
-                      <img src={linkedinFreeBadge} alt="" aria-hidden className="h-[18px] w-[18px] shrink-0" />
+                      <img src={linkedinFreeBadge} alt="" aria-hidden decoding="sync" className="h-[18px] w-[18px] shrink-0" />
                       <span className="text-[13px] font-semibold tracking-[-0.005em] text-foreground flex-1 min-w-0">
                         LinkedIn profile
                       </span>
