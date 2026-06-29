@@ -1031,6 +1031,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
         onDone={() => { setConversationStatus(mail.id, 'done'); navigate('/'); }}
         onSnooze={() => { setConversationStatus(mail.id, 'snoozed'); navigate('/'); }}
         onIdentityClick={hasLeadContext ? toggleLeadPanel : undefined}
+        chromeHidden={hasLeadContext && leadPanelOpen}
       />
 
       {/* DESKTOP top pill row (v19.3) — absolutely positioned at top:12px
@@ -1488,7 +1489,7 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={APPLE_SPRING}
-              className="md:hidden absolute inset-0 z-50 flex flex-col bg-background"
+              className="md:hidden absolute inset-0 z-[60] flex flex-col bg-background"
               style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
             >
               <div className="flex items-center gap-2 px-3 pt-3 pb-1 shrink-0">
@@ -1523,6 +1524,7 @@ function ThreadChromeSlot({
   onSnooze,
   onForward,
   onIdentityClick,
+  chromeHidden,
 }: {
   name: string;
   avatar?: string;
@@ -1532,10 +1534,18 @@ function ThreadChromeSlot({
   onSnooze?: () => void;
   onForward?: () => void;
   onIdentityClick?: () => void;
+  chromeHidden?: boolean;
 }) {
   const slot = useMemo(
     () => ({
       priority: 100,
+      // v-mobile-leadpanel — While the full-screen mobile lead panel is open
+      // it owns the whole screen (its own back button + "Lead context"
+      // header). Hide this conversation top chrome so the back arrow +
+      // identity pill + Done circle don't bleed THROUGH the panel (the
+      // shell is position:fixed and would otherwise float above the panel).
+      // Desktop is unaffected: the shell is md:hidden regardless.
+      hidden: chromeHidden,
       leftSlot: (
         <ActionPill testId="button-back" label="Back" onClick={onBack}>
           <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
@@ -1590,7 +1600,7 @@ function ThreadChromeSlot({
           <div style={{ width: 52, height: 52 }} aria-hidden="true" />
         ),
     }),
-    [name, avatar, threadCount, onBack, onDone, onSnooze, onForward, onIdentityClick],
+    [name, avatar, threadCount, onBack, onDone, onSnooze, onForward, onIdentityClick, chromeHidden],
   );
   useMobileTopChromeSlot(slot);
   return null;

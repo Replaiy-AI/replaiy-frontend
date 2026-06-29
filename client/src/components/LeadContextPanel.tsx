@@ -58,6 +58,7 @@ import { ReplaiyAvatar } from '@/components/Avatar';
 import { activePersona } from '@/data/mockPersona';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const ACCENT = '#2F6BFF';
 
@@ -212,10 +213,15 @@ function formatRelativeFuture(date: Date): string {
   return `in ~${days} days`;
 }
 
-// ── Quiet uppercase section label (Persona-page rhythm) ────────────
+// ── Section label · matches the Persona page header style EXACTLY ──
+// Normal case (NOT uppercase), 12.5px, semibold, tight tracking, full
+// foreground colour — identical to MijnAi.tsx section headers (e.g.
+// "Questions", "Choose your AI's personality"). Renders "Context",
+// "Signals", "Flow", "Company", "Role" in normal case so the panel is
+// consistent with the rest of the platform instead of shouting all-caps.
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-foreground/40 mb-2.5">
+    <div className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground mb-2.5">
       {children}
     </div>
   );
@@ -233,33 +239,41 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 //   label  -> text-[12.5px] text-foreground/45  w-[58px]
 //   value  -> text-[12.5px] text-foreground/85
 //   rhythm -> py-[7px], gap-2.5
-const ROW_LABEL_CLS = 'text-[12.5px] text-foreground/45 w-[72px] shrink-0 pr-2';
-const ROW_VALUE_CLS = 'text-[12.5px] text-foreground/85 truncate min-w-0 flex-1';
+// v-mobile-leadpanel — Mobile (base) gets larger, more readable type for
+// touch; desktop (md:) keeps the exact original 12.5px scale. Label column
+// is a touch wider on mobile to fit the larger text without wrapping.
+const ROW_LABEL_CLS = 'text-[14px] md:text-[12.5px] text-foreground/45 w-[80px] md:w-[72px] shrink-0 pr-2';
+const ROW_VALUE_CLS = 'text-[14px] md:text-[12.5px] text-foreground/85 truncate min-w-0 flex-1';
 const ROW_ICON_SIZE = 14;
 
 // A trailing action glyph (copy / open-in-tab) for the right-aligned slot.
+// v-mobile-leadpanel — The glyph is slightly LARGER on mobile (better touch
+// readability) and the original size on desktop. `mobile` is passed from the
+// panel via the useIsMobile hook so desktop renders byte-identical to before.
 function RowAction({
   kind,
   copied,
+  mobile,
 }: {
   kind: 'copy' | 'open';
   copied?: boolean;
+  mobile?: boolean;
 }) {
   if (kind === 'open') {
     return (
       <ArrowUpRight
-        size={14}
+        size={mobile ? 18 : 14}
         strokeWidth={1.9}
         className="text-icon-muted group-hover:text-foreground/70 transition-colors"
       />
     );
   }
   if (copied) {
-    return <Check size={13} strokeWidth={2.2} style={{ color: ACCENT }} />;
+    return <Check size={mobile ? 17 : 13} strokeWidth={2.2} style={{ color: ACCENT }} />;
   }
   return (
     <Copy
-      size={13}
+      size={mobile ? 17 : 13}
       strokeWidth={1.8}
       className="text-icon-muted group-hover:text-foreground/70 transition-colors"
     />
@@ -466,6 +480,7 @@ function DossierRow({
   copyValue,
   testId,
   openTestId,
+  mobile,
 }: {
   icon: typeof Mail;
   label: string;
@@ -478,6 +493,8 @@ function DossierRow({
   testId?: string;
   /** testid for the open-in-new-tab action. */
   openTestId?: string;
+  /** v-mobile-leadpanel — touch sizing: larger glyph hit areas + glyphs. */
+  mobile?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -495,17 +512,23 @@ function DossierRow({
   const hasOpen = !!href;
   const interactive = hasCopy || hasOpen;
 
-  // The per-glyph hit area: a small rounded square with its own hover bg, so
-  // copy / open feel tappable and stay vertically centred + flush right.
+  // The per-glyph hit area: a rounded square with its own hover bg, so copy /
+  // open feel tappable and stay vertically centred + flush right.
+  // v-mobile-leadpanel — On mobile the hit area is ~44px (Apple's minimum
+  // touch target) instead of 24px; on desktop (md:) it is the original 24px.
+  // The -my offset keeps the taller mobile target from inflating row height.
   const glyphCls =
-    'shrink-0 inline-flex items-center justify-center h-6 w-6 -my-1 rounded-md ' +
+    'shrink-0 inline-flex items-center justify-center h-11 w-11 -my-2 md:h-6 md:w-6 md:-my-1 rounded-xl md:rounded-md ' +
     'transition-colors hover:bg-foreground/[0.07] dark:hover:bg-white/[0.08] ' +
+    'active:bg-foreground/[0.1] dark:active:bg-white/[0.12] ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--ring]';
 
   return (
     <div
       className={
-        'group flex items-center gap-2.5 py-[7px] rounded-lg px-1.5 -mx-1.5 ' +
+        // More vertical padding on mobile so each row is a comfortable tap
+        // height (~44px+); desktop keeps the original py-[7px].
+        'group flex items-center gap-2.5 py-2.5 md:py-[7px] rounded-lg px-1.5 -mx-1.5 ' +
         (interactive ? 'hover-elevate' : '')
       }
       data-testid={!hasCopy && !hasOpen ? testId : undefined}
@@ -514,7 +537,9 @@ function DossierRow({
       <span className={ROW_LABEL_CLS}>{label}</span>
       <span className={ROW_VALUE_CLS}>{value}</span>
       {(hasCopy || hasOpen) && (
-        <span className="shrink-0 ml-auto flex items-center gap-0.5">
+        // v-mobile-leadpanel — More space between the two glyphs on mobile so
+        // fat fingers don't mis-tap copy vs open; desktop keeps the tight gap.
+        <span className="shrink-0 ml-auto flex items-center gap-1.5 md:gap-0.5">
           {hasCopy && (
             <button
               type="button"
@@ -523,7 +548,7 @@ function DossierRow({
               aria-label={`Copy ${label.toLowerCase()}`}
               className={glyphCls}
             >
-              <RowAction kind="copy" copied={copied} />
+              <RowAction kind="copy" copied={copied} mobile={mobile} />
             </button>
           )}
           {hasOpen && (
@@ -535,7 +560,7 @@ function DossierRow({
               aria-label={`Open ${label.toLowerCase()}`}
               className={glyphCls}
             >
-              <RowAction kind="open" />
+              <RowAction kind="open" mobile={mobile} />
             </a>
           )}
         </span>
@@ -567,6 +592,7 @@ function EnrichableRow({
   onAccess,
   accessTestId,
   copyTestId,
+  mobile,
 }: {
   icon: typeof Mail;
   label: string;
@@ -577,6 +603,8 @@ function EnrichableRow({
   onAccess: () => void;
   accessTestId: string;
   copyTestId: string;
+  /** v-mobile-leadpanel — touch sizing for the resolved DossierRow + pill. */
+  mobile?: boolean;
 }) {
   // Resolved + found -> reuse the copyable DossierRow verbatim (copy testid).
   if (state === 'resolved' && value) {
@@ -587,6 +615,7 @@ function EnrichableRow({
         value={value}
         copyValue={value}
         testId={copyTestId}
+        mobile={mobile}
       />
     );
   }
@@ -595,7 +624,7 @@ function EnrichableRow({
   // shared scale + rhythm as every other row.
   if (state === 'resolved' && !value) {
     return (
-      <div className="flex items-center gap-2.5 py-[7px] px-1.5 -mx-1.5">
+      <div className="flex items-center gap-2.5 py-2.5 md:py-[7px] px-1.5 -mx-1.5">
         <Icon size={ROW_ICON_SIZE} strokeWidth={1.8} className="text-icon-muted shrink-0" />
         <span className={ROW_LABEL_CLS}>{label}</span>
         <span className="text-[12.5px] text-foreground/40 italic truncate min-w-0 flex-1">
@@ -609,7 +638,7 @@ function EnrichableRow({
   // access affordance. Same shared scale + rhythm.
   const searching = state === 'searching';
   return (
-    <div className="flex items-center gap-2.5 py-[7px] px-1.5 -mx-1.5">
+    <div className="flex items-center gap-2.5 py-2.5 md:py-[7px] px-1.5 -mx-1.5">
       <Icon size={ROW_ICON_SIZE} strokeWidth={1.8} className="text-icon-muted shrink-0" />
       <span className={ROW_LABEL_CLS}>{label}</span>
       {searching ? (
@@ -630,10 +659,10 @@ function EnrichableRow({
         data-testid={accessTestId}
         onClick={onAccess}
         disabled={searching}
-        className="shrink-0 ml-auto glass-pill rounded-full inline-flex items-center gap-1 h-[24px] pl-2 pr-2.5 text-[11px] font-semibold whitespace-nowrap transition-transform hover:scale-[1.03] active:scale-[0.97] disabled:opacity-60 disabled:hover:scale-100"
+        className="shrink-0 ml-auto glass-pill rounded-full inline-flex items-center gap-1.5 md:gap-1 h-[34px] md:h-[24px] pl-3 pr-3.5 md:pl-2 md:pr-2.5 text-[12.5px] md:text-[11px] font-semibold whitespace-nowrap transition-transform hover:scale-[1.03] active:scale-[0.97] disabled:opacity-60 disabled:hover:scale-100"
         style={{ color: ACCENT }}
       >
-        <Lock size={11} strokeWidth={2.2} />
+        <Lock size={mobile ? 13 : 11} strokeWidth={2.2} />
         Access {label.toLowerCase()}
       </button>
     </div>
@@ -642,6 +671,14 @@ function EnrichableRow({
 
 export function LeadContextPanel({ mail }: { mail: Conversation }) {
   const [tab, setTab] = useState<Tab>('overview');
+  // v-mobile-leadpanel — On phone the panel is full-screen (~390px wide) so
+  // the tab pill should span the width like an iOS segmented control. On
+  // desktop the panel is the fixed 340px column, so we keep the exact
+  // original sizing (optionWidth 198, scale 0.7 -> ~300px pill). We only
+  // widen the per-segment option width on mobile; everything else (scale,
+  // indicator stride math) stays identical so the indicator still lands
+  // perfectly under each segment.
+  const isMobile = useIsMobile();
 
   // ── Per-field enrichment state for email + phone, keyed per lead ──
   // Each field is independent. We reset both to 'locked' whenever the lead
@@ -785,11 +822,15 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
             optionWidth 148 + scale 0.85 sizes the two text segments to fit
             the ~308px column header comfortably and keeps the indicator
             stride exact under each segment. */}
-        <div className="inline-flex pointer-events-auto">
+        {/* v-mobile-leadpanel — On mobile the wrapper is a full-width flex so
+            the wider pill centers and reads as a full-width segmented
+            control; on desktop it stays inline (left-aligned in the 340px
+            column, exactly as before). */}
+        <div className={(isMobile ? 'flex justify-center w-full' : 'inline-flex') + ' pointer-events-auto'}>
           <VadikLiquidSwitcher<Tab>
             testId="lead-tab"
             variant="text"
-            optionWidth={198}
+            optionWidth={isMobile ? 240 : 198}
             scale={0.7}
             value={tab}
             onChange={setTab}
@@ -882,7 +923,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                     above, so we don't restate it. Separation is purely spatial
                     — never a "·" between label and value. */}
                 {(campaignName || fitScore != null) && (
-                  <div className="mt-3 pt-3 border-t border-foreground/[0.07] flex flex-col gap-1.5">
+                  <div className="mt-3 pt-3 border-t border-foreground/[0.07]">
                     {campaignName && (
                       <MetaLine label="Campaign" value={noDash(campaignName)} />
                     )}
@@ -983,7 +1024,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                       type="button"
                       data-testid="reveal-all-contact"
                       onClick={revealAll}
-                      className="shrink-0 mt-0.5 text-[11px] font-semibold tracking-[-0.005em] transition-opacity hover:opacity-70"
+                      className="shrink-0 -mt-1 -mr-2 md:mt-0.5 md:mr-0 inline-flex items-center min-h-[40px] md:min-h-0 px-2 md:px-0 text-[12.5px] md:text-[11px] font-semibold tracking-[-0.005em] transition-opacity hover:opacity-70"
                       style={{ color: ACCENT }}
                     >
                       Reveal all
@@ -1004,6 +1045,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                     onAccess={accessEmail}
                     accessTestId="access-email"
                     copyTestId="copy-email"
+                    mobile={isMobile}
                   />
                   <EnrichableRow
                     icon={Phone}
@@ -1014,6 +1056,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                     onAccess={accessPhone}
                     accessTestId="access-phone"
                     copyTestId="copy-phone"
+                    mobile={isMobile}
                   />
                   {lead?.linkedinUrl && (
                     <DossierRow
@@ -1024,6 +1067,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                       href={linkedinUrl}
                       testId="copy-linkedin"
                       openTestId="open-linkedin"
+                      mobile={isMobile}
                     />
                   )}
                 </div>
@@ -1050,6 +1094,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                             value={lead.company}
                             copyValue={lead.company}
                             testId="copy-company"
+                            mobile={isMobile}
                           />
                         )}
                         {websiteDomain && (
@@ -1061,16 +1106,17 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                             href={websiteUrl}
                             testId="copy-website"
                             openTestId="open-website"
+                            mobile={isMobile}
                           />
                         )}
                         {lead?.industry && (
-                          <DossierRow icon={Briefcase} label="Industry" value={lead.industry} />
+                          <DossierRow icon={Briefcase} label="Industry" value={lead.industry} mobile={isMobile} />
                         )}
                         {lead?.companySize && (
-                          <DossierRow icon={Users} label="Size" value={lead.companySize} />
+                          <DossierRow icon={Users} label="Size" value={lead.companySize} mobile={isMobile} />
                         )}
                         {lead?.location && (
-                          <DossierRow icon={MapPin} label="Location" value={lead.location} />
+                          <DossierRow icon={MapPin} label="Location" value={lead.location} mobile={isMobile} />
                         )}
                       </div>
                     </div>
@@ -1080,7 +1126,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                     <div>
                       <SectionLabel>Role</SectionLabel>
                       <div className="lg-card rounded-[16px] px-3.5 py-1">
-                        <DossierRow icon={Briefcase} label="Title" value={title} />
+                        <DossierRow icon={Briefcase} label="Title" value={title} mobile={isMobile} />
                       </div>
                     </div>
                   )}
