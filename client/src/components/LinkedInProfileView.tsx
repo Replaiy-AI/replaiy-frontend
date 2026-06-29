@@ -22,13 +22,13 @@
 // ─────────────────────────────────────────────────────────────────
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, UserPlus, Building2, MapPin } from 'lucide-react';
+import { ArrowLeft, UserPlus, Building2, MapPin, GraduationCap } from 'lucide-react';
 import { APPLE_SPRING } from '@/lib/motion';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { SectionLabel } from '@/components/LeadContextPanel';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
-import type { Conversation, LinkedInExperience } from '@/data/mockConversations';
+import type { Conversation, LinkedInExperience, LinkedInEducation } from '@/data/mockConversations';
 // Real LinkedIn BRAND badges (not UI accents). These deliberately use LinkedIn
 // brand colours (LinkedIn blue, premium orange, Sales Navigator compass) which
 // differ from the app's single #2F6BFF accent — allowed here because they are
@@ -218,6 +218,60 @@ function ExperienceEntry({ item }: { item: LinkedInExperience }) {
   );
 }
 
+// ─── Education entry ──────────────────────────────────────────────
+// Mirrors ExperienceEntry EXACTLY: a logo (or neutral fallback tile) + school
+// (bold, like the role) + degree (muted, like the company line) + a muted meta
+// line for the date range. The date range uses "to" instead of any dash (no em
+// / en dashes), and an optional description sits on its own muted line below,
+// matching how ExperienceEntry renders its secondary text. The only difference
+// from Experience is the fallback icon (GraduationCap rather than Building2),
+// since these are schools, not companies.
+function EducationEntry({ item }: { item: LinkedInEducation }) {
+  const dateRange =
+    item.start && item.end
+      ? `${item.start} to ${item.end}`
+      : item.start || item.end || '';
+  return (
+    <div className="flex items-start gap-3 py-2.5" data-testid="profile-education-item">
+      {/* Logo or neutral fallback tile (same tile as ExperienceEntry). */}
+      {item.logoUrl ? (
+        <span className="h-10 w-10 rounded-xl overflow-hidden shrink-0 bg-foreground/[0.06] dark:bg-white/[0.08]">
+          <img
+            src={item.logoUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        </span>
+      ) : (
+        <span className="h-10 w-10 rounded-xl shrink-0 bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center">
+          <GraduationCap size={17} strokeWidth={1.8} className="text-foreground/55" />
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="text-[13.5px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
+          {noDash(item.school)}
+        </div>
+        {item.degree && (
+          <div className="text-[12.5px] text-foreground/70 leading-snug mt-0.5">
+            {noDash(item.degree)}
+          </div>
+        )}
+        {dateRange && (
+          <div className="text-[11.5px] text-foreground/45 leading-snug mt-1 tabular-nums">
+            {dateRange}
+          </div>
+        )}
+        {item.description && (
+          <p className="text-[12px] text-foreground/65 leading-[1.5] mt-1.5 m-0">
+            {noDash(item.description)}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function LinkedInProfileView({
   mail,
   open,
@@ -236,6 +290,8 @@ export function LinkedInProfileView({
   const followers = profile?.followers;
   const connections = profile?.connections;
   const experience = profile?.experience ?? [];
+  const education = profile?.education ?? [];
+  const skills = profile?.skills ?? [];
   // Account tier drives the LinkedIn brand badge(s) shown after the name.
   const tier = profile?.linkedinTier ?? 'free';
 
@@ -421,14 +477,45 @@ export function LinkedInProfileView({
               </div>
             )}
 
-            {/* TODO(step 2) · EDUCATION — render profile.education as a list of
-                LinkedInEducation entries (logo, school, degree, years, optional
-                description), mirroring the ExperienceEntry layout. Data already
-                exists on profile.education. */}
+            {/* ── EDUCATION ─────────────────────────────────────────
+                Mirrors the Experience section exactly: SectionLabel +
+                an lg-card container holding EducationEntry rows (which
+                themselves mirror ExperienceEntry). */}
+            {education.length > 0 && (
+              <div>
+                <SectionLabel>Education</SectionLabel>
+                <div className="lg-card rounded-[16px] px-3.5 py-1.5">
+                  {education.map((item, i) => (
+                    <EducationEntry key={`${item.school}-${i}`} item={item} />
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {/* TODO(step 3) · SKILLS — render profile.skills as rows of pill
-                tags (glass-pill, neutral, NOT blue), matching the reference
-                Skills section. Data already exists on profile.skills. */}
+            {/* ── SKILLS ────────────────────────────────────────────
+                Neutral glass pills (glass-pill, the SAME surface as the
+                hero degree pill), wrapped in a flex-wrap. No blue accent.
+                The lg-card container matches the Experience/Education
+                surface so the three sections read as one family. */}
+            {skills.length > 0 && (
+              <div>
+                <SectionLabel>Skills</SectionLabel>
+                <div
+                  className="lg-card rounded-[16px] px-3.5 py-3 flex flex-wrap gap-2"
+                  data-testid="profile-skills"
+                >
+                  {skills.map((skill, i) => (
+                    <span
+                      key={`${skill}-${i}`}
+                      data-testid={`profile-skill-${i}`}
+                      className="glass-pill rounded-full inline-flex items-center h-[26px] px-3 text-[12px] font-medium text-foreground/70"
+                    >
+                      {noDash(skill)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* TODO(step 4) · RECENT POSTS — render profile.posts as full post
                 cards (author avatar/name/headline, time-ago, text with
