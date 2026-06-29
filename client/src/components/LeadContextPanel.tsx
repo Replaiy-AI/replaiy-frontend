@@ -808,47 +808,21 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
           pill wrapper re-enables `pointer-events-auto` so the toggle stays
           interactive. `pb-3` spacing under the pill keeps the first card from
           tucking under the tabs on initial load. */}
-      {/* v-fix: strip is now `lead-tab-fade` (full-width soft top-anchored
-          backdrop-blur + theme-aware veil that fades to clear at the bottom)
-          so scrolling content dissolves UNIFORMLY under the whole header
-          rather than appearing sharp beside the pill. The pill is now
-          `lg-pill` (translucent CHROME glass, the nav-rail recipe) instead of
-          the opaque `lg-card`, so blurred content reads through it like real
-          glass. Fade `::before` is pointer-events-none so scroll passes
-          through; pill wrapper keeps `pointer-events-auto`. */}
-      {/* v-fix-platform-match — CANONICAL platform pattern. Every other mobile
-          detail screen (ConversationDetail L374, CampaignDetail L2258) pads its
-          scroll container down by safe-area+80px and lets content scroll to the
-          top behind the floating MobileTopChrome glass pills — the pills carry
-          their OWN backdrop-filter, there is NO shared top veil. The lead panel
-          now matches that EXACTLY: the root scroll div (above) uses the same
-          safe-area+80px padding, and this tab strip simply STICKS just under
-          the floating title (top = safe-area+76px) instead of being yanked up
-          through the title zone. No negative margin, no oversized pad, so the
-          tabs sit at the TOP (not pushed to the middle) and there is no empty
-          glow balk. The `lead-tab-fade` veil stays on this strip ONLY so the
-          dossier cards frost as they scroll behind the Overview/Contact tabs —
-          the lead-panel-specific sticky sub-tabs no other screen has — but it
-          no longer bleeds up into the title region. Desktop is unchanged. */}
+      {/* v-fix-no-tab-veil — The tab strip NO LONGER carries `lead-tab-fade`.
+          That veil was a theme-aware background wash that read as a visible
+          light "bar" sitting behind the Overview/Contact tabs — the exact same
+          slab issue we just removed from the title/back-button zone. The tab
+          pill (VadikLiquidSwitcher) carries its OWN glass backdrop-filter, so
+          it frosts whatever scrolls behind it on its own, identical to how the
+          floating title pill and the inbox avatar/search pills work. The strip
+          is now just a transparent sticky positioner. Mobile clearance for the
+          floating title is provided via the strip's own marginTop (avoids the
+          Chromium sticky+container-padding stacking quirk). Desktop unchanged. */}
       <div
-        className="lead-tab-fade sticky z-20 pointer-events-none px-4 pb-3"
+        className="sticky z-20 pointer-events-none px-4 pb-3"
         style={
           isMobile
             ? {
-                // Clearance for the floating "Lead context" title (chrome sits
-                // at safe-area+12px, pills are 52px tall) is provided by this
-                // strip's OWN marginTop — NOT a paddingTop on the scroll
-                // container. A padding-top on the scroll container combined
-                // with a sticky child triggers a Chromium quirk where the
-                // sticky `top` offset stacks on the padding (strip rests at
-                // padding+top, leaving an empty glow balk above the tabs). By
-                // moving the clearance to marginTop the strip rests right under
-                // the title at safe-area+76px and pins cleanly at the same
-                // offset while scrolling — tabs at the TOP, no balk. The
-                // lead-tab-fade veil frosts dossier cards scrolling behind the
-                // tabs (the lead-panel-specific sticky sub-tabs); content above
-                // the strip frosts under the title pill's own backdrop-filter,
-                // exactly like ConversationDetail/CampaignDetail.
                 top: 'calc(env(safe-area-inset-top, 0px) + 76px)',
                 marginTop: 'calc(env(safe-area-inset-top, 0px) + 76px)',
                 paddingTop: '0.5rem',
