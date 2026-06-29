@@ -240,10 +240,19 @@ export function LinkedInProfileView({
             needs an in-panel back affordance. We satisfy that by reusing
             ActionPill verbatim (the one back-button primitive used everywhere)
             rather than inventing any new desktop chrome. */}
-        <div className="hidden md:block absolute top-3 left-3 z-[2]">
-          <ActionPill testId="profile-back" label="Back to contact" onClick={onClose}>
-            <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
-          </ActionPill>
+        <div className="hidden md:flex items-center gap-2.5 absolute top-3 left-3 right-3 z-[2] pointer-events-none">
+          <div className="pointer-events-auto">
+            <ActionPill testId="profile-back" label="Back to contact" onClick={onClose}>
+              <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+            </ActionPill>
+          </div>
+          {/* Title next to the back pill, mirroring the mobile chrome's
+              "LinkedIn profile" title so desktop has the same "where am I"
+              context. pointer-events-none on the row lets the hero scroll/click
+              through; only the pill is interactive. */}
+          <span className="text-[13px] font-semibold tracking-[-0.005em] text-foreground">
+            LinkedIn profile
+          </span>
         </div>
 
         {/* Scroll surface. On BOTH platforms the content scrolls UNDER the
