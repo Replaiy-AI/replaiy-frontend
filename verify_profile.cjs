@@ -101,9 +101,9 @@ async function desktopFlow(browser, scheme) {
     const hasEmDash = viewText.includes('\u2014');
     // desktop back = the SAME shared ActionPill (testid profile-back),
     // floated top-left (hidden md:block). No separate desktop testid.
-    const backD = page.locator('[data-testid="profile-back"]');
+    const backD = page.locator('[data-testid="linkedin-profile-view"] [data-testid="profile-back"]');
     const backDcount = await backD.count();
-    if (backDcount) { await backD.first().click(); await page.waitForTimeout(800); }
+    if (backDcount) { await backD.first().click({ force: false }); await page.waitForTimeout(800); }
     const stillOpen = await page.locator('[data-testid="linkedin-profile-view"]').count();
     const contactBtn = await page.locator('[data-testid="open-full-profile"]').count();
     await page.screenshot({ path: `${OUT}/opusprofile_desktop_${scheme}_afterback.png` });

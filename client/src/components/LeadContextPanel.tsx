@@ -223,7 +223,12 @@ function formatRelativeFuture(date: Date): string {
 // consistent with the rest of the platform instead of shouting all-caps.
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground mb-2.5">
+    // v-fix-section-inset — `px-2` insets the label slightly inward from the
+    // card edge, EXACTLY like the Persona page headers ("Example message",
+    // "Choose your AI's personality" which sit in a `px-2` wrapper). Without it
+    // the label sat flush at the column edge while the cards below were inset,
+    // so title and card did not line up. Now they share the same inward rhythm.
+    <div className="px-2 text-[12.5px] font-semibold tracking-[-0.005em] text-foreground mb-2.5">
       {children}
     </div>
   );
