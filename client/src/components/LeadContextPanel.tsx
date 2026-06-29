@@ -38,17 +38,19 @@ import {
   Briefcase,
   Sparkles,
   ArrowUpRight,
-  Megaphone,
-  Target,
-  ChevronRight,
+  UserPlus,
+  ThumbsUp,
+  MessageSquare,
+  Send,
+  CornerUpRight,
 } from 'lucide-react';
 import type { Conversation } from '@/data/mockConversations';
 import { STAGE_META } from '@/data/mockConversations';
 import {
-  GOAL_META,
   DEFAULT_FLOW,
   FLOW_STEP_META,
   type FlowStep,
+  type FlowStepKind,
 } from '@/data/mockCampaigns';
 import { GoalPill, ConversionBar } from '@/components/CampaignsList';
 import { ReplaiyAvatar } from '@/components/Avatar';
@@ -121,89 +123,158 @@ function ContextRow({
   );
 }
 
-// ── Compact, single-word chip labels for the flow mini-sequence ────────
-// FLOW_STEP_META labels ("Connection request", "Like a recent post") are too
-// long for a chip row in a ~340px column, so the chips use a short word and
-// the full FLOW_STEP_META label rides along as the title tooltip.
-const FLOW_CHIP_LABEL: Record<FlowStep['kind'], string> = {
-  connect: 'Connect',
-  like: 'Like',
-  comment: 'Comment',
-  message: 'Message',
-  follow_up: 'Follow-up',
+// ── Lucide icon per flow-step kind (mirrors CampaignDetail's FLOW_ICONS) ──
+const FLOW_ICONS: Record<FlowStepKind, typeof Send> = {
+  connect: UserPlus,
+  like: ThumbsUp,
+  comment: MessageSquare,
+  message: Send,
+  follow_up: CornerUpRight,
 };
 
-// ── CAMPAIGN section · a quiet peer of Context / Signals ──────────────
-// Mirrors the Context / Signals section shape exactly (uppercase label + an
-// lg-card). Shows the campaign name + goal, then the campaign's per-lead flow
-// as a READ-ONLY mini-sequence of small chips. We softly emphasise the chip
-// that roughly matches the lead's stage — never a hard "Step N of M", since
-// no step index exists in the data. Chips wrap gracefully within the column.
-function CampaignSection({
-  campaignName,
-  goalLabel,
+type FlowStatus = 'done' | 'current' | 'todo';
+
+function flowStatuses(
+  flow: FlowStep[],
+  currentKind: FlowStep['kind'] | null,
+): FlowStatus[] {
+  const currentIdx =
+    currentKind == null ? -1 : flow.findIndex((s) => s.kind === currentKind);
+  return flow.map((_, i) => {
+    if (currentIdx < 0) return 'todo';
+    if (i < currentIdx) return 'done';
+    if (i === currentIdx) return 'current';
+    return 'todo';
+  });
+}
+
+function MetaLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-2.5">
+      <span className="text-[11.5px] text-foreground/40 w-[64px] shrink-0">{label}</span>
+      <span className="text-[12px] font-medium text-foreground/75 truncate min-w-0">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ── FLOW section · a vertical top-to-bottom timeline ──────────────────
+// Mirrors the CampaignDetail Flow card (icon rail + connector line + label +
+// delay pill + hint), wrapped in an lg-card to match Context / Signals. Adds
+// a per-step status derived softly from goalStage: done steps get a blue icon
+// tile + a small check and a muted delay; the current step is emphasised
+// (accent ring + accent label); todo steps stay quiet/grey. The connector
+// trail is blue up to the current step, grey after — a tasteful progress
+// trail. We never claim a hard "Step N of M".
+function FlowSection({
   flow,
   currentKind,
 }: {
-  campaignName: string;
-  goalLabel: string;
   flow: FlowStep[];
   currentKind: FlowStep['kind'] | null;
 }) {
+  const statuses = flowStatuses(flow, currentKind);
   return (
-    <div data-testid="lead-campaign-section">
-      <SectionLabel>Campaign</SectionLabel>
-      <div className="lg-card rounded-[16px] px-3.5 py-3">
-        {/* Name + goal · the primary line. Quiet, not louder than the AI card. */}
-        <div className="flex items-center gap-2.5">
-          <Megaphone size={14} strokeWidth={1.8} className="text-icon-muted shrink-0" />
-          <span className="text-[12.5px] font-semibold text-foreground/90 truncate flex-1 min-w-0">
-            {noDash(campaignName)}
-          </span>
-          <span className="inline-flex items-center gap-1 glass-pill rounded-full px-2 h-[20px] shrink-0">
-            <Target size={11} strokeWidth={2} style={{ color: ACCENT }} className="shrink-0" />
-            <span className="text-[10.5px] font-medium text-foreground/70 whitespace-nowrap">
-              {noDash(goalLabel)}
-            </span>
-          </span>
-        </div>
-
-        {/* Flow mini-sequence · read-only chips, wrap within the column. The
-            soft-current chip gets a quiet blue emphasis; everything else stays
-            neutral. The arrows between chips imply order without a counter. */}
-        <div className="mt-3 pt-3 border-t border-foreground/[0.07] flex flex-wrap items-center gap-x-1 gap-y-1.5">
+    <div data-testid="lead-flow-section">
+      <SectionLabel>Flow</SectionLabel>
+      <div className="lg-card rounded-[16px] px-3.5 py-2.5">
+        <div className="flex flex-col">
           {flow.map((step, i) => {
-            const isCurrent = currentKind != null && step.kind === currentKind;
+            const meta = FLOW_STEP_META[step.kind];
+            const Icon = FLOW_ICONS[step.kind];
+            const status = statuses[i];
+            const last = i === flow.length - 1;
+            const isDone = status === 'done';
+            const isCurrent = status === 'current';
+            const trailBlue = isDone;
             return (
-              <span key={i} className="inline-flex items-center gap-1">
-                <span
-                  title={FLOW_STEP_META[step.kind].label}
-                  className="inline-flex items-center h-[22px] rounded-full px-2 text-[10.5px] font-medium whitespace-nowrap transition-colors"
-                  style={
-                    isCurrent
-                      ? {
-                          color: ACCENT,
-                          background: `${ACCENT}14`,
-                          boxShadow: `inset 0 0 0 1px ${ACCENT}33`,
-                        }
-                      : {
-                          color: 'hsl(var(--foreground) / 0.6)',
-                          background: 'hsl(var(--foreground) / 0.04)',
-                          boxShadow: 'inset 0 0 0 1px hsl(var(--foreground) / 0.06)',
-                        }
-                  }
-                >
-                  {FLOW_CHIP_LABEL[step.kind]}
-                </span>
-                {i < flow.length - 1 && (
-                  <ChevronRight
-                    size={12}
-                    strokeWidth={2}
-                    aria-hidden
-                    className="text-foreground/25 shrink-0"
-                  />
-                )}
-              </span>
+              <div
+                key={`${step.kind}-${i}`}
+                data-testid={`flow-step-${step.kind}-${i}`}
+                className="flex items-start gap-3 py-2"
+              >
+                {/* Icon rail + connector line. */}
+                <div className="relative flex flex-col items-center shrink-0">
+                  <div
+                    className="relative h-8 w-8 rounded-xl flex items-center justify-center transition-colors"
+                    style={
+                      isDone
+                        ? { background: `${ACCENT}1A`, boxShadow: `inset 0 0 0 1px ${ACCENT}33` }
+                        : isCurrent
+                          ? { background: `${ACCENT}14`, boxShadow: `inset 0 0 0 1.5px ${ACCENT}` }
+                          : {
+                              background: 'hsl(var(--foreground) / 0.06)',
+                              boxShadow: 'inset 0 0 0 1px hsl(var(--foreground) / 0.06)',
+                            }
+                    }
+                  >
+                    <Icon
+                      size={15}
+                      strokeWidth={1.9}
+                      style={isDone || isCurrent ? { color: ACCENT } : undefined}
+                      className={isDone || isCurrent ? '' : 'text-foreground/55'}
+                    />
+                    {isDone && (
+                      <span
+                        aria-hidden
+                        className="absolute -right-1 -bottom-1 h-3.5 w-3.5 rounded-full flex items-center justify-center"
+                        style={{ background: ACCENT }}
+                      >
+                        <Check size={9} strokeWidth={3} className="text-white" />
+                      </span>
+                    )}
+                  </div>
+                  {!last && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute top-8 h-[calc(100%-1rem)] w-px"
+                      style={{
+                        background: trailBlue
+                          ? `${ACCENT}59`
+                          : 'hsl(var(--foreground) / 0.10)',
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className="text-[12.5px] font-semibold tracking-[-0.005em] truncate"
+                      style={{
+                        color: isCurrent
+                          ? ACCENT
+                          : isDone
+                            ? 'var(--foreground)'
+                            : 'hsl(var(--foreground) / 0.5)',
+                      }}
+                    >
+                      {noDash(meta.label)}
+                    </span>
+                    {step.delay && (
+                      <span
+                        className="shrink-0 glass-pill rounded-full inline-flex items-center h-[20px] px-2 text-[10.5px] font-medium tabular-nums whitespace-nowrap"
+                        style={{
+                          color: isCurrent ? ACCENT : 'hsl(var(--foreground) / 0.55)',
+                        }}
+                      >
+                        {noDash(step.delay)}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className="mt-0.5 text-[11.5px] leading-snug m-0"
+                    style={{
+                      color:
+                        isCurrent || isDone
+                          ? 'hsl(var(--foreground) / 0.5)'
+                          : 'hsl(var(--foreground) / 0.38)',
+                    }}
+                  >
+                    {noDash(meta.hint)}
+                  </p>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -315,9 +386,10 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
   // per-lead flow. The conversation carries no flow of its own, so we use the
   // campaign DEFAULT_FLOW and softly hint at stage position (never a counter).
   const campaignName = mail.campaignName;
-  const goalLabel = GOAL_META[goalType].label;
   const flow = DEFAULT_FLOW;
   const currentStepKind = softCurrentStepKind(stage);
+  // ICP fit · defined per campaign. Shown as a quiet key/value, omitted if null.
+  const fitScore = lead?.fitScore ?? null;
 
   return (
     <div
@@ -427,21 +499,24 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                     {stageMeta.label}
                   </span>
                 </div>
+
+                {/* Campaign + ICP fit · folded into the AI card as quiet
+                    key/value lines. The goal is already shown by the GoalPill
+                    above, so we don't restate it. Separation is purely spatial
+                    — never a "·" between label and value. */}
+                {(campaignName || fitScore != null) && (
+                  <div className="mt-3 pt-3 border-t border-foreground/[0.07] flex flex-col gap-1.5">
+                    {campaignName && (
+                      <MetaLine label="Campaign" value={noDash(campaignName)} />
+                    )}
+                    {fitScore != null && (
+                      <MetaLine label="ICP fit" value={`${fitScore}%`} />
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* 2 · Campaign. The campaign this lead belongs to, its goal,
-                     and the per-lead flow as a read-only mini-sequence. A
-                     quiet peer of Context / Signals, sits under the AI card. */}
-              {campaignName && (
-                <CampaignSection
-                  campaignName={campaignName}
-                  goalLabel={goalLabel}
-                  flow={flow}
-                  currentKind={currentStepKind}
-                />
-              )}
-
-              {/* 3 · Context. Quiet, secondary. What the AI knows. */}
+              {/* 2 · Context. Quiet, secondary. What the AI knows. */}
               {hasContext && (
                 <div>
                   <SectionLabel>Context</SectionLabel>
@@ -459,7 +534,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                 </div>
               )}
 
-              {/* 3 · Signals. A proper section that mirrors Context exactly ·
+              {/* 3 · Signals. A proper section that mirrors Context exactly,
                      same header + glass card + row rhythm, so the two read as
                      a consistent pair (no floating bullets). */}
               {(lead?.signals?.length ?? 0) > 0 && (
@@ -488,6 +563,11 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                   </div>
                 </div>
               )}
+
+              {/* 4 · Flow. The campaign's per-lead action sequence as a
+                     vertical timeline, with per-step status. Sits last,
+                     under Signals, mirroring the CampaignDetail Flow card. */}
+              <FlowSection flow={flow} currentKind={currentStepKind} />
             </motion.div>
           ) : (
             <motion.div
