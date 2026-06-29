@@ -233,7 +233,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 //   label  -> text-[12.5px] text-foreground/45  w-[58px]
 //   value  -> text-[12.5px] text-foreground/85
 //   rhythm -> py-[7px], gap-2.5
-const ROW_LABEL_CLS = 'text-[12.5px] text-foreground/45 w-[58px] shrink-0';
+const ROW_LABEL_CLS = 'text-[12.5px] text-foreground/45 w-[72px] shrink-0 pr-2';
 const ROW_VALUE_CLS = 'text-[12.5px] text-foreground/85 truncate min-w-0 flex-1';
 const ROW_ICON_SIZE = 14;
 
@@ -277,12 +277,15 @@ function ContextRow({
   label: string;
   value: string;
 }) {
+  // Rows WITH an icon: icon + gap + label + value.
+  // Rows WITHOUT an icon (Overview Campaign / ICP): no leading spacer and no
+  // gap before the label, so the label sits flush LEFT against the card edge
+  // instead of being indented by an invisible icon slot. The value column
+  // still aligns because the label column width (ROW_LABEL_CLS) is fixed.
   return (
-    <div className="flex items-center gap-2.5 py-[7px]">
-      {Icon ? (
+    <div className={`flex items-center py-[7px] ${Icon ? 'gap-2.5' : ''}`}>
+      {Icon && (
         <Icon size={ROW_ICON_SIZE} strokeWidth={1.8} className="text-icon-muted shrink-0" />
-      ) : (
-        <span aria-hidden className="shrink-0" style={{ width: ROW_ICON_SIZE }} />
       )}
       <span className={ROW_LABEL_CLS}>{label}</span>
       <span className={ROW_VALUE_CLS}>{value}</span>
