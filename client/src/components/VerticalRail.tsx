@@ -28,6 +28,7 @@ import {
   Target,
   Calendar as CalendarIcon,
   Brain,
+  Rss,
   Search,
   Plus,
   type LucideIcon,
@@ -45,14 +46,17 @@ import { GlassCircleButton as SharedGlassCircleButton, ProfileInitials } from '.
 const GlassCircleButton = SharedGlassCircleButton;
 
 interface PrimaryItem {
-  key: 'inbox' | 'campaigns' | 'ai' | 'calendar';
+  key: 'feed' | 'inbox' | 'campaigns' | 'ai' | 'calendar';
   icon: LucideIcon;
   href: string;
   label: string;
 }
 
 // v-replaiy — 'Mijn AI' als 4e surface (persona + knowledge).
+// v-feed — Feed is the FIRST surface (most prominent), before Inbox. The app
+// still defaults to the Inbox at '/', so Feed has its own /feed route.
 const PRIMARY: PrimaryItem[] = [
+  { key: 'feed',      icon: Rss,          href: '/feed',      label: 'Feed' },
   { key: 'inbox',     icon: Inbox,        href: '/',          label: 'Inbox' },
   { key: 'campaigns', icon: Target,       href: '/campaigns', label: 'Campaigns' },
   { key: 'ai',        icon: Brain,        href: '/ai',        label: 'My AI' },
@@ -62,13 +66,15 @@ const PRIMARY: PrimaryItem[] = [
 export function VerticalRail() {
   const [loc, navigate] = useLocation();
 
-  const tab: 'inbox' | 'campaigns' | 'ai' | 'calendar' = loc.startsWith('/campaigns')
-    ? 'campaigns'
-    : loc.startsWith('/ai')
-      ? 'ai'
-      : loc.startsWith('/calendar')
-        ? 'calendar'
-        : 'inbox';
+  const tab: 'feed' | 'inbox' | 'campaigns' | 'ai' | 'calendar' = loc.startsWith('/feed')
+    ? 'feed'
+    : loc.startsWith('/campaigns')
+      ? 'campaigns'
+      : loc.startsWith('/ai')
+        ? 'ai'
+        : loc.startsWith('/calendar')
+          ? 'calendar'
+          : 'inbox';
 
   // Replaiy has three surfaces (Inbox, Campaigns, Calendar). The + button
   // only adds a new campaign on the Campaigns surface; the inbox has no
@@ -115,7 +121,8 @@ export function VerticalRail() {
           scale={0.75}
           value={tab}
           onChange={(k) => {
-            if (k === 'inbox') navigate('/');
+            if (k === 'feed') navigate('/feed');
+            else if (k === 'inbox') navigate('/');
             else if (k === 'campaigns') navigate('/campaigns');
             else if (k === 'ai') navigate('/ai');
             else navigate('/calendar');

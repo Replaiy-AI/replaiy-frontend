@@ -141,6 +141,11 @@ export interface LinkedInPost {
   activityReaction?: LinkedInReactionKind;
   /** Replaiy used this post to personalize outreach (shown as a quiet tag). */
   usedByAI?: boolean;
+  /** Feed only: when set, this post is ICP-relevant for the user and the Feed's
+   *  "Replaiy" mode shows a quiet relevance chip with this reason (e.g.
+   *  "Matches your ICP", "Posted by a 2nd-degree lead"). Posts without it are
+   *  noise that the Replaiy mode filters out; the LinkedIn mode shows all. */
+  relevanceReason?: string;
 }
 
 export interface LinkedInProfile {

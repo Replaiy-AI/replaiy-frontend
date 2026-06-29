@@ -14,6 +14,7 @@ import { DotsMenuSheet } from '@/components/DotsMenuSheet';
 import { InboxList } from '@/components/InboxList';
 import { ConversationDetail } from '@/pages/ConversationDetail';
 import { Briefing } from '@/pages/Briefing';
+import { Feed } from '@/pages/Feed';
 import { MijnAi } from '@/pages/MijnAi';
 import { CampaignsList } from '@/components/CampaignsList';
 import { AiList } from '@/components/AiList';
@@ -243,6 +244,10 @@ function LayoutShell() {
   // Determine right-pane content based on route
   const showingConversation = loc.startsWith('/conversation/');
   const showingBriefing = loc.startsWith('/briefing');
+  // v-feed — Feed is a FULL-PANE single-column scrolling page (like Briefing /
+  // MijnAi), NOT the list+detail split. It is the first nav item but lives at
+  // its own /feed route, so the app still opens on the Inbox at '/'.
+  const showingFeed = loc.startsWith('/feed');
   const showingSettings = loc.startsWith('/settings');
   const showingArchive = loc.startsWith('/archive');
   const showingCalendar = loc.startsWith('/calendar');
@@ -303,7 +308,7 @@ function LayoutShell() {
             ${
               showingCalendar
                 ? 'hidden'
-                : showingConversation || showingBriefing || showingSettings || showingArchive || showingCampaignDetail || showingAiDetail
+                : showingConversation || showingBriefing || showingFeed || showingSettings || showingArchive || showingCampaignDetail || showingAiDetail
                   ? 'hidden md:flex'
                   : 'flex'
             }
@@ -325,7 +330,7 @@ function LayoutShell() {
         <div
           className={`
             ${
-              showingConversation || showingBriefing || showingSettings || showingArchive || showingCalendar || showingAiDetail || showingCampaignDetail
+              showingConversation || showingBriefing || showingFeed || showingSettings || showingArchive || showingCalendar || showingAiDetail || showingCampaignDetail
                 ? 'flex'
                 : 'hidden md:flex'
             }
@@ -336,6 +341,10 @@ function LayoutShell() {
           <Switch>
             <Route path="/conversation/:id" component={ConversationDetail} />
             <Route path="/briefing" component={Briefing} />
+            {/* v-feed — Full-pane LinkedIn feed, mirroring how Briefing is wired:
+                the list column hides (showingFeed in the hide-group above) and
+                this route fills the full content pane on desktop too. */}
+            <Route path="/feed" component={Feed} />
             {/* v15.4 — /settings redirects to profile menu (opens sheet). */}
             <Route path="/settings" component={SettingsRedirect} />
             <Route path="/campaigns/:id" component={CampaignDetail} />

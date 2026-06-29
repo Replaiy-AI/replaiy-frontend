@@ -72,6 +72,7 @@ export function MobileBottomNav() {
   // campaign on /campaigns; the inbox has no cold-compose affordance
   // (LinkedIn replies happen inline in a conversation) and Calendar is a
   // placeholder, so the FAB is hidden on both.
+  const onFeed = loc.startsWith('/feed');
   const onCampaigns = loc.startsWith('/campaigns');
   const onCalendar = loc.startsWith('/calendar');
   const onAi = loc.startsWith('/ai');
@@ -79,13 +80,17 @@ export function MobileBottomNav() {
   const fabLabel = 'New campaign';
   const fabIcon: LucideIcon = Plus;
 
-  const navValue: 'inbox' | 'campaigns' | 'ai' | 'calendar' = onCalendar
-    ? 'calendar'
-    : onAi
-      ? 'ai'
-      : onCampaigns
-        ? 'campaigns'
-        : 'inbox';
+  // v-feed — Feed is the FIRST surface (its own /feed route). Inbox stays the
+  // default at '/', so navValue falls through to 'inbox' for the bare route.
+  const navValue: 'feed' | 'inbox' | 'campaigns' | 'ai' | 'calendar' = onFeed
+    ? 'feed'
+    : onCalendar
+      ? 'calendar'
+      : onAi
+        ? 'ai'
+        : onCampaigns
+          ? 'campaigns'
+          : 'inbox';
 
   // v30.32 — Pending-invite dot op tab-pill verwijderd; was visueel ruis
   // bovenop de calendar segment en niet consistent met de rest van het
@@ -111,16 +116,18 @@ export function MobileBottomNav() {
               scale={0.85}
               value={navValue}
               onChange={(k) => {
-                if (k === 'inbox') setLoc('/');
+                if (k === 'feed') setLoc('/feed');
+                else if (k === 'inbox') setLoc('/');
                 else if (k === 'campaigns') setLoc('/campaigns');
                 else if (k === 'ai') setLoc('/ai');
                 else setLoc('/calendar');
               }}
               segments={[
-                { key: 'inbox',     icon: PRIMARY_NAV[0].icon, label: 'Inbox' },
-                { key: 'campaigns', icon: PRIMARY_NAV[1].icon, label: 'Campaigns' },
-                { key: 'ai',        icon: PRIMARY_NAV[2].icon, label: 'My AI' },
-                { key: 'calendar',  icon: PRIMARY_NAV[3].icon, label: 'Calendar' },
+                { key: 'feed',      icon: PRIMARY_NAV[0].icon, label: 'Feed' },
+                { key: 'inbox',     icon: PRIMARY_NAV[1].icon, label: 'Inbox' },
+                { key: 'campaigns', icon: PRIMARY_NAV[2].icon, label: 'Campaigns' },
+                { key: 'ai',        icon: PRIMARY_NAV[3].icon, label: 'My AI' },
+                { key: 'calendar',  icon: PRIMARY_NAV[4].icon, label: 'Calendar' },
               ]}
             />
 
