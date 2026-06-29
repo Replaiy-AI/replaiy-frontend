@@ -90,8 +90,23 @@ export interface LinkedInEducation {
   description?: string;
 }
 
+/** LinkedIn reaction types, exactly as LinkedIn labels them. */
+export type LinkedInReactionKind =
+  | 'like'
+  | 'celebrate'
+  | 'support'
+  | 'love'
+  | 'insightful'
+  | 'funny';
+
 export interface LinkedInPost {
   id: string;
+  /** Activity type, mirroring LinkedIn's Activity tabs:
+   *  'post'     = the person published this post,
+   *  'comment'  = the person commented on someone else's post,
+   *  'reaction' = the person reacted (like/insightful/...) to someone else's post.
+   *  Defaults to 'post' when unset. */
+  kind?: 'post' | 'comment' | 'reaction';
   authorName: string;
   authorHeadline?: string;
   authorAvatarUrl?: string;
@@ -101,6 +116,10 @@ export interface LinkedInPost {
   likes?: number;
   comments?: number;
   reposts?: number;
+  /** For 'comment' items: the text the person wrote on the original post. */
+  activityComment?: string;
+  /** For 'reaction' items: which reaction the person gave to the original post. */
+  activityReaction?: LinkedInReactionKind;
   /** Replaiy used this post to personalize outreach (shown as a quiet tag). */
   usedByAI?: boolean;
 }
@@ -360,6 +379,58 @@ export const mockConversations: Conversation[] = [
         ],
         posts: [
           {
+            id: 'p-emma-c1',
+            kind: 'comment',
+            authorName: 'Marcus Lindqvist',
+            authorHeadline: 'Founder at Replyloop',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=68',
+            timeAgo: '2d',
+            text: 'Most sales teams measure activity because activity is easy to count. Replies are hard to count and harder to fake. If your dashboard only shows dials and emails sent, you are optimizing for the wrong thing. Measure conversations started.',
+            likes: 264,
+            comments: 38,
+            reposts: 21,
+            activityComment: 'This is exactly the shift we made last quarter. Counting conversations instead of touches changed how the whole team thinks about a good day.',
+          },
+          {
+            id: 'p-emma-c2',
+            kind: 'comment',
+            authorName: 'Sofia Reyes',
+            authorHeadline: 'RevOps Lead at Cadence',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=24',
+            timeAgo: '4d',
+            text: 'Unpopular opinion: your SDRs do not need more tools, they need fewer accounts and more time to research them. We cut every rep down to 25 named accounts and pipeline went up.',
+            likes: 187,
+            comments: 29,
+            reposts: 9,
+            activityComment: 'Fewer accounts, deeper research, every time. We saw the same lift when we made the territory smaller.',
+          },
+          {
+            id: 'p-emma-r1',
+            kind: 'reaction',
+            activityReaction: 'insightful',
+            authorName: 'Daniel Okafor',
+            authorHeadline: 'VP Sales at Brightloop',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=33',
+            timeAgo: '3d',
+            text: 'The fastest way to kill a good outbound program is to judge it on week one. Pipeline from relevance compounds. Give it a full quarter before you decide it does not work.',
+            likes: 142,
+            comments: 11,
+            reposts: 7,
+          },
+          {
+            id: 'p-emma-r2',
+            kind: 'reaction',
+            activityReaction: 'celebrate',
+            authorName: 'Northwave Labs',
+            authorHeadline: 'B2B SaaS for product led growth teams',
+            timeAgo: '5d',
+            text: 'Thrilled to share that our team just won Outbound Team of the Year at the RevGrowth Awards. Proud of every rep who chose relevance over volume.',
+            imageUrl: 'https://i.pravatar.cc/600?img=58',
+            likes: 318,
+            comments: 44,
+            reposts: 19,
+          },
+          {
             id: 'p-emma-1',
             authorName: 'Emma Chen',
             authorHeadline: 'Head of Growth at Northwave Labs',
@@ -563,6 +634,58 @@ export const mockConversations: Conversation[] = [
         ],
         posts: [
           {
+            id: 'p-jan-c1',
+            kind: 'comment',
+            authorName: 'Sara Bakker',
+            authorHeadline: 'Engineering Manager at Tilde',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=45',
+            timeAgo: '3d',
+            text: 'A vendor emailed our entire backend team the same pitch on the same morning. Different names, identical body. We screenshot it into a channel and laughed. That is the opposite of how you reach engineers.',
+            likes: 356,
+            comments: 52,
+            reposts: 24,
+            activityComment: 'If you cannot tell me which line of our changelog made you reach out, you did not earn the reply. Relevance is the whole job.',
+          },
+          {
+            id: 'p-jan-c2',
+            kind: 'comment',
+            authorName: 'Tomás Herrera',
+            authorHeadline: 'Principal Engineer at Northwind',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=59',
+            timeAgo: '6d',
+            text: 'The best engineering cultures treat on call as a design problem, not a rota problem. If your people dread the pager, the architecture is telling you something. Listen to it.',
+            likes: 274,
+            comments: 33,
+            reposts: 15,
+            activityComment: 'Exactly this. We treat every 3am page as a bug in the system, not a fact of life. Fix the cause, not the schedule.',
+          },
+          {
+            id: 'p-jan-r1',
+            kind: 'reaction',
+            activityReaction: 'like',
+            authorName: 'Priya Nair',
+            authorHeadline: 'Staff Engineer at Acme Software',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=44',
+            timeAgo: '4d',
+            text: 'Shipped a migration that touched every service and nobody noticed. That is the highest compliment infrastructure work can get. Invisible is the goal.',
+            likes: 198,
+            comments: 17,
+            reposts: 8,
+          },
+          {
+            id: 'p-jan-r2',
+            kind: 'reaction',
+            activityReaction: 'insightful',
+            authorName: 'Lena Fischer',
+            authorHeadline: 'VP Engineering at Hexbyte',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=27',
+            timeAgo: '1w',
+            text: 'Stop rewarding heroics. The engineer who quietly prevents the outage is worth ten who heroically fix it at midnight. Build a culture that notices the prevention.',
+            likes: 421,
+            comments: 36,
+            reposts: 27,
+          },
+          {
             id: 'p-jan-1',
             authorName: 'Jan de Vries',
             authorHeadline: 'CTO at Acme Software',
@@ -763,6 +886,59 @@ export const mockConversations: Conversation[] = [
           'Performance Marketing',
         ],
         posts: [
+          {
+            id: 'p-hannah-c1',
+            kind: 'comment',
+            authorName: 'Ava Thompson',
+            authorHeadline: 'Head of Lifecycle at Loomly',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=20',
+            timeAgo: '2d',
+            text: 'Acquisition gets the budget and the applause, but retention quietly pays the bills. The brands that win in D2C this year are the ones who treat the second order like it matters more than the first.',
+            likes: 203,
+            comments: 27,
+            reposts: 14,
+            activityComment: 'The post purchase moment is the single highest leverage email we send. Nail that one flow and everything downstream gets easier.',
+          },
+          {
+            id: 'p-hannah-c2',
+            kind: 'comment',
+            authorName: 'Noah Klein',
+            authorHeadline: 'Creative Director at Field Studio',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=14',
+            timeAgo: '5d',
+            text: 'A campaign that ships today and learns something beats a flawless one that ships next quarter. Speed is a creative advantage, not a compromise. Stop polishing in private.',
+            likes: 158,
+            comments: 19,
+            reposts: 8,
+            activityComment: 'Yes. We ship a little messy and fix in public, and our best ideas all started as something we were almost embarrassed to send.',
+          },
+          {
+            id: 'p-hannah-r1',
+            kind: 'reaction',
+            activityReaction: 'love',
+            authorName: 'Lukas Berger',
+            authorHeadline: 'Founder at Kettle & Co',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=51',
+            timeAgo: '3d',
+            text: 'Our subscriber community just crossed ten thousand members, and most of them came from word of mouth, not ads. Build something people want to tell their friends about and growth takes care of itself.',
+            imageUrl: 'https://i.pravatar.cc/600?img=64',
+            likes: 246,
+            comments: 31,
+            reposts: 18,
+          },
+          {
+            id: 'p-hannah-r2',
+            kind: 'reaction',
+            activityReaction: 'celebrate',
+            authorName: 'Mia Rossi',
+            authorHeadline: 'Growth Lead at Verdant',
+            authorAvatarUrl: 'https://i.pravatar.cc/120?img=32',
+            timeAgo: '1w',
+            text: 'After two years of building, our little brand just hit profitability without raising a cent. Slow, deliberate and ours. Grateful for every customer who came back.',
+            likes: 312,
+            comments: 40,
+            reposts: 22,
+          },
           {
             id: 'p-hannah-1',
             authorName: 'Hannah Müller',

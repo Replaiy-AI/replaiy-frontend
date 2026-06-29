@@ -16,11 +16,15 @@
 //   • the "Show more" clamp + gradient-fade mask pattern lifted from the
 //     StickyConversationSummary in ConversationTimeline (~L424-470)
 //
-// STEP 1 SCOPE: Hero + About + Experience only. Education, Skills and Recent
-// Posts are designed in the data layer but NOT rendered yet — see the clearly
-// marked TODO markers for steps 2-4 below.
+// Renders the full profile: Hero + About + Experience + Education + Skills +
+// Activity. The Activity section mirrors LinkedIn's profile Activity tabs with a
+// content-type filter (All / Posts / Comments / Reactions) over a chronological
+// list, reusing the lead-panel VadikLiquidSwitcher (text variant) for the tabs
+// and the existing PostCard for every original post (posts, comment targets and
+// reaction targets alike).
 // ─────────────────────────────────────────────────────────────────
 import { useState, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, UserPlus, Building2, MapPin, GraduationCap } from 'lucide-react';
 import { APPLE_SPRING } from '@/lib/motion';
@@ -28,7 +32,15 @@ import { ReplaiyAvatar } from '@/components/Avatar';
 import { SectionLabel } from '@/components/LeadContextPanel';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
-import type { Conversation, LinkedInExperience, LinkedInEducation, LinkedInPost } from '@/data/mockConversations';
+import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
+import { useIsMobile } from '@/hooks/use-mobile';
+import type {
+  Conversation,
+  LinkedInExperience,
+  LinkedInEducation,
+  LinkedInPost,
+  LinkedInReactionKind,
+} from '@/data/mockConversations';
 // Real LinkedIn BRAND badges (not UI accents). These deliberately use LinkedIn
 // brand colours (LinkedIn blue, premium orange, Sales Navigator compass) which
 // differ from the app's single #2F6BFF accent — allowed here because they are
@@ -39,6 +51,18 @@ import linkedinPremium from '@/assets/linkedin-premium.png';
 import linkedinSalesnav from '@/assets/linkedin-salesnav.png';
 
 const ACCENT = '#2F6BFF';
+
+// Activity content-type filter, mirroring LinkedIn's profile Activity tabs.
+type ActivityTab = 'all' | 'posts' | 'comments' | 'reactions';
+
+// Calm muted copy shown when a tab has no items. Same warm tone as the
+// lead-panel "not found" lines.
+const ACTIVITY_EMPTY: Record<ActivityTab, string> = {
+  all: 'No activity yet',
+  posts: 'No posts yet',
+  comments: 'No comments yet',
+  reactions: 'No reactions yet',
+};
 
 // ─── LinkedIn tier brand badges ───────────────────────────────────
 // Driven purely by mail.lead.linkedinProfile.linkedinTier (defaults to 'free').
@@ -282,7 +306,13 @@ function EducationEntry({ item }: { item: LinkedInEducation }) {
 // comments / reposts as muted counts separated by spacing (never a middot),
 // omitting any count that is undefined or zero. usedByAI is deliberately NOT
 // surfaced: every post renders neutrally and identically.
-function PostCard({ post }: { post: LinkedInPost }) {
+//
+// `nested` renders OPTIONAL subordinate content INSIDE the card, below the
+// stats row, separated by a thin hairline divider. The Activity "comment" item
+// uses this to nest the profile person's own reply WITHIN the original post
+// card, so a comment reads as one unit ("post + the reply on it") rather than
+// two sibling cards of equal weight.
+function PostCard({ post, nested }: { post: LinkedInPost; nested?: ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   // Same threshold rationale as AboutSection: clamp once it is worth clamping.
   const canClamp = post.text.length > 220;
@@ -369,6 +399,154 @@ function PostCard({ post }: { post: LinkedInPost }) {
           ))}
         </div>
       )}
+
+      {/* Optional nested content (e.g. the profile person's own comment),
+          separated by a hairline divider so it reads as subordinate to the
+          post above it, inside the SAME card. */}
+      {nested && (
+        <div className="mt-3 pt-3 border-t border-foreground/[0.08] dark:border-white/[0.08]">
+          {nested}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Activity · reaction label map ────────────────────────────────
+// Maps a LinkedInReactionKind to the exact word LinkedIn uses in its reaction
+// chips. Kept tiny and local because it is only used by the reaction
+// attribution line below.
+const REACTION_LABEL: Record<LinkedInReactionKind, string> = {
+  like: 'Like',
+  celebrate: 'Celebrate',
+  support: 'Support',
+  love: 'Love',
+  insightful: 'Insightful',
+  funny: 'Funny',
+};
+
+// ─── Activity · attribution line ──────────────────────────────────
+// The small muted line LinkedIn shows ABOVE a comment / reaction card, e.g.
+// "Emma commented on Marcus Lindqvist's post". Em-dash-free and middot-free by
+// construction (plain words + a possessive). Reuses the same muted text scale
+// as the PostCard headline subline so the family reads consistently.
+function ActivityAttribution({
+  profileFirstName,
+  verb,
+  authorName,
+  reactionLabel,
+}: {
+  profileFirstName: string;
+  verb: 'commented' | 'reacted';
+  authorName: string;
+  reactionLabel?: string;
+}) {
+  // Possessive that handles names already ending in s (e.g. "Lukas'").
+  const trimmed = noDash(authorName).trim();
+  const possessive = /s$/i.test(trimmed) ? `${trimmed}'` : `${trimmed}'s`;
+  // LinkedIn's exact phrasing: "commented on ...'s post" / "reacted to ...'s post".
+  const preposition = verb === 'commented' ? 'on' : 'to';
+  return (
+    <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mb-1.5 px-0.5 text-[12px] text-foreground/50 leading-snug">
+      <span className="min-w-0">
+        <span className="font-semibold text-foreground/65">{profileFirstName}</span>{' '}
+        {verb} {preposition}{' '}
+        <span className="font-medium text-foreground/65">{possessive}</span> post
+      </span>
+      {reactionLabel && (
+        <span className="glass-pill rounded-full inline-flex items-center h-[18px] px-2 text-[11px] font-medium text-foreground/60">
+          {reactionLabel}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── Activity · single activity item ──────────────────────────────
+// One row in the Activity list, switching on post.kind:
+//   • 'post'     → the original PostCard, unchanged.
+//   • 'comment'  → attribution line + the original PostCard with the profile
+//                  person's own reply NESTED INSIDE the same card (below a
+//                  hairline divider), so the two read as one unit: the post,
+//                  and the comment this person left on it. The nested reply is
+//                  deliberately lighter and smaller than the post (28px avatar,
+//                  smaller muted text, no second card surface) so the eye reads
+//                  post (primary) then reply (secondary), never two posts.
+//   • 'reaction' → attribution line (with the reaction label chip) + the
+//                  original PostCard.
+// Reuses PostCard for the original post in every case rather than rebuilding
+// any post chrome, and ReplaiyAvatar for the nested reply author.
+function ActivityItem({
+  post,
+  profileFirstName,
+  profileName,
+  profileAvatar,
+}: {
+  post: LinkedInPost;
+  profileFirstName: string;
+  profileName: string;
+  profileAvatar?: string;
+}) {
+  const kind = post.kind ?? 'post';
+
+  if (kind === 'comment') {
+    // The profile person's reply, NESTED inside the post card (passed as the
+    // PostCard `nested` slot). It is intentionally lighter than a post: a 28px
+    // avatar, smaller muted text and NO second card surface, indented from the
+    // post body so it reads as a subordinate reply on the post, not a sibling
+    // post of equal weight.
+    const reply = post.activityComment ? (
+      <div
+        className="flex items-start gap-2.5"
+        data-testid={`activity-comment-${post.id}`}
+      >
+        <ReplaiyAvatar name={profileName} src={profileAvatar} size={28} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[12px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
+              {noDash(profileName)}
+            </span>
+            <span className="text-[10.5px] uppercase tracking-[0.04em] font-semibold text-foreground/35">
+              Comment
+            </span>
+          </div>
+          <p className="text-[12.5px] leading-[1.5] text-foreground/70 m-0 mt-0.5 break-words">
+            {noDash(post.activityComment)}
+          </p>
+        </div>
+      </div>
+    ) : undefined;
+    return (
+      <div data-testid={`activity-item-${post.id}`}>
+        <ActivityAttribution
+          profileFirstName={profileFirstName}
+          verb="commented"
+          authorName={post.authorName}
+        />
+        <PostCard post={post} nested={reply} />
+      </div>
+    );
+  }
+
+  if (kind === 'reaction') {
+    return (
+      <div data-testid={`activity-item-${post.id}`}>
+        <ActivityAttribution
+          profileFirstName={profileFirstName}
+          verb="reacted"
+          authorName={post.authorName}
+          reactionLabel={
+            post.activityReaction ? REACTION_LABEL[post.activityReaction] : undefined
+          }
+        />
+        <PostCard post={post} />
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid={`activity-item-${post.id}`}>
+      <PostCard post={post} />
     </div>
   );
 }
@@ -396,6 +574,23 @@ export function LinkedInProfileView({
   const posts = profile?.posts ?? [];
   // Account tier drives the LinkedIn brand badge(s) shown after the name.
   const tier = profile?.linkedinTier ?? 'free';
+
+  // ── Activity content-type filter (mirrors LinkedIn's Activity tabs) ──
+  // All / Posts / Comments / Reactions, defaulting to All. The array order is
+  // treated as chronological, so "All" simply renders posts as-is. The other
+  // tabs filter on post.kind (treating an unset kind as 'post'). The first
+  // name of the profile person (from mail.from.name) drives the attribution
+  // lines on comment / reaction items.
+  const [activityTab, setActivityTab] = useState<ActivityTab>('all');
+  const isMobile = useIsMobile();
+  const profileFirstName = (name ?? '').trim().split(/\s+/)[0] || name;
+  const visiblePosts = useMemo(() => {
+    if (activityTab === 'posts')
+      return posts.filter((p) => (p.kind ?? 'post') === 'post');
+    if (activityTab === 'comments') return posts.filter((p) => p.kind === 'comment');
+    if (activityTab === 'reactions') return posts.filter((p) => p.kind === 'reaction');
+    return posts;
+  }, [posts, activityTab]);
 
   return (
     <>
@@ -620,22 +815,74 @@ export function LinkedInProfileView({
             )}
 
             {/* ── ACTIVITY ──────────────────────────────────────────
-                ALL of the lead's LinkedIn posts (LinkedIn calls this tab
-                "Activity"), rendered as calm read-only PostCards in their own
-                gap-3 stack while the section itself stays a sibling in the
-                outer gap-5 flow. Every post renders NEUTRALLY: the usedByAI
-                field is intentionally NOT surfaced here. When researching a
-                lead the user is reading the person, not inspecting AI
-                behaviour. Each PostCard reuses ReplaiyAvatar, the AboutSection
-                clamp/See-more recipe, the rp-card surface and noDash(). */}
+                LinkedIn's profile "Activity" section, mirrored 1:1: a
+                content-type FILTER above a chronological list. The filter is
+                the SAME premium VadikLiquidSwitcher (text variant) used by the
+                lead-panel Overview/Contact tabs, here with four short segments
+                (All / Posts / Comments / Reactions). "All" mixes every item in
+                array order (treated as chronological); the other tabs filter on
+                post.kind. Each item renders via ActivityItem, which reuses the
+                same PostCard for the original post in every case and adds the
+                muted attribution line + inset comment (or reaction chip) on top.
+                Every post still renders NEUTRALLY: usedByAI is never surfaced.
+
+                Fitting FOUR tabs in the narrow 340px desktop column: the
+                switcher track width is padLeft*2 + optionW*count + gap*(count-1),
+                all times `scale`. We use optionWidth 92 at scale 0.72 on desktop
+                -> (24 + 368 + 24) * 0.72 ≈ 300px, which sits comfortably inside
+                the ~308px content width. On mobile (~390px) we widen optionWidth
+                so the pill reads as a full-width segmented control, identical to
+                how LeadContextPanel widens its two-tab pill on phone. The
+                indicator stride math derives from optionWidth, so the sliding
+                indicator always lands exactly under the active segment. */}
             {posts.length > 0 && (
               <div data-testid="profile-activity">
                 <SectionLabel>Activity</SectionLabel>
-                <div className="flex flex-col gap-3">
-                  {posts.map((post) => (
-                    <PostCard key={post.id} post={post} />
-                  ))}
+                {/* Filter tabs. Mirrors the LeadContextPanel sticky-tab wrapper:
+                    full-width centered on mobile, inline (left-aligned) on the
+                    fixed desktop column. The pill carries its own glass, so no
+                    extra surface wrapper is needed. */}
+                <div
+                  className={
+                    (isMobile ? 'flex justify-center w-full' : 'inline-flex') + ' mb-3'
+                  }
+                >
+                  <VadikLiquidSwitcher<ActivityTab>
+                    testId="activity-tab"
+                    variant="text"
+                    optionWidth={isMobile ? 112 : 92}
+                    scale={0.72}
+                    value={activityTab}
+                    onChange={setActivityTab}
+                    segments={[
+                      { key: 'all', label: 'All' },
+                      { key: 'posts', label: 'Posts' },
+                      { key: 'comments', label: 'Comments' },
+                      { key: 'reactions', label: 'Reactions' },
+                    ]}
+                  />
                 </div>
+
+                {visiblePosts.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    {visiblePosts.map((post) => (
+                      <ActivityItem
+                        key={post.id}
+                        post={post}
+                        profileFirstName={profileFirstName}
+                        profileName={name}
+                        profileAvatar={avatar}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p
+                    className="text-[12.5px] text-foreground/40 italic m-0 px-0.5"
+                    data-testid="activity-empty"
+                  >
+                    {ACTIVITY_EMPTY[activityTab]}
+                  </p>
+                )}
               </div>
             )}
 
