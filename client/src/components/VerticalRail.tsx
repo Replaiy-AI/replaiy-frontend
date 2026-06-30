@@ -147,6 +147,7 @@ export function VerticalRail() {
         <GlassCircleButton
           label="Search"
           testId="rail-search"
+          size={52}
           onClick={() => window.dispatchEvent(new CustomEvent('replaiy:open-search'))}
         >
           <Search size={19} strokeWidth={1.75} />
@@ -159,6 +160,7 @@ export function VerticalRail() {
           <GlassCircleButton
             label={newAction.label}
             testId="rail-new"
+            size={52}
             onClick={() => navigate(newAction.href)}
           >
             <NewIcon size={19} strokeWidth={1.75} />
@@ -179,6 +181,7 @@ export function VerticalRail() {
         <GlassCircleButton
           label="Simon van Basten"
           testId="rail-profile"
+          size={52}
         >
           <ProfileInitials initials="SB" />
         </GlassCircleButton>
