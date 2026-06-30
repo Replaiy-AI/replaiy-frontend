@@ -377,13 +377,23 @@ export function Feed() {
           relative + overflow-hidden makes the engagers push-in (absolute
           inset-0) slide within this pane only. */}
       <div className="relative flex flex-col h-full min-h-0 overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-          <div className="px-4 lg:px-8 pt-[calc(env(safe-area-inset-top,0px)+96px)] md:pt-6 pb-24 lg:pb-12 max-w-2xl mx-auto w-full">
-            {/* Desktop header · just the mode toggle, centered above the feed
-                column. Mobile gets the toggle from the top-chrome slot, so this
-                header is md:flex only. The title + Rss icon were removed — the
-                toggle is the only header element above the feed now. */}
-            <div className="hidden md:flex items-center justify-center gap-3 mb-5">
+        {/* DESKTOP floating top bar · the mode toggle, PINNED above the scroll
+            content, mirroring CampaignDetail / ConversationTimeline. It used to
+            live INSIDE the scroll (so it scrolled away and slid under the
+            frosting veil); now it floats. Same recipe as the conversation top
+            bar: `hidden md:block absolute top-3 inset-x-0 z-30
+            pointer-events-none` (z-30 so it sits ABOVE the veil's z-20). The
+            inner wrapper centers the toggle within the SAME `max-w-2xl mx-auto`
+            column the posts use (matching the existing centered alignment), and
+            carries `pointer-events-auto` so the toggle stays fully interactive
+            while the outer band passes scroll/clicks through. Mobile is
+            unchanged — it gets its toggle from FeedChromeSlot. */}
+        <div
+          data-testid="feed-desktop-header"
+          className="hidden md:block absolute top-3 inset-x-0 z-30 pointer-events-none px-4 lg:px-8"
+        >
+          <div className="max-w-2xl mx-auto w-full flex items-center justify-center h-[52px]">
+            <div className="pointer-events-auto inline-flex items-center">
               <VadikLiquidSwitcher<FeedMode>
                 testId="feed-mode-desktop"
                 variant="text"
@@ -398,7 +408,16 @@ export function Feed() {
                 ]}
               />
             </div>
+          </div>
+        </div>
 
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+          {/* DESKTOP paddingTop (86) clears the floating top bar (top-3 = 12px +
+              52px pill + ~22px breathing room ≈ 86px), mirroring CampaignDetail,
+              so the composer starts just below the pinned toggle. Mobile keeps
+              its safe-area + 96px chrome offset via pt-[...]; md drops to the
+              floating-bar clearance. */}
+          <div className="px-4 lg:px-8 pt-[calc(env(safe-area-inset-top,0px)+96px)] md:pt-[86px] pb-24 lg:pb-12 max-w-2xl mx-auto w-full">
             {/* Compose bar · the LinkedIn-style "Start a post" affordance. Sits
                 at the top of the feed content column (inside the same
                 max-w-2xl container as the posts, so it aligns with them),
@@ -459,7 +478,7 @@ export function Feed() {
             pointer-events-none keeps scroll + the centered toggle interactive. */}
         <div
           aria-hidden
-          className="absolute inset-x-0 top-0 z-[1] h-[calc(env(safe-area-inset-top,0px)+88px)] md:h-[76px] mobile-chrome-veil pointer-events-none"
+          className="absolute inset-x-0 top-0 z-20 h-[calc(env(safe-area-inset-top,0px)+88px)] md:h-[76px] mobile-chrome-veil pointer-events-none"
         />
 
         {/* Engagers push-in, stacked OVER the feed at z-[80]. Sibling INSIDE
