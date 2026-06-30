@@ -78,7 +78,6 @@ import {
   type LeadSourceKind,
   type LeadWarmth,
   type IcpCriteria,
-  type SampleLead,
 } from '@/data/mockCampaigns';
 import { LANGUAGE_LABELS, activePersona, type LanguageCode } from '@/data/mockPersona';
 import { ReplaiyAvatar } from '@/components/Avatar';
@@ -88,7 +87,6 @@ import { GlassToggle } from '@/components/GlassToggle';
 import { GlassCircleButton } from '@/components/GlassCircleButton';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import { GlassPopover } from '@/components/GlassPopover';
-import { ResponsiveSheet } from '@/components/ResponsiveSheet';
 import { conversionPct, replyRatePct } from '@/components/CampaignsList';
 import { SectionLabel } from '@/components/LeadContextPanel';
 import { ReplaiyLogo } from '@/components/Logo';
@@ -1255,27 +1253,54 @@ function AudienceSuppressCard({ audience }: { audience: CampaignAudience }) {
   );
 }
 
-// ── View-leads preview - a lightweight sheet of sample enriched leads ─
-function ViewLeadsSheet({
-  open,
-  onClose,
-  leads,
-}: {
-  open: boolean;
-  onClose: () => void;
-  leads: SampleLead[];
-}) {
-  return (
-    <ResponsiveSheet open={open} onClose={onClose} desktopWidth="md" testId="view-leads-sheet">
-      <div className="px-5 pt-5 pb-2">
-        <div className="text-[16px] font-semibold tracking-[-0.01em] text-foreground">
+// ── View-leads, full-screen route ───────────────────────────────────
+// The audience preview is its OWN screen (no overlay/sheet), reached at
+// /campaigns/:id/leads and dispatched from CampaignDetail. It mirrors the
+// detail view's shell: a centered CAMPAIGN_COLUMN_MAX (720) column, a desktop
+// floating top bar at top-3 (back button top-left, on the same h-[52px]
+// baseline as the detail toolbar), and the mobile back button registered via
+// useMobileTopChromeSlot. Unlike the tabbed detail (which has no desktop back
+// button) the leads screen has no tabs, so it DOES get a desktop back button.
+// The lead rows are the EXACT markup that previously lived in ViewLeadsSheet -
+// only moved out of the sheet, never restyled.
+function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
+  const [, navigate] = useLocation();
+  const leads = campaign.audience?.sampleLeads ?? [];
+  const back = () => navigate('/campaigns/' + campaign.id);
+
+  // Mobile chrome - back arrow (left), same pattern as the detail's button-back.
+  useMobileTopChromeSlot(
+    useMemo(
+      () => ({
+        priority: 100,
+        leftSlot: (
+          <ActionPill testId="button-back-leads" label="Back" onClick={back}>
+            <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
+          </ActionPill>
+        ),
+      }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [campaign.id],
+    ),
+  );
+
+  // Title + sub + the lead list - shared by desktop and mobile bodies.
+  const body = (
+    <div className="mx-auto w-full" style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}>
+      <div className="px-1 mb-4">
+        <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-foreground">
           Leads in this audience
-        </div>
-        <p className="text-[12.5px] text-foreground/50 leading-snug mt-0.5">
+        </h1>
+        <p className="text-[12.5px] text-foreground/50 leading-snug mt-1">
           A sample, each enriched with recent activity and buying signals.
         </p>
       </div>
-      <div className="px-3 pb-5 overflow-y-auto no-scrollbar">
+      <div className="rp-card rounded-3xl px-3 py-1.5">
+        {leads.length === 0 && (
+          <p className="px-2 py-8 text-center text-[13px] text-foreground/45">
+            No sample leads yet. They appear here once this audience is enriched.
+          </p>
+        )}
         <div className="flex flex-col">
           {leads.map((lead, i) => (
             <div key={`${lead.name}-${i}`}>
@@ -1324,7 +1349,57 @@ function ViewLeadsSheet({
           ))}
         </div>
       </div>
-    </ResponsiveSheet>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-full min-h-0 relative">
+      {/* DESKTOP floating top bar - back button top-left, on the SAME top-3 /
+          h-[52px] baseline as the campaign detail toolbar, inside the SAME
+          centered 720 column. The leads screen has no tabs, so unlike the
+          detail it DOES carry a back button on desktop. */}
+      <div
+        data-testid="campaign-leads-desktop-header"
+        className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none px-4 lg:px-6"
+      >
+        <div
+          className="mx-auto flex items-center h-[52px]"
+          style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}
+        >
+          <div className="pointer-events-auto">
+            <ActionPill testId="button-back-leads" label="Back" onClick={back}>
+              <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
+            </ActionPill>
+          </div>
+        </div>
+      </div>
+
+      {/* DESKTOP scroll container - paddingTop clears the floating top bar,
+          matching the detail pane so the leads content starts at the same
+          vertical position. */}
+      <div
+        data-testid="campaign-leads-scroll"
+        className="hidden lg:flex flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar pb-10"
+        style={{ paddingTop: 86 }}
+      >
+        <div className="flex-1 px-4 lg:px-6">{body}</div>
+      </div>
+
+      {/* MOBILE scroll container - content sits under the floating chrome. */}
+      <div
+        className="flex lg:hidden flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 pb-32"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
+      >
+        {body}
+      </div>
+
+      {/* DESKTOP top frosting veil - same recipe as the detail pane so content
+          frosts softly behind the floating top bar. */}
+      <div
+        aria-hidden
+        className="hidden lg:block absolute inset-x-0 top-0 z-20 h-[86px] mobile-chrome-veil pointer-events-none"
+      />
+    </div>
   );
 }
 
@@ -1332,23 +1407,23 @@ function ViewLeadsSheet({
 // Threshold + view-leads live here so the pool health line, the slider, and
 // the preview all read from one source of truth (local state).
 function AudienceSection({ campaign }: { campaign: Campaign }) {
+  const [, navigate] = useLocation();
   const audience = campaign.audience;
   const [threshold, setThreshold] = useState(audience?.matchThreshold ?? 70);
-  const [leadsOpen, setLeadsOpen] = useState(false);
   if (!audience) return null;
-  const leads = audience.sampleLeads ?? [];
   return (
     <div className="flex flex-col gap-6 md:gap-7">
+      {/* v-leads-route — "View leads" now navigates to a full-screen route
+          (/campaigns/:id/leads) instead of opening an overlay sheet. */}
       <AudiencePoolCard
         audience={audience}
         threshold={threshold}
-        onViewLeads={() => setLeadsOpen(true)}
+        onViewLeads={() => navigate('/campaigns/' + campaign.id + '/leads')}
       />
       <AudienceSourcesCard audience={audience} />
       <AudienceIcpCard audience={audience} />
       <AudienceThresholdCard audience={audience} value={threshold} onChange={setThreshold} />
       <AudienceSuppressCard audience={audience} />
-      <ViewLeadsSheet open={leadsOpen} onClose={() => setLeadsOpen(false)} leads={leads} />
     </div>
   );
 }
@@ -1358,14 +1433,26 @@ function AudienceSection({ campaign }: { campaign: Campaign }) {
 // then delegate to the create view or the detail view, or an empty state.
 export default function CampaignDetail() {
   const params = useParams<{ id?: string }>();
+  const [loc] = useLocation();
   const { campaigns } = useReplaiy();
   const id = params.id;
+
+  // v-leads-route — detect the /campaigns/:id/leads sub-route. The leads view
+  // is a full-screen route (no overlay/sheet) reached from the Audience tab's
+  // "View leads" button; when present we render CampaignLeadsView instead of
+  // the tabbed detail.
+  const showingLeads = /\/campaigns\/[^/]+\/leads\/?$/.test(loc);
 
   if (id === 'new') {
     return <CampaignCreate key="new" />;
   }
 
   const campaign = id ? campaigns.find((c) => c.id === id) : undefined;
+
+  if (showingLeads) {
+    if (!campaign) return <CampaignMissing key="missing-leads" />;
+    return <CampaignLeadsView campaign={campaign} key={`${campaign.id}-leads`} />;
+  }
 
   if (!id) {
     // Bare /campaigns in the right pane (desktop). The list/overview owns the

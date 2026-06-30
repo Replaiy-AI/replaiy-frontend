@@ -350,6 +350,12 @@ function LayoutShell() {
             <Route path="/feed" component={Feed} />
             {/* v15.4 — /settings redirects to profile menu (opens sheet). */}
             <Route path="/settings" component={SettingsRedirect} />
+            {/* v-leads-route — the audience "View leads" preview is now its own
+                full-screen route with a back button (no overlay/sheet). It must
+                come BEFORE /campaigns/:id since wouter matches in order and the
+                /leads suffix is the more specific path. Both render through the
+                CampaignDetail dispatcher, which detects the /leads sub-route. */}
+            <Route path="/campaigns/:id/leads" component={CampaignDetail} />
             <Route path="/campaigns/:id" component={CampaignDetail} />
             <Route path="/campaigns" component={CampaignDetail} />
             {/* v-replaiy — Calendar tab retained as a "Coming soon" placeholder.
