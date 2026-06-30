@@ -90,7 +90,7 @@ import { GlassCircleButton } from '@/components/GlassCircleButton';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import { GlassPopover } from '@/components/GlassPopover';
 import { ResponsiveSheet } from '@/components/ResponsiveSheet';
-import { conversionPct, replyRatePct, GoalPill, ConversionBar } from '@/components/CampaignsList';
+import { conversionPct, replyRatePct } from '@/components/CampaignsList';
 import { SectionLabel } from '@/components/LeadContextPanel';
 import { ReplaiyLogo } from '@/components/Logo';
 import { APPLE_SPRING } from '@/lib/motion';
@@ -2789,9 +2789,6 @@ function CampaignAiHero({ campaign }: { campaign: Campaign }) {
 
   const read = campaignAiRead(campaign);
   const phase = campaignPhaseLabel(campaign);
-  // The status strip progress reuses the funnel's conversion% so the bar
-  // reads as "progress toward your goal", tinted with the persona AI accent.
-  const progress = conversionPct(campaign);
 
   return (
     <div
@@ -2845,21 +2842,6 @@ function CampaignAiHero({ campaign }: { campaign: Campaign }) {
       >
         {read}
       </p>
-
-      {/* Status strip - goal pill + a thin AI_ACCENT progress bar + stage
-          label, reused 1:1 from the inbox row, folded into the AI card under
-          the read so the AI tells the story and shows where it stands. */}
-      <div className="mt-3.5 pt-3.5 border-t border-foreground/[0.07] flex items-center gap-2.5 min-w-0">
-        <span className="shrink-0">
-          <GoalPill goalType={campaign.goalType} />
-        </span>
-        <span className="flex-1 min-w-0 flex items-center">
-          <ConversionBar pct={progress} />
-        </span>
-        <span className="shrink-0 text-[12px] font-medium text-foreground/65 whitespace-nowrap">
-          {phase}
-        </span>
-      </div>
     </div>
   );
 }
