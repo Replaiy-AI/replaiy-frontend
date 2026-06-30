@@ -21,10 +21,10 @@
 // with its own chrome-slot priority. EngagersView / EngagersChromeSlot take a
 // `priority` so each host can scope the engagers chrome above its own chrome.
 // ─────────────────────────────────────────────────────────────────
-import { useState, useMemo, useContext, createContext } from 'react';
+import { useState, useMemo, useContext, useRef, useEffect, createContext } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   ChevronRight,
@@ -34,6 +34,10 @@ import {
   Clock,
   X,
   Maximize2,
+  ThumbsUp,
+  MessageCircle,
+  Repeat2,
+  Send,
 } from 'lucide-react';
 import { APPLE_SPRING, APPLE_EASE } from '@/lib/motion';
 import { ReplaiyAvatar } from '@/components/Avatar';
@@ -201,6 +205,234 @@ export const REACTION_GLYPH: Record<LinkedInReactionKind, string> = {
 export const REACTION_ORDER: LinkedInReactionKind[] = [
   'like', 'celebrate', 'support', 'love', 'insightful', 'funny',
 ];
+
+// ─── Post action row · Like / Comment / Repost / Send ─────────────
+// The LinkedIn-style engagement bar that sits BELOW the stats row of the shared
+// PostCard, so it appears identically in BOTH the feed and the profile activity
+// (the action row is part of the shared card on purpose). It is purely
+// visual/optimistic — no backend. Four equal-width actions:
+//   • Like    — ThumbsUp + "Like". The special one: a tap toggles a plain
+//               "like" reaction; a long-press (mobile) / hover (desktop) opens
+//               a floating reaction PICKER (the 6 REACTION_ORDER kinds, reusing
+//               REACTION_GLYPH + REACTION_LABEL). Picking sets the post's
+//               reaction; the button then shows that glyph + label in the blue
+//               active treatment. Tapping the Like button again un-reacts.
+//   • Comment — MessageCircle + "Comment". Opens the comments engagers push-in
+//               through EngageContext (the natural behaviour, reusing the
+//               existing infra, exactly like the stats row's count buttons).
+//   • Repost  — Repeat2 + "Repost". Optimistic-only toggle to "Reposted".
+//   • Send    — Send + "Send". A quiet no-op affordance for now.
+//
+// Reaction state is LOCAL useState per PostCard (null = not reacted), so each
+// post is independent and nothing is persisted. Normal case throughout, the one
+// blue accent for the active/like treatment, no em-dash / middot / all-caps.
+function PostActionRow({ post }: { post: LinkedInPost }) {
+  const openEngagers = useContext(EngageContext);
+  const isMobile = useIsMobile();
+
+  // The post's chosen reaction (null = not reacted). Visual only.
+  const [reaction, setReaction] = useState<LinkedInReactionKind | null>(null);
+  // Optimistic repost toggle (Reposted). Visual only.
+  const [reposted, setReposted] = useState(false);
+  // Whether the floating reaction picker is open above the Like button.
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Timers for the open-on-hover (desktop, ~250ms) and open-on-long-press
+  // (mobile, ~450ms) gestures, plus a short close grace on mouse-leave so a
+  // diagonal move from the Like button into the picker does not dismiss it.
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Distinguishes a long-press (which opens the picker, suppressing the tap)
+  // from a plain tap (which toggles the like) on touch devices.
+  const longPressed = useRef(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const clearTimers = () => {
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null; }
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+  };
+  useEffect(() => () => clearTimers(), []);
+
+  // Tap outside the Like wrapper closes the picker (mobile + desktop). Only
+  // wired while open, so it adds no listener cost at rest.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [pickerOpen]);
+
+  // A plain Like tap: toggle the 'like' reaction on/off. A tap when ALREADY
+  // reacted with ANY reaction clears it (un-reacts), mirroring LinkedIn.
+  const onLikeTap = () => {
+    if (longPressed.current) {
+      // The tap that ends a long-press is swallowed; the picker handled it.
+      longPressed.current = false;
+      return;
+    }
+    setReaction((r) => (r ? null : 'like'));
+  };
+
+  // Pick a specific reaction from the picker, then close it.
+  const pick = (kind: LinkedInReactionKind) => {
+    setReaction(kind);
+    setPickerOpen(false);
+    longPressed.current = true; // suppress the trailing tap on touch release
+  };
+
+  // Desktop hover · open after a short delay; close after a short grace.
+  const onMouseEnter = () => {
+    if (isMobile) return;
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    openTimer.current = setTimeout(() => setPickerOpen(true), 250);
+  };
+  const onMouseLeave = () => {
+    if (isMobile) return;
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null; }
+    closeTimer.current = setTimeout(() => setPickerOpen(false), 180);
+  };
+
+  // Mobile long-press · open the picker after ~450ms and mark it a long-press
+  // so the trailing tap (pointerup -> click) does not toggle the like.
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse') return; // desktop uses hover, not long-press
+    longPressed.current = false;
+    openTimer.current = setTimeout(() => {
+      longPressed.current = true;
+      setPickerOpen(true);
+    }, 450);
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse') return;
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null; }
+  };
+
+  // The Like button's current face: a chosen-reaction glyph + label when
+  // reacted (in the blue active treatment), else the neutral ThumbsUp + "Like".
+  const reacted = reaction !== null;
+  const likeLabel = reacted ? REACTION_LABEL[reaction as LinkedInReactionKind] : 'Like';
+
+  // Shared button shell: equal-width, centered, comfortable h-9 hit area, the
+  // app's standard hover-elevate / active-elevate-2 feedback. Muted by default.
+  // gap-1 + px-0.5 keeps four labels (the longest is "Comment") fitting inside
+  // four equal columns at mobile 390 without clipping; whitespace-nowrap stops
+  // any mid-word break, and the row never overflows (verified at 390).
+  const baseBtn =
+    'flex-1 inline-flex items-center justify-center gap-1 px-0.5 h-9 rounded-lg ' +
+    'text-[12.5px] font-medium leading-none whitespace-nowrap hover-elevate ' +
+    'active-elevate-2 transition-colors min-w-0';
+
+  return (
+    <div className="mt-2 flex items-stretch gap-0.5" data-testid={`post-${post.id}-action-row`}>
+      {/* Like · wraps the button + the floating picker in a relative box so the
+          picker can float just above it. Hover (desktop) / long-press (mobile)
+          on this wrapper opens the picker. */}
+      <div
+        ref={wrapRef}
+        className="relative flex-1 min-w-0 flex"
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      >
+        <button
+          type="button"
+          data-testid={`post-${post.id}-action-like`}
+          aria-pressed={reacted}
+          aria-label={reacted ? `Reacted: ${likeLabel}` : 'Like'}
+          onClick={onLikeTap}
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          className={baseBtn + (reacted ? '' : ' text-foreground/60')}
+          style={reacted ? { color: ACCENT } : undefined}
+        >
+          {reacted ? (
+            <span aria-hidden className="text-[16px] leading-none">
+              {REACTION_GLYPH[reaction as LinkedInReactionKind]}
+            </span>
+          ) : (
+            <ThumbsUp size={18} strokeWidth={1.9} aria-hidden />
+          )}
+          <span>{likeLabel}</span>
+        </button>
+
+        {/* Floating reaction picker · a small rounded glass surface that floats
+            just ABOVE the Like button, holding the 6 REACTION_ORDER glyphs.
+            Each scales up on hover; tapping one sets the reaction. Gentle
+            scale/opacity entrance via framer-motion. Anchored bottom-left so it
+            never clips off the card's left edge on mobile 390. */}
+        <AnimatePresence>
+          {pickerOpen && (
+            <motion.div
+              key="reaction-picker"
+              data-testid={`post-${post.id}-reaction-picker`}
+              role="menu"
+              aria-label="Choose a reaction"
+              initial={{ opacity: 0, scale: 0.85, y: 6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 4 }}
+              transition={APPLE_SPRING}
+              style={{ transformOrigin: 'bottom left' }}
+              className="absolute bottom-full left-0 mb-2 z-[5] rp-card rounded-full px-1.5 py-1 flex items-center gap-0.5 shadow-[0_8px_24px_rgba(0,0,0,0.16)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+            >
+              {REACTION_ORDER.map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  data-testid={`post-${post.id}-reaction-${kind}`}
+                  aria-label={REACTION_LABEL[kind]}
+                  title={REACTION_LABEL[kind]}
+                  onClick={() => pick(kind)}
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-full text-[22px] leading-none transition-transform duration-150 hover:scale-[1.25] active:scale-110"
+                >
+                  <span aria-hidden>{REACTION_GLYPH[kind]}</span>
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Comment · opens the comments engagers push-in (reuses EngageContext,
+          exactly like the stats row's count buttons). */}
+      <button
+        type="button"
+        data-testid={`post-${post.id}-action-comment`}
+        onClick={() => openEngagers({ post, kind: 'comments' })}
+        className={baseBtn + ' text-foreground/60'}
+      >
+        <MessageCircle size={18} strokeWidth={1.9} aria-hidden />
+        <span>Comment</span>
+      </button>
+
+      {/* Repost · optimistic-only toggle to a calm "Reposted" confirmed state. */}
+      <button
+        type="button"
+        data-testid={`post-${post.id}-action-repost`}
+        aria-pressed={reposted}
+        onClick={() => setReposted((v) => !v)}
+        className={baseBtn + (reposted ? '' : ' text-foreground/60')}
+        style={reposted ? { color: ACCENT } : undefined}
+      >
+        <Repeat2 size={18} strokeWidth={1.9} aria-hidden />
+        <span>{reposted ? 'Reposted' : 'Repost'}</span>
+      </button>
+
+      {/* Send · a quiet no-op affordance (purely visual for now). */}
+      <button
+        type="button"
+        data-testid={`post-${post.id}-action-send`}
+        className={baseBtn + ' text-foreground/60'}
+      >
+        <Send size={18} strokeWidth={1.9} aria-hidden />
+        <span>Send</span>
+      </button>
+    </div>
+  );
+}
 
 // ─── Activity · single post card ──────────────────────────────────
 // A calm, read-only embedded post card (NOT a copy of LinkedIn's chrome).
@@ -510,6 +742,18 @@ export function PostCard({
               {s.label}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Action row · the LinkedIn-style Like / Comment / Repost / Send bar,
+          part of the SHARED card so it shows in BOTH the feed and the profile
+          activity. Separated from the stats above by a thin, full-bleed
+          hairline (the app's standard divider token, run -mx-4 px-4 so it
+          spans the whole card). NOT rendered on the `embedded` variant (the
+          small inner card of a quote repost), which stays clean. */}
+      {!embedded && (
+        <div className="mt-3 pt-2 -mx-4 px-4 border-t border-foreground/[0.08] dark:border-white/[0.08]">
+          <PostActionRow post={post} />
         </div>
       )}
 
