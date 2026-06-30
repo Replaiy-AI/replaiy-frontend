@@ -515,7 +515,7 @@ function selectedRowClass(selected: boolean): string {
 function IcpChip({ label, muted = false }: { label: string; muted?: boolean }) {
   return (
     <span
-      className={`glass-pill inline-flex items-center gap-1 h-[28px] px-3 rounded-full text-[12.5px] font-medium ${
+      className={`inline-flex items-center gap-1 h-[28px] px-3 rounded-full text-[12.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] ${
         muted ? 'text-foreground/45' : 'text-foreground/80'
       }`}
     >
@@ -945,7 +945,7 @@ function IcpEditableGroup({
         {values.map((v) => (
           <span
             key={v}
-            className={`group glass-pill inline-flex items-center gap-1 h-[28px] pl-3 pr-1.5 rounded-full text-[12.5px] font-medium ${
+            className={`group inline-flex items-center gap-1 h-[28px] pl-3 pr-1.5 rounded-full text-[12.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] ${
               muted ? 'text-foreground/45' : 'text-foreground/80'
             }`}
           >
@@ -983,7 +983,7 @@ function IcpEditableGroup({
             }
           }}
           placeholder="Add"
-          className="h-[28px] w-[110px] bg-foreground/[0.04] dark:bg-white/[0.06] rounded-full px-3 outline-none text-[12.5px] text-foreground placeholder:text-foreground/40"
+          className="h-[28px] w-[110px] bg-foreground/[0.04] dark:bg-white/[0.05] rounded-full px-3 outline-none text-[12.5px] text-foreground placeholder:text-foreground/40"
         />
       </div>
     </div>

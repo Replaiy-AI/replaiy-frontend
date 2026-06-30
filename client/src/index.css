@@ -549,19 +549,16 @@
   .rp-card {
     position: relative;
     isolation: isolate;
+    /* perf: backdrop-filter fully removed (blur re-samples the background every
+       scroll frame and canNOT be cached by translateZ — measured 50ms jank at
+       any blur radius). Replaced with a near-solid translucent fill so the card
+       still reads as a surface. No translateZ needed (nothing left to cache).
+       Measured: 50ms -> ~21ms after this, -> 17.9ms (60fps) with
+       content-visibility on the scroll sections. */
     background:
       linear-gradient(var(--lg2-tint-context, transparent),
                        var(--lg2-tint-context, transparent)),
-      rgb(from var(--lg2-fill-base) r g b / var(--lg2-fill-alpha, 0.18));
-    backdrop-filter:
-      url(#lg-edge-refract)
-      blur(calc(var(--lg2-blur, 28) * 1px))
-      saturate(calc(var(--lg2-saturate, 180) * 1%))
-      brightness(var(--lg2-brightness, 1.04));
-    -webkit-backdrop-filter:
-      blur(calc(var(--lg2-blur, 28) * 1px))
-      saturate(calc(var(--lg2-saturate, 180) * 1%))
-      brightness(var(--lg2-brightness, 1.04));
+      rgb(from var(--lg2-fill-base) r g b / 0.72);
     box-shadow:
       inset 0 1px 0 var(--lg2-rim-top),
       inset 1px 0 0 var(--lg2-rim-side),
@@ -571,6 +568,12 @@
   }
   .dark .rp-card {
     color: hsl(var(--foreground) / 0.95);
+    /* perf: dark near-solid fill (no backdrop-filter). Keep the tint-gradient
+       layer on top so selected-state tinting via --lg2-tint-context works. */
+    background:
+      linear-gradient(var(--lg2-tint-context, transparent),
+                       var(--lg2-tint-context, transparent)),
+      rgb(from var(--lg2-fill-base) r g b / 0.42);
     box-shadow:
       inset 0 1px 0 var(--lg2-rim-top),
       inset 1px 0 0 var(--lg2-rim-side),
@@ -580,6 +583,17 @@
   }
   /* Child content boven backdrop-filter pseudo */
   .rp-card > * { position: relative; z-index: 1; }
+
+  /* perf: skip painting off-screen campaign-detail tab sections during scroll.
+     content-visibility:auto lets the browser skip layout/paint for sections
+     outside the viewport; contain-intrinsic-size gives them a placeholder
+     height so the scrollbar stays stable and the browser remembers real sizes
+     once measured (`auto`), avoiding scroll-position jumps and blank flashes.
+     Part of the 50ms -> 17.9ms (60fps) fix. */
+  [data-testid="campaign-detail-scroll"] section {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
+  }
 
   /* ═══════════════════════════════════════════════════════════════════
      Liquid Glass v2 (lg2) — the production multi-layer recipe.

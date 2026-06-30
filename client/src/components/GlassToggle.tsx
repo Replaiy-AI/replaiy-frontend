@@ -144,12 +144,6 @@ export function GlassToggle({
       whileTap={{ scale: 0.97 }}
       transition={APPLE_SPRING}
       className="relative inline-flex h-[28px] w-[46px] items-center rounded-full"
-      style={{
-        // Soft floating glass blur on the whole track (same family as chrome).
-        backdropFilter: 'blur(var(--lg-max-blur)) saturate(var(--lg-max-saturate))',
-        WebkitBackdropFilter:
-          'blur(var(--lg-max-blur)) saturate(var(--lg-max-saturate))',
-      }}
     >
       {/* TRACK — STATIC. Holds both colour layers. It never scales or wobbles;
           it only crossfades OFF↔ON colour. */}
