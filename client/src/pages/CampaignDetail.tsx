@@ -20,7 +20,6 @@
 
 import { useMemo, useState, useRef, useEffect, useId } from 'react';
 import { useLocation, useParams } from 'wouter';
-import { GlassTextarea } from '@/components/GlassTextarea';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -1498,15 +1497,18 @@ function GoalPicker({
                   />
                 )}
               </div>
-              {/* Custom → free-text field, revealed inline when selected. */}
+              {/* Custom → a calm inline field, revealed when selected. The
+                  standard goals need nothing extra; only Custom asks you to
+                  define the outcome. A hairline separates it and the field is
+                  bare (no grey box), exactly like a knowledge answer. */}
               {g === 'custom' && selected && (
-                <div className="mt-3 ml-7" onClick={(e) => e.stopPropagation()}>
+                <div className="mt-3.5 pt-3.5 ml-7 border-t border-foreground/[0.07] dark:border-white/[0.07]" onClick={(e) => e.stopPropagation()}>
                   <input
                     data-testid="input-custom-goal"
                     value={customLabel}
                     onChange={(e) => onCustomLabel(e.target.value)}
                     placeholder="Describe the outcome in your own words…"
-                    className="w-full bg-foreground/[0.04] dark:bg-white/[0.06] rounded-2xl px-3.5 py-2.5 outline-none text-[16px] text-foreground placeholder:text-muted-foreground"
+                    className="w-full bg-transparent outline-none text-[14px] leading-[1.5] text-foreground placeholder:text-foreground/40"
                   />
                 </div>
               )}
@@ -2060,7 +2062,7 @@ function OverviewKpiCard({
               />
             ) : null}
             <span className={trend.dir === 'up' ? '' : 'text-foreground/45'}>
-              {trend.dir === 'flat' ? 'flat' : `${trend.pct}%`}
+              {trend.pct}%
             </span>
           </span>
         )}
@@ -2095,26 +2097,21 @@ function OverviewKpiCards({ campaign }: { campaign: Campaign }) {
 }
 
 // ── Goal card - what Replaiy steers toward, calm inline auto-save ───
-// Persona/knowledge language: ONE always-editable card, no "Edit" mode and no
-// Save/Cancel. The goal TYPE is chosen via the always-visible GoalPicker (the
-// same selectable cluster the create view uses). The goal DESCRIPTION is a
-// bare GlassTextarea that lives DIRECTLY in the card (no inner framed box),
-// separated from the goal-type control by an h-px hairline, and persists on
-// change via updateCampaign. The leading Target sits in the canonical
-// rounded-square icon treatment.
+// Persona/knowledge language: ONE always-editable selectable cluster, no
+// "Edit" mode and no Save/Cancel. The standard goals carry their own hint, so
+// there is no extra description field; only Custom reveals a calm inline field
+// to define the outcome yourself. Picks persist on change via updateCampaign.
 function GoalCard({ campaign }: { campaign: Campaign }) {
   const { updateCampaign } = useReplaiy();
   // Local mirrors so typing stays smooth; each change persists immediately.
   const [goalType, setGoalType] = useState<CampaignGoalType>(campaign.goalType);
   const [customLabel, setCustomLabel] = useState(campaign.goalLabel ?? '');
-  const [goalDescription, setGoalDescription] = useState(campaign.goalDescription ?? '');
 
   // Keep local state in sync if the campaign changes underneath us.
   useEffect(() => {
     setGoalType(campaign.goalType);
     setCustomLabel(campaign.goalLabel ?? '');
-    setGoalDescription(campaign.goalDescription ?? '');
-  }, [campaign.id, campaign.goalType, campaign.goalLabel, campaign.goalDescription]);
+  }, [campaign.id, campaign.goalType, campaign.goalLabel]);
 
   // Persist a goal-type pick straight away (auto-save, no Save button).
   const pickGoal = (g: CampaignGoalType) => {
@@ -2132,11 +2129,6 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
       goalLabel: v.trim() || undefined,
     });
   };
-  // Description edits persist on change (debounce not needed for the mock).
-  const editDescription = (v: string) => {
-    setGoalDescription(v);
-    updateCampaign(campaign.id, { goalDescription: v.trim() || undefined });
-  };
 
   return (
     <section>
@@ -2145,39 +2137,15 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
         sub="What the AI drives every conversation toward."
       />
 
-      <div className="flex flex-col gap-3">
-        {/* Goal TYPE - always visible, selectable. Calmest representation. */}
-        <GoalPicker
-          goalType={goalType}
-          customLabel={customLabel}
-          onPick={pickGoal}
-          onCustomLabel={editCustomLabel}
-        />
-
-        {/* Goal DESCRIPTION - bare field directly in the card, auto-save. The
-            leading Target uses the canonical rounded-square icon treatment;
-            an h-px hairline separates it from the typed description, exactly
-            like a knowledge answer sits under its question. */}
-        <div className="rp-card rounded-3xl px-4 py-4 lg:px-5 lg:py-[18px]">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-              <Target size={16} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
-            </div>
-            <div className="text-[14px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
-              Description
-            </div>
-          </div>
-          <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-4" />
-          <GlassTextarea
-            bare
-            testId="input-edit-goal-description"
-            value={goalDescription}
-            onChange={editDescription}
-            placeholder="Short description, e.g. Book a 20-min intro call"
-            rows={2}
-          />
-        </div>
-      </div>
+      {/* Goal TYPE - always visible, selectable. The standard goals carry
+          their own hint, so there is no extra description field; only Custom
+          reveals a calm inline field to define the outcome yourself. */}
+      <GoalPicker
+        goalType={goalType}
+        customLabel={customLabel}
+        onPick={pickGoal}
+        onCustomLabel={editCustomLabel}
+      />
     </section>
   );
 }
@@ -2203,8 +2171,6 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
     { key: 'goal', label: meta.achievedShort, value: s.goalAchieved },
   ];
 
-  const conv = conversionPct(campaign);
-  const reply = replyRatePct(campaign);
   const fmt = (n: number) => n.toLocaleString('en-US');
 
   // Unique gradient id per instance - the detail renders a desktop AND a
@@ -2269,23 +2235,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
 
   return (
     <section>
-      <AudienceHeader
-        label="Funnel"
-        sub="How leads move toward your goal."
-        trailing={
-          <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
-            <span>
-              <span className="font-semibold text-foreground tabular-nums">{reply}%</span>{' '}
-              reply
-            </span>
-            <span className="h-3 w-px bg-foreground/15" aria-hidden="true" />
-            <span>
-              <span className="font-semibold text-foreground tabular-nums">{conv}%</span>{' '}
-              conversion
-            </span>
-          </div>
-        }
-      />
+      <AudienceHeader label="Funnel" sub="How leads move toward your goal." />
 
       <div className="rp-card rounded-3xl px-3 py-3.5 lg:px-4 lg:py-4">
         {/* Funnel fits the card width on every screen - no horizontal scroll.
