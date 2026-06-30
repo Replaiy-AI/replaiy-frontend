@@ -331,6 +331,132 @@ export function ActivityAttribution({
   );
 }
 
+// ─── Activity · single activity item (EXTRACTED-SHARED) ───────────
+// EXTRACTED-SHARED: ActivityItem (one activity row) lives here so BOTH the
+// profile Activity tab and the Feed render activity identically. Switches on
+// post.kind ('post'|'repost'|'comment'|'reaction'), including quote-reposts.
+//
+// ACTOR-PER-ITEM: the actor is the PERSON whose activity this is (who reposted /
+// commented / reacted / posted). On a PROFILE every item is by the profile
+// owner, so the host passes the profile owner's name. In the FEED each item is
+// by a DIFFERENT person, so the host passes that item's actor. The author*
+// fields on `post` always describe the ORIGINAL post (by someone else for
+// repost/comment/reaction). Extracted verbatim from LinkedInProfileView, with
+// `profileFirstName/profileName/profileAvatar` renamed to neutral actor* props.
+//
+// `slotBeforeStats` is threaded straight to the inner PostCard so a host (the
+// feed) can inject its quiet relevance chip. The profile never passes it, so
+// the profile's cards stay byte-for-byte identical.
+export function ActivityItem({
+  post,
+  actorFirstName,
+  actorName,
+  actorAvatar,
+  slotBeforeStats,
+}: {
+  post: LinkedInPost;
+  actorFirstName: string;
+  actorName: string;
+  actorAvatar?: string;
+  slotBeforeStats?: ReactNode;
+}) {
+  const kind = post.kind ?? 'post';
+
+  if (kind === 'comment') {
+    const reply = post.activityComment ? (
+      <div
+        className="flex items-start gap-2.5"
+        data-testid={`activity-comment-${post.id}`}
+      >
+        <ReplaiyAvatar name={actorName} src={actorAvatar} size={28} />
+        <div className="min-w-0 flex-1">
+          <span className="text-[12px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
+            {noDash(actorName)}
+          </span>
+          <p className="text-[12.5px] leading-[1.5] text-foreground/70 m-0 mt-0.5 break-words">
+            {noDash(post.activityComment)}
+          </p>
+        </div>
+      </div>
+    ) : undefined;
+    return (
+      <div data-testid={`activity-item-${post.id}`}>
+        <ActivityAttribution
+          profileFirstName={actorFirstName}
+          verb="commented"
+          authorName={post.authorName}
+        />
+        <PostCard post={post} nested={reply} slotBeforeStats={slotBeforeStats} />
+      </div>
+    );
+  }
+
+  if (kind === 'reaction') {
+    return (
+      <div data-testid={`activity-item-${post.id}`}>
+        <ActivityAttribution
+          profileFirstName={actorFirstName}
+          verb="reacted"
+          authorName={post.authorName}
+          reactionLabel={
+            post.activityReaction ? REACTION_LABEL[post.activityReaction] : undefined
+          }
+        />
+        <PostCard post={post} slotBeforeStats={slotBeforeStats} />
+      </div>
+    );
+  }
+
+  if (kind === 'repost') {
+    if (post.activityComment) {
+      return (
+        <div data-testid={`activity-item-${post.id}`}>
+          <ActivityAttribution profileFirstName={actorFirstName} verb="reposted" />
+          <div className="rp-card rounded-[20px] px-4 py-3.5">
+            <div
+              className="flex items-start gap-2.5"
+              data-testid={`activity-repost-comment-${post.id}`}
+            >
+              <ReplaiyAvatar name={actorName} src={actorAvatar} size={36} />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+                  {noDash(actorName)}
+                </div>
+                <p className="text-[13px] leading-[1.55] text-foreground/80 m-0 mt-1 whitespace-pre-line break-words">
+                  {noDash(post.activityComment)}
+                </p>
+              </div>
+            </div>
+            {/* Relevance chip (if any) sits between the commentary and the
+                embedded post, against the whole repost unit. */}
+            {slotBeforeStats}
+            <div className="mt-3 rounded-[16px] overflow-hidden border border-foreground/[0.08] dark:border-white/[0.08] bg-foreground/[0.02] dark:bg-white/[0.02]">
+              <PostCard post={post} embedded />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div data-testid={`activity-item-${post.id}`}>
+        <ActivityAttribution
+          profileFirstName={actorFirstName}
+          verb="reposted"
+          authorName={post.authorName}
+        />
+        <PostCard post={post} slotBeforeStats={slotBeforeStats} />
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid={`activity-item-${post.id}`}>
+      <ActivityAttribution profileFirstName={actorFirstName} verb="posted" />
+      <PostCard post={post} slotBeforeStats={slotBeforeStats} />
+    </div>
+  );
+}
+
 // ─── Engagers · single person row ─────────────────────────────────
 // One person who engaged with the post. Mirrors LinkedIn's reactions /
 // comments / reposts list rows: ReplaiyAvatar (44) + name (semibold) + headline

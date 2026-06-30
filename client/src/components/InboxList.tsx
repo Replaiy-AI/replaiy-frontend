@@ -603,7 +603,11 @@ function MobileCarousel({
 // but the SB avatar button stays as the mobile top-chrome left slot so we
 // can wire it to something later (saves rebuilding). onClick is a no-op
 // for now. Kept consistent with CampaignsList.
-function MobileProfileAvatar() {
+// Exported so the Feed page can reuse the SAME mobile top-chrome left slot
+// avatar (consistency with the inbox), instead of falling back to the default
+// ••• button. Small, dependency-light (only GlassCircleButton + ProfileInitials),
+// so a plain export is the simplest share without circular-import risk.
+export function MobileProfileAvatar() {
   return (
     <GlassCircleButton
       label="Profile"

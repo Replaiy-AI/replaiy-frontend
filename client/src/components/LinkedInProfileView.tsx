@@ -42,10 +42,8 @@ import {
   EngageContext,
   EngagersView,
   EngagersChromeSlot,
-  PostCard,
-  ActivityAttribution,
+  ActivityItem,
   ENGAGE_TITLE,
-  REACTION_LABEL,
   noDash,
   formatCount,
 } from '@/components/linkedin-post';
@@ -303,160 +301,6 @@ function EducationEntry({ item }: { item: LinkedInEducation }) {
   );
 }
 
-// ─── Activity · single activity item ──────────────────────────────
-// One row in the Activity list, switching on post.kind:
-//   • 'post'     → the original PostCard, unchanged.
-//   • 'comment'  → attribution line + the original PostCard with the profile
-//                  person's own reply NESTED INSIDE the same card (below a
-//                  hairline divider), so the two read as one unit: the post,
-//                  and the comment this person left on it. The nested reply is
-//                  deliberately lighter and smaller than the post (28px avatar,
-//                  smaller muted text, no second card surface) so the eye reads
-//                  post (primary) then reply (secondary), never two posts.
-//   • 'reaction' → attribution line (with the reaction label chip) + the
-//                  original PostCard.
-// Reuses PostCard for the original post in every case rather than rebuilding
-// any post chrome, and ReplaiyAvatar for the nested reply author.
-function ActivityItem({
-  post,
-  profileFirstName,
-  profileName,
-  profileAvatar,
-}: {
-  post: LinkedInPost;
-  profileFirstName: string;
-  profileName: string;
-  profileAvatar?: string;
-}) {
-  const kind = post.kind ?? 'post';
-
-  if (kind === 'comment') {
-    // The profile person's reply, NESTED inside the post card (passed as the
-    // PostCard `nested` slot). It is intentionally lighter than a post: a 28px
-    // avatar, smaller muted text and NO second card surface, indented from the
-    // post body so it reads as a subordinate reply on the post, not a sibling
-    // post of equal weight.
-    const reply = post.activityComment ? (
-      <div
-        className="flex items-start gap-2.5"
-        data-testid={`activity-comment-${post.id}`}
-      >
-        <ReplaiyAvatar name={profileName} src={profileAvatar} size={28} />
-        <div className="min-w-0 flex-1">
-          {/* Just the reply author's name. The redundant "COMMENT" mini-label
-              was removed: every Activity item now carries an attribution line
-              above the card ("[First] commented on X's post"), which already
-              states this is a comment, and the all-caps mini-label violated the
-              platform's no-block-letter-labels rule. Normal case throughout. */}
-          <span className="text-[12px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
-            {noDash(profileName)}
-          </span>
-          <p className="text-[12.5px] leading-[1.5] text-foreground/70 m-0 mt-0.5 break-words">
-            {noDash(post.activityComment)}
-          </p>
-        </div>
-      </div>
-    ) : undefined;
-    return (
-      <div data-testid={`activity-item-${post.id}`}>
-        <ActivityAttribution
-          profileFirstName={profileFirstName}
-          verb="commented"
-          authorName={post.authorName}
-        />
-        <PostCard post={post} nested={reply} />
-      </div>
-    );
-  }
-
-  if (kind === 'reaction') {
-    return (
-      <div data-testid={`activity-item-${post.id}`}>
-        <ActivityAttribution
-          profileFirstName={profileFirstName}
-          verb="reacted"
-          authorName={post.authorName}
-          reactionLabel={
-            post.activityReaction ? REACTION_LABEL[post.activityReaction] : undefined
-          }
-        />
-        <PostCard post={post} />
-      </div>
-    );
-  }
-
-  if (kind === 'repost') {
-    // The author*/text/image fields describe the ORIGINAL reshared post (by
-    // someone else), rendered with the SAME PostCard as everywhere else.
-    // TWO variants, switched on activityComment (the profile person's own
-    // added text):
-    //   • PLAIN reshare (no activityComment): just an attribution line
-    //     "[First] reposted [author]'s post" above the original PostCard.
-    //     Nothing else — identical chrome to a reaction, different verb.
-    //   • QUOTE repost (activityComment present): the person added commentary,
-    //     so the attribution reads "[First] reposted this", then a lightweight
-    //     commentary HEADER (their ReplaiyAvatar + name + added text) at
-    //     primary weight, then the original post rendered INSIDE an inset,
-    //     recessed container so it unmistakably reads as embedded reshared
-    //     content, not a separate equal post. This mirrors the comment
-    //     variant's nesting idea (one card = one unit) but inverted: here the
-    //     person's voice is on TOP and the reshared post is the contained body.
-    if (post.activityComment) {
-      return (
-        <div data-testid={`activity-item-${post.id}`}>
-          <ActivityAttribution profileFirstName={profileFirstName} verb="reposted" />
-          {/* Outer repost card: the person's commentary, then the reshared post
-              embedded within the SAME surface so the whole thing reads as one
-              repost unit. */}
-          <div className="rp-card rounded-[20px] px-4 py-3.5">
-            {/* Commentary header: the profile person's added text, at primary
-                weight (their avatar + name), so their voice leads. */}
-            <div
-              className="flex items-start gap-2.5"
-              data-testid={`activity-repost-comment-${post.id}`}
-            >
-              <ReplaiyAvatar name={profileName} src={profileAvatar} size={36} />
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
-                  {noDash(profileName)}
-                </div>
-                <p className="text-[13px] leading-[1.55] text-foreground/80 m-0 mt-1 whitespace-pre-line break-words">
-                  {noDash(post.activityComment)}
-                </p>
-              </div>
-            </div>
-            {/* Embedded reshared post: inset, recessed container with its own
-                hairline border so it reads as contained content within the
-                repost, never a sibling post of equal weight. Reuses PostCard
-                verbatim; the inset wrapper supplies the embedded affordance. */}
-            <div className="mt-3 rounded-[16px] overflow-hidden border border-foreground/[0.08] dark:border-white/[0.08] bg-foreground/[0.02] dark:bg-white/[0.02]">
-              <PostCard post={post} embedded />
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div data-testid={`activity-item-${post.id}`}>
-        <ActivityAttribution
-          profileFirstName={profileFirstName}
-          verb="reposted"
-          authorName={post.authorName}
-        />
-        <PostCard post={post} />
-      </div>
-    );
-  }
-
-  // Plain own post — now ALSO carries an attribution line ("[First] posted
-  // this") so the All feed reads consistently: every item states what it is.
-  return (
-    <div data-testid={`activity-item-${post.id}`}>
-      <ActivityAttribution profileFirstName={profileFirstName} verb="posted" />
-      <PostCard post={post} />
-    </div>
-  );
-}
 
 export function LinkedInProfileView({
   mail,
@@ -829,9 +673,9 @@ export function LinkedInProfileView({
                       <ActivityItem
                         key={post.id}
                         post={post}
-                        profileFirstName={profileFirstName}
-                        profileName={name}
-                        profileAvatar={avatar}
+                        actorFirstName={profileFirstName}
+                        actorName={name}
+                        actorAvatar={avatar}
                       />
                     ))}
                   </div>

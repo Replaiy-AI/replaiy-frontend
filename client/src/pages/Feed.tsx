@@ -34,12 +34,13 @@ import {
   EngageContext,
   EngagersView,
   EngagersChromeSlot,
-  PostCard,
+  ActivityItem,
   ENGAGE_TITLE,
 } from '@/components/linkedin-post';
+import { MobileProfileAvatar } from '@/components/InboxList';
 import type { EngageRequest } from '@/components/linkedin-post';
 import type { LinkedInPost, LinkedInEngager } from '@/data/mockConversations';
-import { FEED_POSTS } from '@/data/mockFeed';
+import { FEED_POSTS, REPLAIY_FEED_POSTS } from '@/data/mockFeed';
 
 const ACCENT = '#2F6BFF';
 
@@ -48,10 +49,12 @@ type FeedMode = 'linkedin' | 'replaiy';
 
 // ─── Mobile top-chrome slot for the Feed page ─────────────────────
 // Registered at priority 100 (same band as MijnAi's detail slot). It carries
-// the page title + the mode toggle in the center, so the mode switcher lives in
-// the chrome on mobile exactly like list pages put their segmented control
-// there. No back button (the feed is a top-level nav surface), so the default
-// ••• stays on the left and search on the right.
+// the mode toggle in the center, so the mode switcher lives in the chrome on
+// mobile exactly like list pages put their segmented control there. No back
+// button (the feed is a top-level nav surface). For CONSISTENCY WITH THE INBOX,
+// the left slot is the shared MobileProfileAvatar (the user's profile avatar),
+// NOT the default ••• button — same as InboxList sets leftSlot. Search stays on
+// the right.
 function FeedChromeSlot({
   mode,
   onChange,
@@ -62,6 +65,7 @@ function FeedChromeSlot({
   const slot = useMemo(
     () => ({
       priority: 100,
+      leftSlot: <MobileProfileAvatar />,
       togglePill: (
         <div className="inline-flex items-center h-[52px]" data-testid="feed-mode-toggle-mobile">
           <VadikLiquidSwitcher<FeedMode>
@@ -106,52 +110,40 @@ function RelevanceChip({ reason }: { reason: string }) {
   );
 }
 
-// ─── Add to campaign · subtle placeholder affordance ──────────────
-// "Engagement = intent": the feed is a lead-sourcing surface, so each post
-// carries a quiet hook to add the poster to a campaign. The Campaigns flow is
-// not built yet, so this is intentionally a DISABLED placeholder: visually
-// present, non-intrusive, and does nothing on click (the wiring exists for
-// later). It sits as a small muted text affordance under the post, NOT a loud
-// button, so it never clutters the card.
-function AddToCampaignHook({ post }: { post: LinkedInPost }) {
-  return (
-    <div className="mt-1.5 px-1">
-      <button
-        type="button"
-        disabled
-        aria-disabled="true"
-        data-testid={`feed-add-to-campaign-${post.id}`}
-        title="Add to campaign (coming soon)"
-        className="inline-flex items-center gap-1.5 text-[12px] font-medium text-foreground/40 cursor-not-allowed select-none"
-      >
-        <span
-          aria-hidden
-          className="inline-flex items-center justify-center h-4 w-4 rounded-full border border-foreground/25 text-foreground/40 text-[12px] leading-none pb-px"
-        >
-          +
-        </span>
-        Add to campaign
-      </button>
-    </div>
-  );
-}
+// NOTE — "Add to campaign" hook intentionally NOT rendered.
+// The feed is a future lead-sourcing surface, but the Campaigns flow does not
+// exist yet, so an "add to campaign" affordance would be premature. When that
+// flow ships, the natural attach point is INSIDE FeedItem below (a quiet hook
+// under each item / on the engagers push-in). Until then the feed renders
+// nothing for it, keeping clean, even vertical spacing between items.
 
-// ─── A single feed post ───────────────────────────────────────────
-// Reuses the SHARED PostCard verbatim (including its clickable engagement
-// counts), injecting the Replaiy-mode relevance chip via PostCard's
-// slotBeforeStats slot, and appending the quiet add-to-campaign hook below.
-function FeedPost({ post, mode }: { post: LinkedInPost; mode: FeedMode }) {
+// ─── A single feed item ───────────────────────────────────────────
+// Renders the SHARED ActivityItem (the same component the profile Activity tab
+// uses), so the feed surfaces the full mix of activity types: plain posts,
+// reposts (plain + quote), comments and reactions, each with its attribution
+// line on top. The ACTOR is per-item: engagement items (repost/comment/
+// reaction) carry their own actor* fields (the person who engaged); plain posts
+// have no actor*, so the actor IS the post's author. The Replaiy-mode relevance
+// chip is threaded through ActivityItem's slotBeforeStats so it shows on the
+// original post exactly as before.
+function FeedItem({ post, mode }: { post: LinkedInPost; mode: FeedMode }) {
+  // Per-item actor: explicit actor* on engagement items, else the author.
+  const actorName = post.actorName ?? post.authorName;
+  const actorAvatar = post.actorAvatarUrl ?? post.authorAvatarUrl;
+  const actorFirstName = (actorName ?? '').trim().split(/\s+/)[0] || actorName;
   return (
     <div data-testid={`feed-post-${post.id}`}>
-      <PostCard
+      <ActivityItem
         post={post}
+        actorFirstName={actorFirstName}
+        actorName={actorName}
+        actorAvatar={actorAvatar}
         slotBeforeStats={
           mode === 'replaiy' && post.relevanceReason ? (
             <RelevanceChip reason={post.relevanceReason} />
           ) : undefined
         }
       />
-      <AddToCampaignHook post={post} />
     </div>
   );
 }
@@ -159,13 +151,12 @@ function FeedPost({ post, mode }: { post: LinkedInPost; mode: FeedMode }) {
 export function Feed() {
   const [mode, setMode] = useState<FeedMode>('linkedin');
 
-  // LinkedIn mode = the full unfiltered stream. Replaiy mode = only ICP-relevant
-  // posts (those carrying a relevanceReason), so the user sees signal, no noise.
+  // LinkedIn mode = the full unfiltered stream in natural reverse-chronological
+  // order (as you're used to). Replaiy mode = engagement-by-pipeline/ICP
+  // prioritized to the top, then ICP posts, with non-relevant noise dropped
+  // (the prioritization is precomputed in REPLAIY_FEED_POSTS).
   const posts = useMemo(
-    () =>
-      mode === 'replaiy'
-        ? FEED_POSTS.filter((p) => !!p.relevanceReason)
-        : FEED_POSTS,
+    () => (mode === 'replaiy' ? REPLAIY_FEED_POSTS : FEED_POSTS),
     [mode],
   );
 
@@ -240,8 +231,9 @@ export function Feed() {
                 className="text-[13px] text-foreground/55 leading-snug mb-4 px-0.5 md:px-0"
                 data-testid="feed-replaiy-intro"
               >
-                Only the posts that match your ideal customer profile. Engagement
-                is intent, so these are the people worth reaching out to.
+                Engagement is intent, so the people in your pipeline reposting,
+                commenting and reacting come first, then posts that match your
+                ideal customer profile. The noise is filtered out.
               </p>
             )}
 
@@ -258,7 +250,7 @@ export function Feed() {
               >
                 {posts.length > 0 ? (
                   posts.map((post) => (
-                    <FeedPost key={post.id} post={post} mode={mode} />
+                    <FeedItem key={post.id} post={post} mode={mode} />
                   ))
                 ) : (
                   <p

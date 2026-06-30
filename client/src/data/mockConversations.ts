@@ -139,6 +139,15 @@ export interface LinkedInPost {
   activityComment?: string;
   /** For 'reaction' items: which reaction the person gave to the original post. */
   activityReaction?: LinkedInReactionKind;
+  /** FEED ONLY — the ACTOR doing the engagement (the person who reposted /
+   *  commented / reacted / posted), distinct from the original post's author*
+   *  fields. In a PROFILE the activity is implicitly by the profile owner, so
+   *  these stay unset there (the profile passes its owner's name explicitly).
+   *  In the FEED each item is by a different person, so the feed sets these and
+   *  passes them to ActivityItem as the per-item actor. */
+  actorName?: string;
+  actorHeadline?: string;
+  actorAvatarUrl?: string;
   /** Replaiy used this post to personalize outreach (shown as a quiet tag). */
   usedByAI?: boolean;
   /** Feed only: when set, this post is ICP-relevant for the user and the Feed's
