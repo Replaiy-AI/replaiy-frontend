@@ -747,12 +747,12 @@ export function InboxList() {
       ) : (
         <div
           ref={scrollRef}
-          // v-baseline-align — Desktop top padding reduced 20px→12px (lg:pt-5 →
-          // lg:pt-3) so the greeting block's top edge lands on the shared 12px
-          // baseline used by the conversation lead-pill (`absolute top-3`), the
-          // nav rail's first pill, and the lead-panel tab strip. Mobile keeps
-          // pt-4 (it scrolls under the floating top chrome, not relevant here).
-          className="flex-1 overflow-y-auto no-scrollbar px-3 lg:px-4 pt-4 lg:pt-3 pb-44 lg:pb-6"
+          // v-baseline-align-v2 — The greeting/mascot column keeps its OWN
+          // slightly-lower header height (lg:pt-5); only the nav rail, column 2
+          // (lead-pill) and column 3 (tabs) share the 12px baseline. The greeting
+          // header is a distinct element type and reads nicer a touch lower.
+          // Mobile keeps pt-4 (scrolls under the floating top chrome).
+          className="flex-1 overflow-y-auto no-scrollbar px-3 lg:px-4 pt-4 lg:pt-5 pb-44 lg:pb-6"
         >
           <AnimatePresence mode="wait">
             {viewMode === 'inbox' ? (
