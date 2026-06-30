@@ -286,8 +286,28 @@ export function PostCard({
         </button>
       )}
 
-      {/* Optional image · rounded, height-capped so one image never dominates. */}
-      {post.imageUrl && (
+      {/* Optional media · a post carries AT MOST one media type, mirroring
+          LinkedIn (you cannot have a native image AND a link-preview on the
+          same post). Render priority: video > image > linkPreview. Mock data
+          only ever sets one per post, but the guards keep it deterministic. */}
+
+      {/* Inline video · native <video> with poster + controls, no autoplay
+          (calm by default, the user taps play). Same rounded, height-capped
+          container as the image so video and image read consistently. */}
+      {post.videoUrl ? (
+        <div className="mt-3 rounded-xl overflow-hidden bg-foreground/[0.06] dark:bg-white/[0.07]">
+          <video
+            src={post.videoUrl}
+            poster={post.videoPosterUrl}
+            controls
+            playsInline
+            preload="metadata"
+            data-testid={`post-${post.id}-video`}
+            className="w-full max-h-[360px] object-contain bg-black block"
+          />
+        </div>
+      ) : post.imageUrl ? (
+        /* Optional image · rounded, height-capped so one image never dominates. */
         <div className="mt-3 rounded-xl overflow-hidden bg-foreground/[0.06] dark:bg-white/[0.07]">
           <img
             src={post.imageUrl}
@@ -296,7 +316,43 @@ export function PostCard({
             className="w-full max-h-[240px] object-cover block"
           />
         </div>
-      )}
+      ) : post.linkPreview ? (
+        /* Link-preview card · a tappable shared-article card. Reuses the EXACT
+           embedded-repost inset surface (border + faint fill) used for the
+           reshared-content container below, so all inset surfaces match. */
+        <a
+          href={post.linkPreview.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid={`post-${post.id}-linkpreview`}
+          className="mt-3 flex items-stretch rounded-[12px] overflow-hidden border border-foreground/[0.08] dark:border-white/[0.08] bg-foreground/[0.02] dark:bg-white/[0.02] hover-elevate active-elevate-2"
+        >
+          {post.linkPreview.imageUrl && (
+            <img
+              src={post.linkPreview.imageUrl}
+              alt=""
+              loading="lazy"
+              className="w-[96px] sm:w-[112px] shrink-0 self-stretch object-cover bg-foreground/[0.06] dark:bg-white/[0.07]"
+            />
+          )}
+          <div className="min-w-0 flex-1 px-3 py-2.5 flex flex-col justify-center gap-1">
+            <div
+              className="text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {noDash(post.linkPreview.title)}
+            </div>
+            <div className="text-[11.5px] text-foreground/50 leading-snug truncate">
+              {post.linkPreview.domain}
+            </div>
+          </div>
+        </a>
+      ) : null}
 
       {/* Optional quiet content above the stats (e.g. feed relevance chip). */}
       {slotBeforeStats}

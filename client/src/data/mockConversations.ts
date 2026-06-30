@@ -130,6 +130,21 @@ export interface LinkedInPost {
   timeAgo: string;
   text: string;
   imageUrl?: string;
+  /** Inline video source (mp4). When set, PostCard renders a native <video>
+   *  with poster + controls (no autoplay). Works in BOTH feed and profile. */
+  videoUrl?: string;
+  /** Poster / thumbnail frame shown before the video is played. */
+  videoPosterUrl?: string;
+  /** Link-preview card data (a shared article). Renders a tappable bordered
+   *  card below the post text in BOTH feed and profile. `url` is the article
+   *  link, `title` its headline, `domain` the bare host (e.g. "bkan.nl"), and
+   *  `imageUrl` an optional thumbnail shown on the left. */
+  linkPreview?: {
+    url: string;
+    title: string;
+    domain: string;
+    imageUrl?: string;
+  };
   likes?: number;
   comments?: number;
   reposts?: number;
@@ -419,6 +434,12 @@ export const mockConversations: Conversation[] = [
             authorAvatarUrl: 'https://i.pravatar.cc/120?img=68',
             timeAgo: '2d',
             text: 'Most sales teams measure activity because activity is easy to count. Replies are hard to count and harder to fake. If your dashboard only shows dials and emails sent, you are optimizing for the wrong thing. Measure conversations started.',
+            linkPreview: {
+              url: 'https://blog.replaiy.com/measure-conversations',
+              title: 'Stop counting touches: the case for measuring conversations started',
+              domain: 'blog.replaiy.com',
+              imageUrl: 'https://i.pravatar.cc/600?img=20',
+            },
             likes: 264,
             comments: 38,
             reposts: 21,
@@ -700,6 +721,9 @@ export const mockConversations: Conversation[] = [
             authorAvatarUrl: 'https://i.pravatar.cc/120?img=45',
             timeAgo: '3d',
             text: 'A vendor emailed our entire backend team the same pitch on the same morning. Different names, identical body. We screenshot it into a channel and laughed. That is the opposite of how you reach engineers.',
+            videoUrl:
+              'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            videoPosterUrl: 'https://picsum.photos/seed/replaiyprofilevideo/800/450',
             likes: 356,
             comments: 52,
             reposts: 24,

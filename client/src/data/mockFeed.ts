@@ -35,6 +35,12 @@ const IMG_A = 'https://i.pravatar.cc/600?img=20';
 const IMG_B = 'https://i.pravatar.cc/600?img=33';
 const IMG_C = 'https://i.pravatar.cc/600?img=47';
 
+// Reliable public sample mp4 + a poster thumbnail (reusing a pravatar-style
+// URL already used across the mock posts) for the inline-video post type.
+const SAMPLE_VIDEO =
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+const VIDEO_POSTER = 'https://picsum.photos/seed/replaiyvideo/800/450';
+
 // The three pipeline leads (kept consistent with their inbox profiles).
 const EMMA = {
   name: 'Emma Chen',
@@ -115,6 +121,12 @@ export const FEED_POSTS: LinkedInPost[] = [
     authorAvatarUrl: 'https://i.pravatar.cc/120?img=16',
     timeAgo: '5h',
     text: 'The fastest path to more pipeline is usually not more leads. It is replying faster to the ones already raising their hand. Speed is a strategy.',
+    linkPreview: {
+      url: 'https://blog.replaiy.com/speed-to-lead',
+      title: 'Speed to lead: why replying first wins more deals than any cold list',
+      domain: 'blog.replaiy.com',
+      imageUrl: IMG_C,
+    },
     likes: 309,
     comments: 38,
     reposts: 17,
@@ -161,6 +173,8 @@ export const FEED_POSTS: LinkedInPost[] = [
     authorAvatarUrl: EMMA.avatar,
     timeAgo: '8h',
     text: 'We stopped measuring outbound by volume this quarter and started measuring it by replies that turn into real conversations. The team hated it for two weeks. Then the pipeline got healthier than it has been all year.',
+    videoUrl: SAMPLE_VIDEO,
+    videoPosterUrl: VIDEO_POSTER,
     likes: 218,
     comments: 34,
     reposts: 12,
