@@ -1446,6 +1446,25 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
           </ComposeSheetMobile>
         )}
       </AnimatePresence>
+
+      {/* DESKTOP top frosting veil — same .mobile-chrome-veil recipe + 76px
+          desktop band as the campaign detail, feed, and engagers/profile
+          push-ins, so the thread frosts softly behind the floating top pill
+          row instead of scrolling through sharp in the open areas beside the
+          centered identity pill. Consistency call: the conversation already
+          has a glass identity pill, but its center column has empty space on
+          either side where scrolling bubbles would leak sharp — adding the
+          band makes all three column screens match. MUST be the LAST CHILD of
+          this stable, non-transformed center column so backdrop-filter blurs
+          the scroll content painting before it (a transform on any ancestor
+          would break the filter — this column has none). z-20 sits ABOVE the
+          scroll content but BELOW the z-30 pill row, and pointer-events-none
+          keeps scroll + the pills/Done/checkmark interactive. Desktop only
+          (hidden md:block) — mobile uses the floating glass chrome pills. */}
+      <div
+        aria-hidden
+        className="hidden md:block absolute inset-x-0 top-0 z-20 h-[76px] mobile-chrome-veil pointer-events-none"
+      />
       </div>
       {/* /CENTER column */}
 

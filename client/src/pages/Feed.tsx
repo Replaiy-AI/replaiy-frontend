@@ -451,13 +451,15 @@ export function Feed() {
         </div>
 
         {/* Top frosting veil · same .mobile-chrome-veil last-child trick as the
-            profile view, so feed content frosts behind the floating mobile
-            chrome instead of scrolling through sharp. Mobile only (md:hidden):
-            on desktop the chrome lives inline in the scroll content. MUST be the
-            last child so it frosts the scroll content painting before it. */}
+            profile view, so feed content frosts behind the floating top chrome
+            instead of scrolling through sharp. Now spans desktop too (md:h-[76px],
+            mirroring the engagers/profile push-ins) so feed posts also frost
+            behind the centered top toggle on desktop, full width. MUST be the
+            last child so it frosts the scroll content painting before it.
+            pointer-events-none keeps scroll + the centered toggle interactive. */}
         <div
           aria-hidden
-          className="md:hidden absolute inset-x-0 top-0 z-[1] h-[calc(env(safe-area-inset-top,0px)+88px)] mobile-chrome-veil pointer-events-none"
+          className="absolute inset-x-0 top-0 z-[1] h-[calc(env(safe-area-inset-top,0px)+88px)] md:h-[76px] mobile-chrome-veil pointer-events-none"
         />
 
         {/* Engagers push-in, stacked OVER the feed at z-[80]. Sibling INSIDE

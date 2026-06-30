@@ -2745,6 +2745,24 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
       >
         {body}
       </div>
+
+      {/* DESKTOP top frosting veil — same .mobile-chrome-veil recipe as the
+          engagers/profile push-ins, so detail content frosts softly behind the
+          floating top bar instead of scrolling through sharp (the "410 in pool"
+          leak). MUST be the LAST CHILD of this stable, non-transformed pane
+          container: backdrop-filter only blurs what paints BEHIND it in DOM
+          order, and a transform on any ancestor would break the filter context
+          (see ConversationTimeline note) — this container has no transform, so
+          the blur renders. z-20 sits ABOVE the scroll content but BELOW the
+          z-30 top-bar pills/toggle, and pointer-events-none lets scroll + clicks
+          pass through so the tabs/toggle/••• stay interactive. h-[86px] matches
+          the desktop scroll container's paddingTop so the fade ends cleanly just
+          below the top-bar pill row. Desktop only (hidden lg:block) — mobile
+          relies on the floating glass chrome pills. */}
+      <div
+        aria-hidden
+        className="hidden lg:block absolute inset-x-0 top-0 z-20 h-[86px] mobile-chrome-veil pointer-events-none"
+      />
     </div>
   );
 }
