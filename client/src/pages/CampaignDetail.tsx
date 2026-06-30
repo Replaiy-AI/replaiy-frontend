@@ -81,7 +81,7 @@ import {
   type IcpCriteria,
   type SampleLead,
 } from '@/data/mockCampaigns';
-import { LANGUAGE_LABELS, type LanguageCode } from '@/data/mockPersona';
+import { LANGUAGE_LABELS, activePersona, type LanguageCode } from '@/data/mockPersona';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
@@ -90,7 +90,7 @@ import { GlassCircleButton } from '@/components/GlassCircleButton';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import { GlassPopover } from '@/components/GlassPopover';
 import { ResponsiveSheet } from '@/components/ResponsiveSheet';
-import { conversionPct, replyRatePct } from '@/components/CampaignsList';
+import { conversionPct, replyRatePct, GoalPill, ConversionBar } from '@/components/CampaignsList';
 import { SectionLabel } from '@/components/LeadContextPanel';
 import { ReplaiyLogo } from '@/components/Logo';
 import { APPLE_SPRING } from '@/lib/motion';
@@ -124,6 +124,87 @@ function heroStatusLine(campaign: Campaign): string {
   const when =
     days === 0 ? 'started today' : days === 1 ? 'started 1 day ago' : `started ${days} days ago`;
   return `${state}, ${when}`;
+}
+
+// ── "Your AI" Overview read ─────────────────────────────────────────
+// A first-person VERDICT + RECOMMENDATION the user can read on its own to
+// answer the only two questions Overview must answer: "How is my campaign
+// doing?" and "Do I need to change anything?". This is NOT a stats recap.
+//
+// Structure (2-3 sentences, warm, first-person, no em-dashes, no middots):
+//   1. A plain-language verdict (good / heating up / needs attention).
+//   2. The single most important thing to do right now, conditional on the
+//      numbers. If replies are waiting, that action wins and points to the
+//      inbox; otherwise the recommendation follows the weakest signal
+//      (accept rate dipping -> narrow ICP; healthy + nothing pending ->
+//      reassure nothing is needed).
+
+// A short, normal-case phase label for under "Your AI" (1-3 words). Mirrors
+// the inbox stage label slot. Derived from conversion + reply-rate momentum.
+function campaignPhaseLabel(campaign: Campaign): string {
+  if (campaign.status === 'paused') return 'Paused';
+  if (campaign.status === 'draft') return 'Not started';
+  if (campaign.status === 'archived') return 'Archived';
+  const conv = conversionPct(campaign);
+  const reply = replyRatePct(campaign);
+  const replyTrend = kpiTrend(campaign.history?.replyRate);
+  if (conv >= 7 || reply >= 55) return 'Performing well';
+  if (replyTrend?.dir === 'up' || reply >= 38) return 'Gaining momentum';
+  return 'Warming up';
+}
+
+// Compose the verdict + recommendation. Clause choice is driven by the
+// numbers so the read feels specific and alive.
+function campaignAiRead(campaign: Campaign): string {
+  const s = campaign.stats;
+  const conv = conversionPct(campaign);
+  const reply = replyRatePct(campaign);
+  const replyTrend = kpiTrend(campaign.history?.replyRate);
+  const acceptTrend = kpiTrend(campaign.history?.acceptRate);
+  const acceptRate = s.sent === 0 ? 0 : Math.round((s.accepted / s.sent) * 100);
+  const waiting = campaign.repliesWaiting;
+  const queued = s.found - s.sent;
+
+  // Not-yet-running states: a calm, honest verdict, no pressure.
+  if (campaign.status === 'draft') {
+    return "This campaign is not live yet. Press start whenever you are ready and I will begin sourcing and reaching out for you.";
+  }
+  if (campaign.status === 'paused') {
+    return `This campaign is paused right now, so nothing is going out. ${
+      waiting && waiting > 0
+        ? `There ${waiting === 1 ? 'is' : 'are'} still ${waiting} ${waiting === 1 ? 'reply' : 'replies'} waiting for your approval in the inbox.`
+        : 'Resume it whenever you want me to pick the conversations back up.'
+    }`;
+  }
+
+  // ── Active: build a verdict sentence, then a recommendation sentence. ──
+  const climbing = replyTrend?.dir === 'up';
+  const strong = conv >= 7 || reply >= 55;
+
+  let verdict: string;
+  if (strong && climbing) {
+    verdict = `This campaign is in great shape. ${s.replied} leads have replied and ${s.goalAchieved} have already converted, and the reply rate is still climbing week over week.`;
+  } else if (climbing) {
+    verdict = `This campaign is heating up. ${s.replied} leads have replied so far and the reply rate is climbing week over week, so the targeting is landing.`;
+  } else if (strong) {
+    verdict = `This campaign is doing well. ${s.replied} leads have replied and ${s.goalAchieved} have converted, and things are holding steady.`;
+  } else {
+    verdict = `This campaign is finding its feet. ${s.replied} leads have replied out of ${fmtNum(s.accepted)} connected, so there is room to sharpen it.`;
+  }
+
+  // Recommendation: replies waiting always wins (that is the live action).
+  let action: string;
+  if (waiting && waiting > 0) {
+    action = `Right now ${waiting} ${waiting === 1 ? 'reply is' : 'replies are'} waiting for your approval in the inbox, so that is the one thing worth doing today.`;
+  } else if ((acceptTrend?.dir === 'down') || acceptRate < 25) {
+    action = 'Accept rate is on the soft side, so I would tighten the audience a little to reach warmer leads.';
+  } else if (queued > s.sent * 0.4) {
+    action = `There are plenty of leads still queued, so I will keep sending without anything needed from you.`;
+  } else {
+    action = 'Nothing needs your attention right now, so you can leave me to keep it running.';
+  }
+
+  return `${verdict} ${action}`;
 }
 
 // ── Overview KPI cards: count-up, sparkline, trend ──────────────────
@@ -2000,6 +2081,9 @@ function OverviewKpiCards({ campaign }: { campaign: Campaign }) {
   const kpis = overviewKpis(campaign);
   return (
     <section data-testid="overview-kpis">
+      {/* Section header so Overview matches the rhythm of every other tab
+          (Audience / Sources / Funnel / Goal each carry an AudienceHeader). */}
+      <AudienceHeader label="Performance" sub="How this campaign is doing." />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {kpis.map((kpi, i) => (
           <OverviewKpiCard key={kpi.key} kpi={kpi} index={i} reduced={reduced} />
@@ -2180,7 +2264,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
   // floor so later (small) stages never collapse into an empty strip.
   const N = stages.length;
   const W = 720;
-  const H = 96; // shorter, denser band - no tall empty box on mobile
+  const H = 80; // tighter, denser band - less dead vertical space on desktop, still readable on mobile
   const padX = 6;
   const midY = H / 2;
   const maxHalf = H / 2 - 6;
@@ -2248,7 +2332,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
         }
       />
 
-      <div className="rp-card rounded-3xl px-3 py-4 lg:px-4 lg:py-5">
+      <div className="rp-card rounded-3xl px-3 py-3.5 lg:px-4 lg:py-4">
         {/* Funnel fits the card width on every screen - no horizontal scroll.
             Stage typography scales down on mobile so all stages read at once,
             exactly like the reference dashboard. */}
@@ -2689,6 +2773,97 @@ function TeamCard({ campaign }: { campaign: Campaign }) {
   );
 }
 
+// ── "Your AI" Overview hero ─────────────────────────────────────────
+// The summary hero, MIRRORING the inbox 3rd-column "THE AI, TALKING" block
+// (LeadContextPanel ~lines 925-986) 1:1: an rp-card tinted with the active
+// persona colour via --ai-accent, a 36x36 mascot avatar with a pulsing
+// radial-gradient podium glow + a gently floating mascot, "Your AI" + a short
+// phase label, a first-person verdict-and-recommendation read, then a divider
+// and a compact status strip (goal pill + AI_ACCENT progress bar + stage).
+// Persona is read EXACTLY like LeadContextPanel. Motion respects
+// prefers-reduced-motion (static mascot + glow when reduced).
+function CampaignAiHero({ campaign }: { campaign: Campaign }) {
+  const { persona: livePersona } = useReplaiy();
+  const persona = activePersona(livePersona); // { color, mascot }
+  const reduced = useReducedMotion() === true;
+
+  const read = campaignAiRead(campaign);
+  const phase = campaignPhaseLabel(campaign);
+  // The status strip progress reuses the funnel's conversion% so the bar
+  // reads as "progress toward your goal", tinted with the persona AI accent.
+  const progress = conversionPct(campaign);
+
+  return (
+    <div
+      data-testid="overview-ai-hero"
+      className="rp-card rounded-[20px] px-4 pt-3.5 pb-3.5"
+      style={{ ['--ai-accent' as never]: persona.color }}
+    >
+      <div className="flex items-center gap-2.5 mb-3">
+        <div className="relative w-[36px] h-[36px] shrink-0 flex items-center justify-center">
+          {/* Soft persona-colour podium behind the mascot. */}
+          <motion.span
+            aria-hidden
+            className="absolute inset-[-2px] rounded-full"
+            style={{
+              background: `radial-gradient(circle at 50% 50%, ${persona.color}, transparent 68%)`,
+              filter: 'blur(7px)',
+              opacity: 0.5,
+            }}
+            animate={reduced ? undefined : { opacity: [0.42, 0.58, 0.42] }}
+            transition={
+              reduced
+                ? undefined
+                : { duration: 3.4, repeat: Infinity, ease: 'easeInOut' }
+            }
+          />
+          <motion.img
+            src={persona.mascot}
+            alt=""
+            aria-hidden
+            draggable={false}
+            className="relative w-[36px] h-[36px] object-contain select-none pointer-events-none"
+            animate={reduced ? undefined : { y: [0, -2.5, 0] }}
+            transition={
+              reduced
+                ? undefined
+                : { duration: 3.6, repeat: Infinity, ease: 'easeInOut' }
+            }
+          />
+        </div>
+        <div className="min-w-0 leading-tight">
+          <div className="text-[13px] font-semibold tracking-[-0.01em] text-foreground">
+            Your AI
+          </div>
+          <div className="text-[11.5px] text-foreground/45 mt-0.5">{phase}</div>
+        </div>
+      </div>
+
+      <p
+        data-testid="overview-ai-read"
+        className="text-[13.5px] leading-[1.55] text-foreground/80 m-0"
+      >
+        {read}
+      </p>
+
+      {/* Status strip - goal pill + a thin AI_ACCENT progress bar + stage
+          label, reused 1:1 from the inbox row, folded into the AI card under
+          the read so the AI tells the story and shows where it stands. */}
+      <div className="mt-3.5 pt-3.5 border-t border-foreground/[0.07] flex items-center gap-2.5 min-w-0">
+        <span className="shrink-0">
+          <GoalPill goalType={campaign.goalType} />
+        </span>
+        <span className="flex-1 min-w-0 flex items-center">
+          <ConversionBar pct={progress} />
+        </span>
+        <span className="shrink-0 text-[12px] font-medium text-foreground/65 whitespace-nowrap">
+          {phase}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════════════════
 // Detail view
 function CampaignDetailView({ campaign }: { campaign: Campaign }) {
@@ -2855,6 +3030,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
     overview: (
       <>
         {overviewHero}
+        <CampaignAiHero campaign={campaign} />
         <OverviewKpiCards campaign={campaign} />
         <FunnelCard campaign={campaign} />
         <GoalCard campaign={campaign} />
@@ -2906,14 +3082,12 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
         />
       </div>
 
-      {/* Campaign name as an inline-editable field, BELOW the tabs — the same
-          editable affordance (label text + rename pencil) the app uses for
-          other editable values. On OVERVIEW the name lives in the crafted hero
-          inside the tab content instead, so we skip this shared block there to
-          avoid showing the name twice; every OTHER tab keeps it. */}
-      {tab !== 'overview' && (
-        <div className="mb-6 md:mb-7">{renderNameField('lg')}</div>
-      )}
+      {/* The campaign name is the SINGLE name treatment for the whole detail
+          and now lives ONLY in the Overview hero (large, inline-editable, same
+          renderNameField + testids). The other tabs (audience / outreach /
+          team) drop the repeated name field entirely - the user already knows
+          which campaign they are in, and each of those tabs carries its own
+          AudienceHeader section titles, so they read clean without it. */}
 
       {/* Only the active tab's sections render - short, scannable, no endless
           scroll. A light cross-fade on switch, same feel as the lead panel. */}

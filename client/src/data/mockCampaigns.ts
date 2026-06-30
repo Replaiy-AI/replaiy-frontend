@@ -256,6 +256,11 @@ export interface Campaign {
     replied: number; // leads who replied at least once (reply rate)
     goalAchieved: number; // conversions (the configurable goal)
   };
+  // Mock only: replies currently waiting for the user's approval in the inbox.
+  // The real model has no campaign-scoped inbox count; this lets the Overview
+  // AI read fold in a natural action clause ("6 replies are waiting for your
+  // approval in the inbox."). Omitted -> the clause is skipped gracefully.
+  repliesWaiting?: number;
   // Optional ~8-week weekly history per KPI, for the Overview sparklines +
   // trend badges. Each array is oldest -> newest; the LAST value matches the
   // current derived KPI value so the sparkline ends where the big number is.
@@ -413,6 +418,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
       replied: 61,
       goalAchieved: 11,
     },
+    repliesWaiting: 6,
     history: {
       connectionRequests: [40, 95, 150, 215, 270, 330, 380, 420],
       acceptRate: [28, 30, 29, 31, 33, 32, 33, 34],
@@ -467,6 +473,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
       replied: 34,
       goalAchieved: 6,
     },
+    repliesWaiting: 4,
     history: {
       connectionRequests: [30, 65, 100, 140, 175, 205, 235, 260],
       acceptRate: [30, 31, 30, 32, 33, 33, 33, 34],
@@ -521,6 +528,7 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
       replied: 132,
       goalAchieved: 58,
     },
+    repliesWaiting: 11,
     history: {
       connectionRequests: [70, 150, 230, 300, 370, 440, 490, 540],
       acceptRate: [33, 34, 35, 36, 37, 38, 38, 39],
