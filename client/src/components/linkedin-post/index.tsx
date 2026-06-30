@@ -46,6 +46,7 @@ import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { engagersFor } from '@/data/mockConversations';
+import { mockPersona } from '@/data/mockPersona';
 import type {
   LinkedInPost,
   LinkedInReactionKind,
@@ -1045,6 +1046,332 @@ export function ActivityItem({
   );
 }
 
+// ─── Comment thread · the FULL comment experience (post / like / reply) ──
+// ONE shared, reusable component rendered IDENTICALLY by BOTH surfaces that
+// show comments: the engagers push-in (comments mode) AND the media lightbox
+// panel / sheet. DRY — there is exactly one comment UI, never two.
+//
+// All state is LOCAL and OPTIMISTIC (visual only, no backend, no persistence):
+//   • the comment list is seeded once from engagersFor(post,'comments') (which
+//     already carries seed likes / timeAgo / replies),
+//   • posting a comment prepends it to the local list (newest at top),
+//   • liking toggles a per-comment local count + accent,
+//   • replying appends a reply (ONE level only) under that comment.
+// On remount it resets to the seed — which is the intended behaviour.
+//
+// VISUAL LANGUAGE — reuses the existing comment-row look (avatar + name +
+// headline + text in a soft rounded bubble, same as MediaLightboxComments),
+// the feed composer's "Start a post" field treatment for every input, the
+// app's #2F6BFF accent for the active Like state, and small muted hover-elevate
+// text buttons for Like / Reply (accent when active). Single blue accent only.
+
+// A locally-tracked comment (seed engager + its replies, with a stable id).
+type ThreadComment = LinkedInEngager & { replies?: LinkedInEngager[] };
+
+// The current user's headline for comments / replies they author. mockPersona
+// stores the role with a middot ("Founder · Replaiy"), but the UI rule forbids
+// middot separators, so we normalise it to a natural "role at org" phrase.
+const CURRENT_USER_HEADLINE = mockPersona.role.replace(/\s*\u00b7\s*/g, ' at ');
+
+// The shared compose field (a rounded "Add a comment" input + Post button).
+// Reuses the feed composer's subtle field treatment for full app consistency.
+// Post is disabled / muted until there is text. Visual / optimistic only.
+function CommentComposer({
+  placeholder = 'Add a comment',
+  inputTestId,
+  postTestId,
+  avatarSize = 32,
+  onPost,
+}: {
+  placeholder?: string;
+  inputTestId: string;
+  postTestId: string;
+  avatarSize?: number;
+  onPost: (text: string) => void;
+}) {
+  const [text, setText] = useState('');
+  const canPost = text.trim().length > 0;
+  const submit = () => {
+    if (!canPost) return;
+    onPost(text.trim());
+    setText('');
+  };
+  return (
+    <div className="flex items-center gap-2.5">
+      <ReplaiyAvatar
+        name={mockPersona.memberName}
+        size={avatarSize}
+        className="shrink-0 self-start"
+      />
+      <div className="flex-1 min-w-0 flex items-center gap-2 rounded-full bg-foreground/[0.04] dark:bg-white/[0.04] pl-3.5 pr-1.5 py-1">
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          placeholder={placeholder}
+          data-testid={inputTestId}
+          className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[13px] text-foreground placeholder:text-foreground/45 leading-none py-1.5"
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canPost}
+          data-testid={postTestId}
+          className={
+            'shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[12.5px] font-semibold leading-none transition-colors ' +
+            (canPost
+              ? 'text-white hover-elevate active-elevate-2'
+              : 'text-foreground/35 cursor-default')
+          }
+          style={canPost ? { backgroundColor: ACCENT } : undefined}
+        >
+          Post
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// A small muted text action under a comment / reply (Like or Reply). Accent
+// (#2F6BFF) and "Liked" when toggled active. Mirrors the app's quiet action
+// pills: text-foreground/55 + hover-elevate, no all-caps, no middot.
+function CommentAction({
+  label,
+  active,
+  count,
+  glyph,
+  testId,
+  onClick,
+}: {
+  label: string;
+  active?: boolean;
+  count?: number;
+  glyph?: ReactNode;
+  testId: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={testId}
+      className={
+        'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 -mx-1 text-[12px] font-semibold leading-none hover-elevate active-elevate-2 transition-colors ' +
+        (active ? '' : 'text-foreground/55')
+      }
+      style={active ? { color: ACCENT } : undefined}
+    >
+      {glyph}
+      <span>{label}</span>
+      {count !== undefined && count > 0 && (
+        <span className="tabular-nums font-medium">{count}</span>
+      )}
+    </button>
+  );
+}
+
+// One reply row · indented one level under its parent comment. Smaller avatar
+// (28) + name + headline + timeAgo + text in the same soft bubble. Replies are
+// terminal — they carry NO further reply button (one level only); a reply to a
+// reply lands at the SAME level under the parent comment (handled by the list).
+function ReplyRow({ reply }: { reply: LinkedInEngager }) {
+  const seedLiked = reply.liked ?? false;
+  const [liked, setLiked] = useState(seedLiked);
+  const baseLikes = reply.likes ?? 0;
+  const likeCount =
+    baseLikes + (liked && !seedLiked ? 1 : 0) - (!liked && seedLiked ? 1 : 0);
+  return (
+    <div className="flex items-start gap-2" data-testid={`reply-${reply.id}`}>
+      <ReplaiyAvatar name={reply.name} src={reply.avatarUrl} size={28} className="shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="rounded-[14px] bg-foreground/[0.04] dark:bg-white/[0.04] px-3 py-2">
+          <div className="flex items-baseline gap-2">
+            <span className="min-w-0 flex-1 text-[12px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+              {noDash(reply.name)}
+            </span>
+            {reply.timeAgo && (
+              <span className="shrink-0 text-[10.5px] text-foreground/40 tabular-nums">
+                {noDash(reply.timeAgo)}
+              </span>
+            )}
+          </div>
+          {reply.headline && (
+            <div className="text-[10.5px] text-foreground/50 leading-snug truncate">
+              {noDash(reply.headline)}
+            </div>
+          )}
+          {reply.comment && (
+            <p className="text-[12px] leading-[1.5] text-foreground/75 m-0 mt-1 break-words">
+              {noDash(reply.comment)}
+            </p>
+          )}
+        </div>
+        <div className="mt-1 pl-1">
+          <CommentAction
+            label={liked ? 'Liked' : 'Like'}
+            active={liked}
+            count={likeCount}
+            glyph={<ThumbsUp size={12} strokeWidth={liked ? 2.4 : 1.9} aria-hidden />}
+            testId={`reply-${reply.id}-like`}
+            onClick={() => setLiked((v) => !v)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// One comment row · avatar + name + headline + timeAgo + text, then a Like /
+// Reply action line, then (one level) its replies and an inline reply composer.
+function CommentRow({ comment }: { comment: ThreadComment }) {
+  const seedLiked = comment.liked ?? false;
+  const [liked, setLiked] = useState(seedLiked);
+  const [replies, setReplies] = useState<LinkedInEngager[]>(comment.replies ?? []);
+  const [replyOpen, setReplyOpen] = useState(false);
+  const baseLikes = comment.likes ?? 0;
+  const likeCount =
+    baseLikes + (liked && !seedLiked ? 1 : 0) - (!liked && seedLiked ? 1 : 0);
+
+  const postReply = (text: string) => {
+    setReplies((prev) => [
+      ...prev,
+      {
+        id: `${comment.id}-reply-local-${prev.length}-${Date.now()}`,
+        name: mockPersona.memberName,
+        headline: CURRENT_USER_HEADLINE,
+        comment: text,
+        timeAgo: 'now',
+      },
+    ]);
+    setReplyOpen(false);
+  };
+
+  return (
+    <div className="flex items-start gap-2.5" data-testid={`comment-row-${comment.id}`}>
+      <ReplaiyAvatar name={comment.name} src={comment.avatarUrl} size={36} className="shrink-0" />
+      <div className="min-w-0 flex-1">
+        {/* The comment bubble · reuses the existing comment-row visual. */}
+        <div className="rounded-[14px] bg-foreground/[0.04] dark:bg-white/[0.04] px-3 py-2">
+          <div className="flex items-baseline gap-2">
+            <span className="min-w-0 flex-1 text-[12.5px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+              {noDash(comment.name)}
+            </span>
+            {comment.timeAgo && (
+              <span className="shrink-0 text-[11px] text-foreground/40 tabular-nums">
+                {noDash(comment.timeAgo)}
+              </span>
+            )}
+          </div>
+          {comment.headline && (
+            <div className="text-[11px] text-foreground/50 leading-snug truncate">
+              {noDash(comment.headline)}
+            </div>
+          )}
+          {comment.comment && (
+            <p className="text-[12.5px] leading-[1.5] text-foreground/75 m-0 mt-1 break-words">
+              {noDash(comment.comment)}
+            </p>
+          )}
+        </div>
+
+        {/* Action line · Like (live count + accent) and Reply. */}
+        <div className="mt-1 flex items-center gap-3 pl-1">
+          <CommentAction
+            label={liked ? 'Liked' : 'Like'}
+            active={liked}
+            count={likeCount}
+            glyph={<ThumbsUp size={13} strokeWidth={liked ? 2.4 : 1.9} aria-hidden />}
+            testId={`comment-${comment.id}-like`}
+            onClick={() => setLiked((v) => !v)}
+          />
+          <CommentAction
+            label="Reply"
+            glyph={<MessageCircle size={13} strokeWidth={1.9} aria-hidden />}
+            testId={`comment-${comment.id}-reply`}
+            onClick={() => setReplyOpen((v) => !v)}
+          />
+        </div>
+
+        {/* Replies · indented one level. Modest ml-9 indent so text never gets
+            crushed at 390; text wraps freely. */}
+        {(replies.length > 0 || replyOpen) && (
+          <div className="mt-2 ml-9 flex flex-col gap-2">
+            {replies.map((r) => (
+              <ReplyRow key={r.id} reply={r} />
+            ))}
+            {replyOpen && (
+              <CommentComposer
+                placeholder="Add a reply"
+                avatarSize={28}
+                inputTestId={`comment-${comment.id}-reply-input`}
+                postTestId={`comment-${comment.id}-reply-post`}
+                onPost={postReply}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The shared comment thread · a top compose row + the optimistic comment list.
+// Used VERBATIM by BOTH the engagers push-in (comments mode) and the media
+// lightbox panel / sheet, so the two surfaces are pixel-identical.
+export function CommentThread({ post }: { post: LinkedInPost }) {
+  const seed = useMemo(
+    () => engagersFor(post, 'comments') as ThreadComment[],
+    [post],
+  );
+  const [comments, setComments] = useState<ThreadComment[]>(seed);
+
+  const postComment = (text: string) => {
+    setComments((prev) => [
+      {
+        id: `${post.id}-comment-local-${prev.length}-${Date.now()}`,
+        name: mockPersona.memberName,
+        headline: CURRENT_USER_HEADLINE,
+        comment: text,
+        timeAgo: 'now',
+        replies: [],
+      },
+      ...prev,
+    ]);
+  };
+
+  return (
+    <div className="flex flex-col gap-3.5" data-testid="comment-thread">
+      {/* Compose row at the TOP · your new comment inserts at the top. */}
+      <CommentComposer
+        inputTestId="comment-compose-input"
+        postTestId="comment-compose-post"
+        onPost={postComment}
+      />
+
+      {comments.length > 0 ? (
+        <div className="flex flex-col gap-3.5">
+          {comments.map((c) => (
+            <CommentRow key={c.id} comment={c} />
+          ))}
+        </div>
+      ) : (
+        <p
+          className="text-[12.5px] text-foreground/40 italic m-0 px-0.5"
+          data-testid="comment-thread-empty"
+        >
+          No comments yet
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Engagers · single person row ─────────────────────────────────
 // One person who engaged with the post. Mirrors LinkedIn's reactions /
 // comments / reposts list rows: ReplaiyAvatar (44) + name (semibold) + headline
@@ -1242,7 +1569,12 @@ export function EngagersView({
             </div>
           )}
 
-          {visible.length > 0 ? (
+          {/* COMMENTS mode renders the full, shared CommentThread (compose at
+              top + comments with Like / Reply + seeded replies). Reactions and
+              reposts keep their existing tappable EngagerRow list, unchanged. */}
+          {kind === 'comments' ? (
+            <CommentThread post={post} />
+          ) : visible.length > 0 ? (
             <div className="flex flex-col gap-2">
               {visible.map((e) => (
                 <EngagerRow
@@ -1302,48 +1634,6 @@ export function EngagersView({
 //     never hidden behind it.
 // Both respect safe areas; a self-drawn X (dark scrim circle on mobile, plain
 // pill on desktop) is always reachable above the media.
-function MediaLightboxComments({ post }: { post: LinkedInPost }) {
-  // REUSE engagersFor(post,'comments') — the SAME deterministic comment people
-  // the engagers push-in shows, already capped to the post's comment count. We
-  // render them with the SAME avatar + name + headline + comment-text visual as
-  // EngagerRow (read-only rows here, no chevron / open affordance).
-  const comments = useMemo(() => engagersFor(post, 'comments'), [post]);
-  if (comments.length === 0) {
-    return (
-      <p
-        className="text-[12.5px] text-foreground/40 italic m-0 px-0.5"
-        data-testid="lightbox-comments-empty"
-      >
-        No comments yet
-      </p>
-    );
-  }
-  return (
-    <div className="flex flex-col gap-2.5" data-testid="lightbox-comments">
-      {comments.map((c) => (
-        <div key={c.id} className="flex items-start gap-2.5" data-testid={`lightbox-comment-${c.id}`}>
-          <ReplaiyAvatar name={c.name} src={c.avatarUrl} size={34} />
-          <div className="min-w-0 flex-1 rounded-[14px] bg-foreground/[0.04] dark:bg-white/[0.04] px-3 py-2">
-            <div className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
-              {noDash(c.name)}
-            </div>
-            {c.headline && (
-              <div className="text-[11px] text-foreground/50 leading-snug truncate">
-                {noDash(c.headline)}
-              </div>
-            )}
-            {c.comment && (
-              <p className="text-[12.5px] leading-[1.5] text-foreground/75 m-0 mt-1 break-words">
-                {noDash(c.comment)}
-              </p>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // The conversation column shared by desktop (right panel) and mobile (bottom
 // sheet): author identity + post text + count summary + comments list.
 function MediaLightboxPanel({ post }: { post: LinkedInPost }) {
@@ -1396,7 +1686,10 @@ function MediaLightboxPanel({ post }: { post: LinkedInPost }) {
       {/* Hairline divider before the comments, the app's standard token. */}
       <div className="-mx-0.5 border-t border-foreground/[0.08] dark:border-white/[0.08]" />
 
-      <MediaLightboxComments post={post} />
+      {/* SAME shared comment experience as the engagers push-in: posting +
+          like + reply work here too, in the lightbox's right panel (desktop)
+          and bottom sheet (mobile). It scrolls within the panel / sheet. */}
+      <CommentThread post={post} />
     </div>
   );
 }

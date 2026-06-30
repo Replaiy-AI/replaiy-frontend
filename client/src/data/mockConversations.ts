@@ -111,6 +111,21 @@ export interface LinkedInEngager {
   reaction?: LinkedInReactionKind;
   /** For comment engagers: the comment text they wrote. */
   comment?: string;
+  // ── Comment-thread fields (only meaningful when used AS a comment) ──
+  // These power the full comment experience (post / like / reply). They are
+  // SEEDS only: the live like-toggle, your posted comments and your posted
+  // replies are LOCAL runtime state in the CommentThread UI, never persisted.
+  /** Like count shown on the comment (LinkedIn shows a running total). */
+  likes?: number;
+  /** Whether the CURRENT user already liked it. Seed only (default false);
+   *  the runtime toggle lives in local component state. */
+  liked?: boolean;
+  /** One level of replies under this comment, LinkedIn-style. Each reply is
+   *  itself a LinkedInEngager (name / headline / avatar / comment / likes /
+   *  timeAgo). Replies do NOT carry their own `replies` — ONE level only. */
+  replies?: LinkedInEngager[];
+  /** Relative timestamp for the comment, e.g. "2h", "1d" (LinkedIn shows this). */
+  timeAgo?: string;
 }
 
 export interface LinkedInPost {
@@ -1593,6 +1608,79 @@ const SAMPLE_COMMENTS = [
   'Needed to read this. Reply quality is everything right now.',
 ];
 
+// Comment-thread SEED metadata, parallel to SAMPLE_COMMENTS (same index used by
+// engagersFor). A subset of comments carries a like count, a timestamp and one
+// to two believable B2B replies so the thread UI always has real content to
+// show (likes, timeAgo, nested replies). Entries left undefined stay plain.
+// Replies reuse the same realistic sales/outbound tone as the comments.
+const SAMPLE_COMMENT_META: Array<
+  | {
+      likes?: number;
+      liked?: boolean;
+      timeAgo?: string;
+      replies?: Array<{ name: string; headline: string; img: number; comment: string; timeAgo: string; likes?: number }>;
+    }
+  | undefined
+> = [
+  {
+    likes: 12,
+    timeAgo: '2h',
+    replies: [
+      {
+        name: 'Sophie Bakker',
+        headline: 'Head of Demand Gen at Loopline',
+        img: 5,
+        comment: 'Same here. Cutting the list in half doubled our reply rate.',
+        timeAgo: '1h',
+        likes: 3,
+      },
+      {
+        name: 'Karl Jensen',
+        headline: 'CRO at Brightpath',
+        img: 52,
+        comment: 'Curious how you measured the lift. Per account or per rep?',
+        timeAgo: '47m',
+      },
+    ],
+  },
+  {
+    likes: 5,
+    timeAgo: '4h',
+    replies: [
+      {
+        name: 'Daniel Okafor',
+        headline: 'VP Sales at Brightloop',
+        img: 13,
+        comment: 'Relevance over volume should be on every SDR wall.',
+        timeAgo: '3h',
+        likes: 2,
+      },
+    ],
+  },
+  {
+    likes: 8,
+    timeAgo: '1d',
+  },
+  undefined,
+  {
+    likes: 3,
+    timeAgo: '6h',
+    replies: [
+      {
+        name: 'Aisha Rahman',
+        headline: 'RevOps Manager at Flowstate',
+        img: 16,
+        comment: 'Happy to share the dashboard we built for this if useful.',
+        timeAgo: '5h',
+      },
+    ],
+  },
+  {
+    likes: 21,
+    timeAgo: '3d',
+  },
+];
+
 function hashId(seed: string): number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
@@ -1622,7 +1710,27 @@ export function engagersFor(
       avatarUrl: `https://i.pravatar.cc/120?img=${p.img}`,
     };
     if (kind === 'reactions') e.reaction = REACTION_CYCLE[(base + i) % REACTION_CYCLE.length];
-    if (kind === 'comments') e.comment = SAMPLE_COMMENTS[(base + i) % SAMPLE_COMMENTS.length];
+    if (kind === 'comments') {
+      const idx = (base + i) % SAMPLE_COMMENTS.length;
+      e.comment = SAMPLE_COMMENTS[idx];
+      const meta = SAMPLE_COMMENT_META[idx];
+      if (meta) {
+        if (meta.likes !== undefined) e.likes = meta.likes;
+        if (meta.liked !== undefined) e.liked = meta.liked;
+        if (meta.timeAgo !== undefined) e.timeAgo = meta.timeAgo;
+        if (meta.replies) {
+          e.replies = meta.replies.map((r, ri) => ({
+            id: `${e.id}-reply-${ri}`,
+            name: r.name,
+            headline: r.headline,
+            avatarUrl: `https://i.pravatar.cc/120?img=${r.img}`,
+            comment: r.comment,
+            timeAgo: r.timeAgo,
+            likes: r.likes,
+          }));
+        }
+      }
+    }
     out.push(e);
   }
   return out;
