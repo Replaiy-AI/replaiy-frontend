@@ -35,11 +35,11 @@ const IMG_A = 'https://i.pravatar.cc/600?img=20';
 const IMG_B = 'https://i.pravatar.cc/600?img=33';
 const IMG_C = 'https://i.pravatar.cc/600?img=47';
 
-// Reliable public sample mp4 + a poster thumbnail (reusing a pravatar-style
-// URL already used across the mock posts) for the inline-video post type.
-const SAMPLE_VIDEO =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
-const VIDEO_POSTER = 'https://picsum.photos/seed/replaiyvideo/800/450';
+// Reliable public sample mp4 + its matching poster frame (both W3C-hosted, very
+// stable + CORS-friendly) for the inline-video post type. The poster is the
+// real first frame of the clip, so it matches what plays.
+const SAMPLE_VIDEO = 'https://media.w3.org/2010/05/sintel/trailer.mp4';
+const VIDEO_POSTER = 'https://media.w3.org/2010/05/sintel/poster.png';
 
 // The three pipeline leads (kept consistent with their inbox profiles).
 const EMMA = {

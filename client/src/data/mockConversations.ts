@@ -721,9 +721,8 @@ export const mockConversations: Conversation[] = [
             authorAvatarUrl: 'https://i.pravatar.cc/120?img=45',
             timeAgo: '3d',
             text: 'A vendor emailed our entire backend team the same pitch on the same morning. Different names, identical body. We screenshot it into a channel and laughed. That is the opposite of how you reach engineers.',
-            videoUrl:
-              'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-            videoPosterUrl: 'https://picsum.photos/seed/replaiyprofilevideo/800/450',
+            videoUrl: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
+            videoPosterUrl: 'https://media.w3.org/2010/05/sintel/poster.png',
             likes: 356,
             comments: 52,
             reposts: 24,
