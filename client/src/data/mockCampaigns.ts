@@ -156,7 +156,23 @@ export interface FlowStep {
   kind: FlowStepKind;
   // Human delay before this step, e.g. "1d", "2d", "same day".
   delay?: string;
+  // Editable timing label shown + edited in the Flow (e.g. "Day 1", "Day 2",
+  // "On accept", "+3 days"). Falls back to `delay` when omitted. This is the
+  // field the Flow editor writes to (local/optimistic this round). Kept
+  // separate from `delay` so the legacy field stays stable for older code.
+  timingLabel?: string;
+  // Editable message copy for steps that SEND text (connect opener, message,
+  // follow_up). The opener (connect) only uses this when Sending -> Opening
+  // message is "fixed"; in "ai" mode Replaiy personalizes it per lead. Steps
+  // that do not send text (like) ignore this. Optional so the data extends
+  // cleanly when full add/remove/reorder lands later.
+  text?: string;
 }
+
+// Which flow-step kinds actually SEND text the user can edit. `like` does not.
+// `connect` carries the opener (its editability is governed by the Sending ->
+// Opening message choice). `message` / `follow_up` are always editable.
+export const FLOW_KINDS_WITH_TEXT: FlowStepKind[] = ['connect', 'message', 'follow_up'];
 
 export const FLOW_STEP_META: Record<
   FlowStepKind,
@@ -170,11 +186,29 @@ export const FLOW_STEP_META: Record<
 };
 
 // A sensible default flow used by campaigns that don't define their own.
+// Seeds editable `timingLabel` + `text` so the Flow editor has a place to
+// live. The connect opener text is only used when Sending opener mode is
+// "fixed"; otherwise Replaiy personalizes it per lead.
 export const DEFAULT_FLOW: FlowStep[] = [
-  { kind: 'like', delay: 'Day 1' },
-  { kind: 'connect', delay: 'Day 2' },
-  { kind: 'message', delay: 'On accept' },
-  { kind: 'follow_up', delay: '+3 days' },
+  { kind: 'like', delay: 'Day 1', timingLabel: 'Day 1' },
+  {
+    kind: 'connect',
+    delay: 'Day 2',
+    timingLabel: 'Day 2',
+    text: 'Hi {{firstName}}, really enjoyed your recent post on {{topic}}. Would love to connect.',
+  },
+  {
+    kind: 'message',
+    delay: 'On accept',
+    timingLabel: 'On accept',
+    text: "Thanks for connecting, {{firstName}}. I help teams at companies like {{company}} reply faster on LinkedIn without losing the personal touch. Open to a quick look?",
+  },
+  {
+    kind: 'follow_up',
+    delay: '+3 days',
+    timingLabel: '+3 days',
+    text: 'Just floating this back up, {{firstName}}. Happy to share a short example tailored to {{company}} whenever the timing works.',
+  },
 ];
 
 export interface Campaign {
@@ -199,6 +233,16 @@ export interface Campaign {
   // Send timing for AUTOMATED actions only. Manual approvals always send when
   // the user approves. Representational this round (no real scheduling).
   timing?: { enabled: boolean; window: string };
+  // How the FIRST message is written. 'ai' (default) = Replaiy personalizes
+  // each opener per lead; 'fixed' = one opener used for everyone (fixedText),
+  // which may carry simple {{firstName}} / {{company}} placeholders. Visual
+  // this round; no real templating engine.
+  opener?: { mode: 'ai' | 'fixed'; fixedText?: string };
+  // How AI conversation replies are handled. 'review' (default) = every reply
+  // waits for approval in the inbox; 'autopilot' = Replaiy sends replies
+  // automatically and automatically holds back low-confidence ones for inbox
+  // approval (the hold-back is built in, not a separate toggle).
+  replyMode?: 'review' | 'autopilot';
   // Full outbound funnel, aligned with the backend lead_state machine
   // (sourced -> connect_requested -> connected -> in_conversation -> replied
   // -> goal_achieved). The list shows only conversion% (derived); the detail
@@ -348,6 +392,8 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     },
     language: { mode: 'auto' },
     timing: { enabled: true, window: 'Weekdays, 8:00 to 18:00' },
+    opener: { mode: 'ai' },
+    replyMode: 'autopilot',
     stats: {
       found: 680,
       sent: 420,
@@ -524,6 +570,12 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     },
     language: { mode: 'fixed', fixed: 'nl' },
     timing: { enabled: false, window: 'Weekdays, 9:00 to 17:00' },
+    opener: {
+      mode: 'fixed',
+      fixedText:
+        'Hi {{firstName}}, saw {{company}} is leaning into partnerships. Would love to compare notes, open to connecting?',
+    },
+    replyMode: 'review',
     stats: {
       found: 180,
       sent: 110,

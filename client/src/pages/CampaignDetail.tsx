@@ -55,6 +55,10 @@ import {
   Languages as LanguagesIcon,
   Clock,
   Globe,
+  Wand2,
+  Inbox,
+  Bot,
+  MessageCircle,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import {
@@ -62,11 +66,13 @@ import {
   WORKSPACE_MEMBERS,
   DEFAULT_FLOW,
   FLOW_STEP_META,
+  FLOW_KINDS_WITH_TEXT,
   LEAD_SOURCE_META,
   WARMTH_META,
   type Campaign,
   type CampaignAudience,
   type CampaignGoalType,
+  type FlowStep,
   type FlowStepKind,
   type LeadSourceKind,
   type LeadWarmth,
@@ -81,6 +87,7 @@ import { GlassToggle } from '@/components/GlassToggle';
 import { GlassPopover } from '@/components/GlassPopover';
 import { ResponsiveSheet } from '@/components/ResponsiveSheet';
 import { conversionPct, replyRatePct } from '@/components/CampaignsList';
+import { SectionLabel } from '@/components/LeadContextPanel';
 import { ReplaiyLogo } from '@/components/Logo';
 import { APPLE_SPRING } from '@/lib/motion';
 
@@ -235,29 +242,36 @@ function qualifiedCount(
   return total;
 }
 
-// ── Section header - the EXACT FineTuneSection pattern (label + sub) ─
-// A trailing slot keeps an optional quiet affordance (Edit / template) on the
-// header baseline, like the Goal card's Edit pill.
+// ── Section header - the ONE shared header used by EVERY section in this
+//    screen, so titles line up + read exactly like the Persona page and the
+//    inbox lead panel. The title runs through the SHARED `SectionLabel`
+//    component (the single source of truth for the 12.5px / semibold /
+//    px-2-inset treatment, identical to Persona's section headers); we only
+//    strip its built-in bottom margin here because a muted sub-line follows
+//    immediately. A trailing slot keeps an optional quiet affordance (Edit /
+//    Add / template) on the title baseline. The sub-line uses the exact same
+//    muted treatment + px-2 inset everywhere (11.5px, foreground/45). `sub`
+//    is optional so headers can stand alone when they need to.
 function AudienceHeader({
   label,
   sub,
   trailing,
 }: {
   label: string;
-  sub: string;
+  sub?: string;
   trailing?: React.ReactNode;
 }) {
   return (
     <>
-      <div className="px-2 mb-1 flex items-center justify-between gap-3">
-        <span className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground">
-          {label}
-        </span>
+      <div className="flex items-center justify-between gap-3 mb-1 [&>*]:mb-0">
+        <SectionLabel>{label}</SectionLabel>
         {trailing}
       </div>
-      <p className="px-2 text-[11.5px] leading-[1.45] text-foreground/45 mb-3">
-        {sub}
-      </p>
+      {sub && (
+        <p className="px-2 text-[11.5px] leading-[1.45] text-foreground/45 mb-3">
+          {sub}
+        </p>
+      )}
     </>
   );
 }
@@ -1526,6 +1540,186 @@ function TimingSection({ campaign }: { campaign: Campaign }) {
   );
 }
 
+// Sending - how Replaiy reaches out and replies.
+// Two 2-choice selectors, styled EXACTLY like the Language section's
+// two-option pattern (one rp-card, hairline-divided button rows, a leading
+// glyph, label + hint, a quiet selection check, and a revealed area under the
+// active row). Concerns outreach BEHAVIOUR, so it sits right by Send timing.
+//
+// Controlled by the parent (CampaignDetailView) so the opener choice can
+// cross-link into the Flow's opener step: the parent owns opener / reply
+// state, seeds it from the campaign, and passes the same opener down to the
+// Flow. No backend write this round (visual / optimistic).
+function SendingSection({
+  opener,
+  onOpenerMode,
+  onOpenerText,
+  reply,
+  onReply,
+}: {
+  opener: { mode: 'ai' | 'fixed'; fixedText: string };
+  onOpenerMode: (mode: 'ai' | 'fixed') => void;
+  onOpenerText: (text: string) => void;
+  reply: 'review' | 'autopilot';
+  onReply: (mode: 'review' | 'autopilot') => void;
+}) {
+  // One row in a 2-choice selector - the EXACT Language-row treatment.
+  function ChoiceRow({
+    selected,
+    onSelect,
+    icon: Icon,
+    label,
+    hint,
+    testId,
+    first,
+    children,
+  }: {
+    selected: boolean;
+    onSelect: () => void;
+    icon: typeof Wand2;
+    label: string;
+    hint: string;
+    testId: string;
+    first: boolean;
+    children?: React.ReactNode;
+  }) {
+    return (
+      <div>
+        {!first && (
+          <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+        )}
+        <button
+          type="button"
+          data-testid={testId}
+          onClick={onSelect}
+          aria-pressed={selected}
+          className={`w-full text-left px-4 py-3.5 hover-elevate active-elevate-2 ${
+            selected ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <Icon
+              size={16}
+              strokeWidth={1.9}
+              className={`shrink-0 ${selected ? 'text-foreground/70' : 'text-foreground/40'}`}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
+                {label}
+              </div>
+              <div className="text-[12.5px] text-muted-foreground leading-snug mt-0.5">
+                {hint}
+              </div>
+            </div>
+            {selected && (
+              <Check size={17} strokeWidth={2.4} className="shrink-0 text-foreground/70" />
+            )}
+          </div>
+        </button>
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <section>
+      <AudienceHeader
+        label="Sending"
+        sub="How Replaiy reaches out and replies."
+      />
+
+      {/* Opening message - AI writes each opener, or one fixed opener. */}
+      <div className="mb-2 px-2 text-[12px] font-semibold text-foreground/65">
+        Opening message
+      </div>
+      <div className="rp-card rounded-3xl overflow-hidden" data-testid="sending-opener">
+        <ChoiceRow
+          first
+          selected={opener.mode === 'ai'}
+          onSelect={() => onOpenerMode('ai')}
+          icon={Wand2}
+          label="Replaiy writes each opener"
+          hint="The first message is personalized per lead from their profile and signals."
+          testId="opener-option-ai"
+        />
+        <ChoiceRow
+          first={false}
+          selected={opener.mode === 'fixed'}
+          onSelect={() => onOpenerMode('fixed')}
+          icon={MessageCircle}
+          label="Use a fixed opening message"
+          hint="One opener for everyone in this campaign."
+          testId="opener-option-fixed"
+        >
+          <AnimatePresence initial={false}>
+            {opener.mode === 'fixed' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="overflow-hidden"
+              >
+                <div
+                  className="px-4 pb-4 pl-[52px] flex flex-col gap-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <textarea
+                    data-testid="opener-fixed-text"
+                    value={opener.fixedText}
+                    onChange={(e) => onOpenerText(e.target.value)}
+                    rows={3}
+                    placeholder="Write your opener. Use firstName or company to personalize."
+                    className="w-full resize-none bg-foreground/[0.04] dark:bg-white/[0.04] rounded-2xl px-3.5 py-3 outline-none text-[13.5px] leading-relaxed text-foreground placeholder:text-foreground/40"
+                  />
+                  <p className="text-[12px] text-foreground/45 leading-snug">
+                    Tip: variables like {'{{firstName}}'} and {'{{company}}'} fill in from each lead.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </ChoiceRow>
+      </div>
+
+      {/* Conversation replies - review everything, or autopilot. */}
+      <div className="mt-5 mb-2 px-2 text-[12px] font-semibold text-foreground/65">
+        Conversation replies
+      </div>
+      <div className="rp-card rounded-3xl overflow-hidden" data-testid="sending-reply">
+        <ChoiceRow
+          first
+          selected={reply === 'review'}
+          onSelect={() => onReply('review')}
+          icon={Inbox}
+          label="Review everything"
+          hint="Every AI reply waits for your approval in the inbox."
+          testId="reply-option-review"
+        />
+        <ChoiceRow
+          first={false}
+          selected={reply === 'autopilot'}
+          onSelect={() => onReply('autopilot')}
+          icon={Bot}
+          label="Autopilot"
+          hint="Replaiy sends replies automatically, and holds back low-confidence ones to your inbox for approval."
+          testId="reply-option-autopilot"
+        />
+      </div>
+
+      {/* Quiet note: automated sending honours the work window + safe limits. */}
+      <p
+        data-testid="sending-note"
+        className="px-2 mt-2.5 flex items-start gap-1.5 text-[11.5px] text-foreground/45 leading-snug"
+      >
+        <ShieldCheck size={13} strokeWidth={1.9} className="shrink-0 mt-[2px] text-foreground/35" />
+        Automated sending respects your work window and stays within LinkedIn
+        safe limits.
+      </p>
+    </section>
+  );
+}
+
 // ── Goal card - what Replaiy steers toward, now editable in place ───
 // View mode shows the goal + hint with an Edit affordance. Editing reveals
 // the same goal picker the create view uses, and persists via updateCampaign.
@@ -1782,7 +1976,7 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
                   data-testid={`funnel-stage-${st.key}`}
                   className="px-0.5 lg:px-1 text-left"
                 >
-                  <div className="text-[8.5px] lg:text-[11.5px] uppercase tracking-[0.02em] lg:tracking-[0.04em] text-muted-foreground truncate">
+                  <div className="text-[10.5px] lg:text-[12px] font-medium tracking-[-0.005em] text-muted-foreground truncate">
                     {st.label}
                   </div>
                   <div className="mt-0.5 text-[13px] lg:text-[18px] font-semibold tracking-[-0.01em] tabular-nums text-foreground leading-none">
@@ -1860,29 +2054,71 @@ function FunnelCard({ campaign }: { campaign: Campaign }) {
   );
 }
 
-// ── Flow card - READ-ONLY action sequence Replaiy runs per lead ─────
-// A clean vertical sequence: icon + label + hint, with the delay on the
-// right. A connector line ties the steps together. Clearly read-only -
-// an "Editing soon" hint, no drag-and-drop.
-function FlowCard({ campaign }: { campaign: Campaign }) {
-  const flow = campaign.flow ?? DEFAULT_FLOW;
+// Flow card - the action sequence Replaiy runs per lead, now editable in a
+// LIMITED way. Step TYPE / order / add / delete are NOT editable yet (a later
+// phase). Editable per step: (1) the TIMING label (tap the timing pill to edit
+// it inline), and (2) for steps that SEND text (connect opener, message,
+// follow_up) the MESSAGE COPY (tap the step to expand an editable textarea).
+//
+// Cross-link: the connect step is the OPENER, so it respects Sending ->
+// Opening message. When opener mode is "ai" it reads "Replaiy personalizes
+// this" and is NOT a free-text field; when "fixed" it shows + edits the one
+// fixed opener (kept in sync with the Sending section through the parent).
+// Message / Follow-up stay editable regardless. All edits are local state.
+function FlowCard({
+  campaign,
+  openerMode,
+  openerFixedText,
+  onOpenerText,
+}: {
+  campaign: Campaign;
+  openerMode: 'ai' | 'fixed';
+  openerFixedText: string;
+  onOpenerText: (text: string) => void;
+}) {
+  // Local, optimistic copy of the flow steps (timing + per-step text).
+  const [steps, setSteps] = useState<FlowStep[]>(
+    () => (campaign.flow ?? DEFAULT_FLOW).map((s) => ({ ...s })),
+  );
+  // Which step is expanded for editing (single open at a time), and which
+  // step's timing is in inline-edit mode.
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [timingEditIdx, setTimingEditIdx] = useState<number | null>(null);
+
+  const setTiming = (i: number, value: string) =>
+    setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, timingLabel: value } : s)));
+  const setText = (i: number, value: string) =>
+    setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, text: value } : s)));
+
   return (
     <section>
       <AudienceHeader
         label="Flow"
-        sub="The steps Replaiy runs for each lead."
+        sub="The steps Replaiy runs for each lead. Tap a step to edit its timing and message."
         trailing={
           <span className="glass-pill pill inline-flex items-center h-[22px] px-2.5 text-[11px] font-medium text-foreground/55 whitespace-nowrap">
-            {flow.length} steps
+            {steps.length} steps
           </span>
         }
       />
       <div className="rp-card rounded-3xl px-4 py-3 lg:px-5 lg:py-3.5">
         <div className="flex flex-col">
-          {flow.map((step, i) => {
+          {steps.map((step, i) => {
             const meta = FLOW_STEP_META[step.kind];
             const Icon = FLOW_ICONS[step.kind];
-            const last = i === flow.length - 1;
+            const last = i === steps.length - 1;
+            const timing = step.timingLabel ?? step.delay ?? '';
+            const isConnect = step.kind === 'connect';
+            // The connect opener is AI-personalized (not editable here) when
+            // Sending opener mode is "ai".
+            const aiOpener = isConnect && openerMode === 'ai';
+            // Does this step send editable text? connect only when fixed.
+            const sendsText =
+              FLOW_KINDS_WITH_TEXT.includes(step.kind) && !aiOpener;
+            const expandable = sendsText || aiOpener;
+            const open = openIdx === i;
+            const editingTiming = timingEditIdx === i;
+
             return (
               <div
                 key={`${step.kind}-${i}`}
@@ -1901,20 +2137,121 @@ function FlowCard({ campaign }: { campaign: Campaign }) {
                     />
                   )}
                 </div>
+
                 <div className="min-w-0 flex-1 pt-0.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate">
-                      {meta.label}
-                    </span>
-                    {step.delay && (
-                      <span className="shrink-0 glass-pill pill inline-flex items-center h-[22px] px-2 text-[11px] font-medium tabular-nums text-foreground/70 whitespace-nowrap">
-                        {step.delay}
+                    {/* Label - taps to expand the editable copy (when the step
+                        has anything to reveal). */}
+                    {expandable ? (
+                      <button
+                        type="button"
+                        data-testid={`flow-step-toggle-${i}`}
+                        onClick={() => setOpenIdx(open ? null : i)}
+                        aria-expanded={open}
+                        className="group min-w-0 flex items-center gap-1.5 text-left rounded-lg -mx-1 px-1 hover-elevate active-elevate-2"
+                      >
+                        <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate">
+                          {meta.label}
+                        </span>
+                        <motion.span
+                          animate={{ rotate: open ? 90 : 0 }}
+                          transition={APPLE_SPRING}
+                          className="inline-flex shrink-0"
+                        >
+                          <ChevronRight
+                            size={14}
+                            strokeWidth={2.2}
+                            className="text-foreground/35 group-hover:text-foreground/60 transition-colors"
+                          />
+                        </motion.span>
+                      </button>
+                    ) : (
+                      <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate">
+                        {meta.label}
                       </span>
                     )}
+
+                    {/* Editable timing - tap the pill to edit it inline. */}
+                    {editingTiming ? (
+                      <input
+                        autoFocus
+                        data-testid={`flow-timing-input-${i}`}
+                        value={timing}
+                        onChange={(e) => setTiming(i, e.target.value)}
+                        onBlur={() => setTimingEditIdx(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === 'Escape') setTimingEditIdx(null);
+                        }}
+                        placeholder="e.g. Day 2"
+                        className="shrink-0 w-[96px] h-[24px] text-center bg-foreground/[0.04] dark:bg-white/[0.04] rounded-full px-2 outline-none text-[11.5px] font-medium text-foreground placeholder:text-foreground/40"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        data-testid={`flow-timing-${i}`}
+                        onClick={() => setTimingEditIdx(i)}
+                        className="shrink-0 glass-pill pill inline-flex items-center gap-1 h-[22px] px-2 text-[11px] font-medium tabular-nums text-foreground/70 whitespace-nowrap hover-elevate active-elevate-2"
+                      >
+                        {timing || 'Set timing'}
+                        <Pencil size={10} strokeWidth={2} className="text-foreground/35" />
+                      </button>
+                    )}
                   </div>
+
                   <p className="mt-0.5 text-[12.5px] text-muted-foreground leading-snug">
                     {meta.hint}
                   </p>
+
+                  {/* Expanded editor: AI-personalized opener note, OR an
+                      editable message textarea for text-sending steps. */}
+                  <AnimatePresence initial={false}>
+                    {open && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                        className="overflow-hidden"
+                      >
+                        {aiOpener ? (
+                          <div
+                            data-testid={`flow-opener-ai-${i}`}
+                            className="mt-2.5 flex items-start gap-2 rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.04] px-3.5 py-3"
+                          >
+                            <Wand2
+                              size={14}
+                              strokeWidth={1.9}
+                              style={{ color: AI_ACCENT }}
+                              className="shrink-0 mt-[1px]"
+                            />
+                            <p className="text-[12.5px] text-foreground/60 leading-snug">
+                              Replaiy personalizes this opener per lead. To write a
+                              single fixed opener, switch Opening message in Sending.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="mt-2.5 flex flex-col gap-1.5">
+                            <textarea
+                              data-testid={`flow-step-text-${i}`}
+                              value={isConnect ? openerFixedText : step.text ?? ''}
+                              onChange={(e) =>
+                                isConnect ? onOpenerText(e.target.value) : setText(i, e.target.value)
+                              }
+                              rows={3}
+                              placeholder="Write this message. Use firstName or company to personalize."
+                              className="w-full resize-none bg-foreground/[0.04] dark:bg-white/[0.04] rounded-2xl px-3.5 py-3 outline-none text-[13.5px] leading-relaxed text-foreground placeholder:text-foreground/40"
+                            />
+                            {isConnect && (
+                              <p className="text-[12px] text-foreground/45 leading-snug">
+                                This is your fixed opener, shared with the Sending
+                                section.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             );
@@ -2073,6 +2410,18 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
   const toggle = (on: boolean) =>
     updateCampaign(campaign.id, { status: on ? 'active' : 'paused' });
 
+  // ── Sending behaviour - lifted here so the opener choice cross-links
+  //    into the Flow's opener step. Local / optimistic this round. ─────
+  const [openerMode, setOpenerMode] = useState<'ai' | 'fixed'>(
+    campaign.opener?.mode ?? 'ai',
+  );
+  const [openerFixedText, setOpenerFixedText] = useState(
+    campaign.opener?.fixedText ?? '',
+  );
+  const [replyMode, setReplyMode] = useState<'review' | 'autopilot'>(
+    campaign.replyMode ?? 'review',
+  );
+
   // ── Inline editable name ──────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(campaign.name);
@@ -2212,9 +2561,21 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
       <AudienceSection campaign={campaign} />
       <LanguageSection campaign={campaign} />
       <TimingSection campaign={campaign} />
+      <SendingSection
+        opener={{ mode: openerMode, fixedText: openerFixedText }}
+        onOpenerMode={setOpenerMode}
+        onOpenerText={setOpenerFixedText}
+        reply={replyMode}
+        onReply={setReplyMode}
+      />
       <GoalCard campaign={campaign} />
       <FunnelCard campaign={campaign} />
-      <FlowCard campaign={campaign} />
+      <FlowCard
+        campaign={campaign}
+        openerMode={openerMode}
+        openerFixedText={openerFixedText}
+        onOpenerText={setOpenerFixedText}
+      />
       <TeamCard campaign={campaign} />
     </motion.div>
   );
@@ -2341,9 +2702,7 @@ function CampaignCreate() {
 
       {/* Name */}
       <section>
-        <div className="px-2 mb-1.5">
-          <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Name</span>
-        </div>
+        <SectionLabel>Name</SectionLabel>
         <div className="rp-card rounded-3xl px-4 py-3">
           <input
             data-testid="input-campaign-name"
@@ -2357,9 +2716,7 @@ function CampaignCreate() {
 
       {/* Goal picker - the centrepiece (shared component). */}
       <section>
-        <div className="px-2 mb-1.5">
-          <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Goal</span>
-        </div>
+        <SectionLabel>Goal</SectionLabel>
         <GoalPicker
           goalType={goalType}
           customLabel={customLabel}
@@ -2370,9 +2727,9 @@ function CampaignCreate() {
 
       {/* Goal description - short, human line shown as the row subtitle. */}
       <section>
-        <div className="px-2 mb-1.5 flex items-baseline justify-between gap-2">
-          <span className="text-[12.5px] font-semibold tracking-[-0.005em]">Description</span>
-          <span className="text-[11.5px] text-muted-foreground">Optional</span>
+        <div className="flex items-baseline justify-between gap-2 mb-1 [&>*]:mb-0">
+          <SectionLabel>Description</SectionLabel>
+          <span className="px-2 text-[11.5px] text-foreground/45">Optional</span>
         </div>
         <div className="rp-card rounded-3xl px-4 py-3">
           <input
