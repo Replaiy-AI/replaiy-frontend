@@ -20,6 +20,7 @@
 
 import { useMemo, useState, useRef, useEffect, useId } from 'react';
 import { useLocation, useParams } from 'wouter';
+import { GlassTextarea } from '@/components/GlassTextarea';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -2093,42 +2094,48 @@ function OverviewKpiCards({ campaign }: { campaign: Campaign }) {
   );
 }
 
-// ── Goal card - what Replaiy steers toward, now editable in place ───
-// View mode shows the goal + hint with an Edit affordance. Editing reveals
-// the same goal picker the create view uses, and persists via updateCampaign.
+// ── Goal card - what Replaiy steers toward, calm inline auto-save ───
+// Persona/knowledge language: ONE always-editable card, no "Edit" mode and no
+// Save/Cancel. The goal TYPE is chosen via the always-visible GoalPicker (the
+// same selectable cluster the create view uses). The goal DESCRIPTION is a
+// bare GlassTextarea that lives DIRECTLY in the card (no inner framed box),
+// separated from the goal-type control by an h-px hairline, and persists on
+// change via updateCampaign. The leading Target sits in the canonical
+// rounded-square icon treatment.
 function GoalCard({ campaign }: { campaign: Campaign }) {
   const { updateCampaign } = useReplaiy();
-  const [editing, setEditing] = useState(false);
+  // Local mirrors so typing stays smooth; each change persists immediately.
   const [goalType, setGoalType] = useState<CampaignGoalType>(campaign.goalType);
   const [customLabel, setCustomLabel] = useState(campaign.goalLabel ?? '');
   const [goalDescription, setGoalDescription] = useState(campaign.goalDescription ?? '');
 
-  const meta = GOAL_META[campaign.goalType];
-  const label =
-    campaign.goalType === 'custom' && campaign.goalLabel
-      ? campaign.goalLabel
-      : meta.label;
-  // View-mode subtitle: the campaign's own description if set, else the
-  // generic goal hint as a sensible fallback.
-  const description = campaign.goalDescription?.trim() || meta.hint;
-
-  const beginEdit = () => {
+  // Keep local state in sync if the campaign changes underneath us.
+  useEffect(() => {
     setGoalType(campaign.goalType);
     setCustomLabel(campaign.goalLabel ?? '');
     setGoalDescription(campaign.goalDescription ?? '');
-    setEditing(true);
-  };
+  }, [campaign.id, campaign.goalType, campaign.goalLabel, campaign.goalDescription]);
 
-  const canSave = goalType !== 'custom' || customLabel.trim().length > 0;
-
-  const save = () => {
-    if (!canSave) return;
+  // Persist a goal-type pick straight away (auto-save, no Save button).
+  const pickGoal = (g: CampaignGoalType) => {
+    setGoalType(g);
     updateCampaign(campaign.id, {
-      goalType,
-      goalLabel: goalType === 'custom' ? customLabel.trim() : undefined,
-      goalDescription: goalDescription.trim() || undefined,
+      goalType: g,
+      goalLabel: g === 'custom' ? customLabel.trim() || undefined : undefined,
     });
-    setEditing(false);
+  };
+  // Custom label edits persist on change.
+  const editCustomLabel = (v: string) => {
+    setCustomLabel(v);
+    updateCampaign(campaign.id, {
+      goalType: 'custom',
+      goalLabel: v.trim() || undefined,
+    });
+  };
+  // Description edits persist on change (debounce not needed for the mock).
+  const editDescription = (v: string) => {
+    setGoalDescription(v);
+    updateCampaign(campaign.id, { goalDescription: v.trim() || undefined });
   };
 
   return (
@@ -2136,93 +2143,41 @@ function GoalCard({ campaign }: { campaign: Campaign }) {
       <AudienceHeader
         label="Goal"
         sub="What the AI drives every conversation toward."
-        trailing={
-          !editing ? (
-            <button
-              type="button"
-              data-testid="button-edit-goal"
-              onClick={beginEdit}
-              className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
-            >
-              <Pencil size={12} strokeWidth={2} className="text-foreground/55" />
-              Edit
-            </button>
-          ) : undefined
-        }
       />
 
-      <AnimatePresence mode="wait" initial={false}>
-        {editing ? (
-          <motion.div
-            key="edit"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="flex flex-col gap-3"
-          >
-            <GoalPicker
-              goalType={goalType}
-              customLabel={customLabel}
-              onPick={setGoalType}
-              onCustomLabel={setCustomLabel}
-            />
-            {/* Editable goal description - same field shown on the row. */}
-            <div className="rp-card rounded-3xl px-4 py-3">
-              <input
-                data-testid="input-edit-goal-description"
-                value={goalDescription}
-                onChange={(e) => setGoalDescription(e.target.value)}
-                placeholder="Short description, e.g. Book a 20-min intro call"
-                className="w-full bg-transparent outline-none text-[14px] text-foreground placeholder:text-muted-foreground"
-              />
+      <div className="flex flex-col gap-3">
+        {/* Goal TYPE - always visible, selectable. Calmest representation. */}
+        <GoalPicker
+          goalType={goalType}
+          customLabel={customLabel}
+          onPick={pickGoal}
+          onCustomLabel={editCustomLabel}
+        />
+
+        {/* Goal DESCRIPTION - bare field directly in the card, auto-save. The
+            leading Target uses the canonical rounded-square icon treatment;
+            an h-px hairline separates it from the typed description, exactly
+            like a knowledge answer sits under its question. */}
+        <div className="rp-card rounded-3xl px-4 py-4 lg:px-5 lg:py-[18px]">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+              <Target size={16} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
             </div>
-            <div className="flex items-center gap-2 px-1">
-              <button
-                type="button"
-                data-testid="button-save-goal"
-                onClick={save}
-                disabled={!canSave}
-                className="glass-pill pill inline-flex items-center h-[34px] px-4 text-[13px] font-semibold text-foreground hover-elevate active-elevate-2 disabled:opacity-40 disabled:pointer-events-none"
-              >
-                Save goal
-              </button>
-              <button
-                type="button"
-                data-testid="button-cancel-goal"
-                onClick={() => setEditing(false)}
-                className="glass-pill pill inline-flex items-center h-[34px] px-4 text-[13px] font-medium text-foreground/75 hover-elevate active-elevate-2"
-              >
-                Cancel
-              </button>
+            <div className="text-[14px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
+              Description
             </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="view"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="rp-card rounded-3xl px-4 py-4 lg:px-5 lg:py-[18px]"
-          >
-            <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-                {/* Goal icon - small, neutral. A single accent micro-detail. */}
-                <Target size={16} strokeWidth={1.9} style={{ color: 'var(--ai-accent)' }} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[15px] font-semibold tracking-[-0.005em] text-foreground leading-snug">
-                  {label}
-                </div>
-                <p className="mt-1 text-[13px] text-muted-foreground leading-snug">
-                  {description}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+          <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-4" />
+          <GlassTextarea
+            bare
+            testId="input-edit-goal-description"
+            value={goalDescription}
+            onChange={editDescription}
+            placeholder="Short description, e.g. Book a 20-min intro call"
+            rows={2}
+          />
+        </div>
+      </div>
     </section>
   );
 }
@@ -2874,31 +2829,34 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
   const [tab, setTab] = useState<CampaignTab>('overview');
 
   // ── Inline editable name ──────────────────────────────────────────
-  const [editingName, setEditingName] = useState(false);
+  // Calm Persona-style: the name is ALWAYS a direct inline-editable field
+  // (an <input> styled exactly like the heading) — no pencil, no edit mode.
+  // The OverflowMenu "Rename" entry simply focuses this input.
   const [draftName, setDraftName] = useState(campaign.name);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // Keep the local draft in sync if the campaign name changes elsewhere
+  // (e.g. a different campaign loaded into the same view).
   useEffect(() => {
-    if (editingName) {
-      nameInputRef.current?.focus();
-      nameInputRef.current?.select();
-    }
-  }, [editingName]);
+    setDraftName(campaign.name);
+  }, [campaign.name]);
 
   const beginNameEdit = () => {
-    setDraftName(campaign.name);
-    setEditingName(true);
+    nameInputRef.current?.focus();
+    nameInputRef.current?.select();
   };
   const commitName = () => {
     const next = draftName.trim();
     if (next.length > 0 && next !== campaign.name) {
       updateCampaign(campaign.id, { name: next });
+    } else if (next.length === 0) {
+      // Empty is not a valid name — restore the current name.
+      setDraftName(campaign.name);
     }
-    setEditingName(false);
   };
   const cancelName = () => {
     setDraftName(campaign.name);
-    setEditingName(false);
+    nameInputRef.current?.blur();
   };
 
   // Mobile chrome - back arrow (left) + campaign name (center) + overflow.
@@ -2938,50 +2896,34 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
         ),
       }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [campaign.id, campaign.name, isOn, editingName, draftName],
+      [campaign.id, campaign.name, isOn, draftName],
     ),
   );
 
   // Editable name field (shared by desktop header + mobile body heading).
+  // Calm Persona/knowledge style: ALWAYS a bare <input> styled to look exactly
+  // like the heading (transparent, no border until focus, same size/weight).
+  // Click to place the cursor and type; commit on blur/Enter, cancel on Esc.
+  // No pencil affordance. A very subtle hover-elevate hints it is editable.
   // Plain render helper (NOT a nested component) so the <input> keeps its
   // identity across keystroke re-renders and never loses focus.
-  const renderNameField = (size: 'lg') =>
-    editingName ? (
-      <input
-        ref={nameInputRef}
-        data-testid="input-edit-name"
-        value={draftName}
-        onChange={(e) => setDraftName(e.target.value)}
-        onBlur={commitName}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commitName();
-          if (e.key === 'Escape') cancelName();
-        }}
-        className={`bg-transparent outline-none border-b border-foreground/20 focus:border-foreground/40 text-foreground font-semibold tracking-[-0.02em] ${
-          size === 'lg' ? 'text-[20px]' : 'text-[22px]'
-        } w-full max-w-full`}
-      />
-    ) : (
-      <button
-        type="button"
-        data-testid="button-edit-name"
-        onClick={beginNameEdit}
-        className="group inline-flex items-center gap-1.5 min-w-0 text-left rounded-lg hover-elevate active-elevate-2 px-1 -mx-1"
-      >
-        <span
-          className={`font-semibold tracking-[-0.02em] text-foreground truncate ${
-            size === 'lg' ? 'text-[20px]' : 'text-[22px]'
-          }`}
-        >
-          {campaign.name}
-        </span>
-        <Pencil
-          size={size === 'lg' ? 14 : 15}
-          strokeWidth={2}
-          className="shrink-0 text-foreground/35 group-hover:text-foreground/60 transition-colors"
-        />
-      </button>
-    );
+  const renderNameField = (size: 'lg') => (
+    <input
+      ref={nameInputRef}
+      data-testid="input-edit-name"
+      value={draftName}
+      onChange={(e) => setDraftName(e.target.value)}
+      onBlur={commitName}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (e.key === 'Escape') cancelName();
+      }}
+      aria-label="Campaign name"
+      className={`w-full max-w-full bg-transparent outline-none rounded-lg px-1 -mx-1 hover-elevate text-foreground font-semibold tracking-[-0.02em] ${
+        size === 'lg' ? 'text-[20px]' : 'text-[22px]'
+      }`}
+    />
+  );
 
   // ── Overview hero ─────────────────────────────────────────────────
   // A crafted (not bare) header for the Overview tab: the large editable
@@ -3138,7 +3080,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
                 ariaLabel={`${isOn ? 'Pause' : 'Activate'} ${campaign.name}`}
               />
             </div>
-            <OverflowMenu campaign={campaign} />
+            <OverflowMenu campaign={campaign} onRename={beginNameEdit} />
           </div>
         </div>
       </div>
