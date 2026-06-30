@@ -24,7 +24,7 @@
 import { useState, useMemo, useContext, createContext } from 'react';
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronRight, UserPlus, Plus, Check, Clock } from 'lucide-react';
 import { APPLE_SPRING } from '@/lib/motion';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
@@ -96,6 +96,54 @@ export function formatCount(n: number): string {
   return n.toLocaleString('en-US');
 }
 
+// The single UI accent (mirrors LinkedInProfileView's ACCENT). ACCENT there is
+// a module-local const (not exported), so we use the established literal here
+// rather than reach across modules. Brand badges are the only other blue.
+const ACCENT = '#2F6BFF';
+
+// ─── Post header · Connect / Follow action (FEED ONLY) ────────────
+// LinkedIn's feed shows a subtle accent text+icon action in the post header's
+// top-right: "Connect" (UserPlus) for a person you are not connected to, or
+// "Follow" (Plus) for a company / page. It is deliberately LIGHT (accent text +
+// icon, NOT a heavy filled pill) because it appears on many posts and must not
+// dominate the stream. Clicking is purely client-side here (no backend): the
+// button toggles to a calm, muted "Pending" (connect) / "Following" (follow)
+// confirmed state so it FEELS real. Local useState keeps each post's button
+// independent. Normal case, no all-caps, no em-dash / middot.
+function ConnectionAction({
+  action,
+  postId,
+}: {
+  action: 'connect' | 'follow';
+  postId: string;
+}) {
+  const [done, setDone] = useState(false);
+  // Default (un-toggled) copy + icon, in accent.
+  const DefaultIcon = action === 'connect' ? UserPlus : Plus;
+  const defaultLabel = action === 'connect' ? 'Connect' : 'Follow';
+  // Confirmed (toggled) copy + icon, in muted foreground/55.
+  const DoneIcon = action === 'connect' ? Clock : Check;
+  const doneLabel = action === 'connect' ? 'Pending' : 'Following';
+  const Icon = done ? DoneIcon : DefaultIcon;
+  const label = done ? doneLabel : defaultLabel;
+  return (
+    <button
+      type="button"
+      onClick={() => setDone((v) => !v)}
+      data-testid={`post-${postId}-connect`}
+      aria-pressed={done}
+      className={
+        'shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-1 -mr-1 text-[13px] font-semibold leading-none hover-elevate active-elevate-2 transition-colors ' +
+        (done ? 'text-foreground/55' : '')
+      }
+      style={done ? undefined : { color: ACCENT }}
+    >
+      <Icon size={15} strokeWidth={2} aria-hidden />
+      {label}
+    </button>
+  );
+}
+
 // ─── Activity · reaction label map ────────────────────────────────
 // Maps a LinkedInReactionKind to the exact word LinkedIn uses in its reaction
 // chips.
@@ -149,6 +197,7 @@ export function PostCard({
   nested,
   embedded,
   slotBeforeStats,
+  showConnectionAction,
 }: {
   post: LinkedInPost;
   nested?: ReactNode;
@@ -163,6 +212,12 @@ export function PostCard({
   // for its relevance chip; the profile view never passes it, so the profile
   // card is byte-for-byte identical to before.
   slotBeforeStats?: ReactNode;
+  // FEED ONLY opt-in. When true AND post.connectionAction is 'connect' or
+  // 'follow', the header's top-right shows the subtle Connect / Follow action
+  // (targeting the post AUTHOR). The PROFILE leaves this default (false), so its
+  // activity posts never show a per-post action — the profile hero already has
+  // the single Connect button, and duplicating it per-post would be wrong.
+  showConnectionAction?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   // Same threshold rationale as AboutSection: clamp once it is worth clamping.
@@ -174,6 +229,16 @@ export function PostCard({
   const profileCtx = useContext(ProfileOpenContext);
   const authorOpenable = profileCtx.canOpen(post.authorName);
   const openAuthor = () => profileCtx.open(post.authorName);
+
+  // FEED ONLY — the Connect / Follow header action. Shown only when the host
+  // opts in (showConnectionAction) AND the post asks for a real action. The
+  // action targets the post author. When shown, it claims the header's
+  // top-right slot, so timeAgo drops to a small muted line under the headline
+  // (mirroring LinkedIn, and keeping the top-right uncrowded on mobile). When
+  // NOT shown, timeAgo stays top-right exactly as before (profile unaffected).
+  const action = post.connectionAction;
+  const showAction =
+    !!showConnectionAction && (action === 'connect' || action === 'follow');
 
   // Tappable stats segments. Each non-zero count becomes its OWN <button> that
   // opens the engagers push-in for that kind (likes -> reactions, since
@@ -208,10 +273,15 @@ export function PostCard({
       }
       data-testid={`profile-post-${post.id}`}
     >
-      {/* Header row · avatar + name/headline stack + time-ago (right). When the
-          author is openable (a lead, in the feed) the avatar + name become a
-          clickable affordance to push in their full profile; otherwise they
-          render as plain, inert identity exactly as before. */}
+      {/* Header row · avatar + name/headline stack + (right) either the time-ago
+          (default, profile + actionless feed posts) OR, in the feed when the
+          host opts in, the subtle Connect / Follow action. When the action is
+          shown it takes the top-right slot and timeAgo drops to a small muted
+          line UNDER the headline, so the top-right never crowds on mobile and
+          the name/headline keep truncating cleanly. When the author is openable
+          (a lead, in the feed) the avatar + name become a clickable affordance
+          to push in their full profile; otherwise they render as plain, inert
+          identity exactly as before. */}
       <div className="flex items-start gap-2.5">
         {authorOpenable ? (
           <button
@@ -246,10 +316,21 @@ export function PostCard({
               {noDash(post.authorHeadline)}
             </div>
           )}
+          {/* When the action owns the top-right, timeAgo sits here as a small
+              muted line under the headline (LinkedIn-style). */}
+          {showAction && (
+            <div className="text-[11.5px] text-foreground/45 leading-snug tabular-nums mt-0.5">
+              {noDash(post.timeAgo)}
+            </div>
+          )}
         </div>
-        <span className="text-[11.5px] text-foreground/45 leading-snug shrink-0 tabular-nums mt-0.5">
-          {noDash(post.timeAgo)}
-        </span>
+        {showAction ? (
+          <ConnectionAction action={action as 'connect' | 'follow'} postId={post.id} />
+        ) : (
+          <span className="text-[11.5px] text-foreground/45 leading-snug shrink-0 tabular-nums mt-0.5">
+            {noDash(post.timeAgo)}
+          </span>
+        )}
       </div>
 
       {/* Body · clamped post text (AboutSection recipe). */}
@@ -483,12 +564,20 @@ export function ActivityItem({
   actorAvatar,
   slotBeforeStats,
   hidePostedAttribution = false,
+  showConnectionAction = false,
 }: {
   post: LinkedInPost;
   actorFirstName: string;
   actorName: string;
   actorAvatar?: string;
   slotBeforeStats?: ReactNode;
+  // FEED ONLY opt-in, threaded straight to the inner PostCard (exactly like
+  // slotBeforeStats) so the feed can surface the per-post Connect / Follow
+  // header action. The action always targets the original post's AUTHOR (the
+  // person whose content the card header shows), including the original-author
+  // card of a repost / comment / reaction item. The PROFILE never passes this,
+  // so its activity posts stay byte-for-byte identical (no per-post action).
+  showConnectionAction?: boolean;
   // v-feed-no-posted-attribution — In the FEED, a person's OWN plain post shows
   // just the card (their name + headline already live in the PostCard header),
   // with NO "X posted this" line above it, exactly like a real LinkedIn feed.
@@ -532,7 +621,12 @@ export function ActivityItem({
           verb="commented"
           authorName={post.authorName}
         />
-        <PostCard post={post} nested={reply} slotBeforeStats={slotBeforeStats} />
+        <PostCard
+          post={post}
+          nested={reply}
+          slotBeforeStats={slotBeforeStats}
+          showConnectionAction={showConnectionAction}
+        />
       </div>
     );
   }
@@ -549,7 +643,11 @@ export function ActivityItem({
             post.activityReaction ? REACTION_LABEL[post.activityReaction] : undefined
           }
         />
-        <PostCard post={post} slotBeforeStats={slotBeforeStats} />
+        <PostCard
+          post={post}
+          slotBeforeStats={slotBeforeStats}
+          showConnectionAction={showConnectionAction}
+        />
       </div>
     );
   }
@@ -603,7 +701,7 @@ export function ActivityItem({
                 embedded post, against the whole repost unit. */}
             {slotBeforeStats}
             <div className="mt-3 rounded-[16px] overflow-hidden border border-foreground/[0.08] dark:border-white/[0.08] bg-foreground/[0.02] dark:bg-white/[0.02]">
-              <PostCard post={post} embedded />
+              <PostCard post={post} embedded showConnectionAction={showConnectionAction} />
             </div>
           </div>
         </div>
@@ -617,7 +715,11 @@ export function ActivityItem({
           verb="reposted"
           authorName={post.authorName}
         />
-        <PostCard post={post} slotBeforeStats={slotBeforeStats} />
+        <PostCard
+          post={post}
+          slotBeforeStats={slotBeforeStats}
+          showConnectionAction={showConnectionAction}
+        />
       </div>
     );
   }
@@ -634,7 +736,11 @@ export function ActivityItem({
           verb="posted"
         />
       )}
-      <PostCard post={post} slotBeforeStats={slotBeforeStats} />
+      <PostCard
+        post={post}
+        slotBeforeStats={slotBeforeStats}
+        showConnectionAction={showConnectionAction}
+      />
     </div>
   );
 }

@@ -266,6 +266,11 @@ function FeedItem({ post, mode }: { post: LinkedInPost; mode: FeedMode }) {
         // profile keeps its default (shows the line). repost/comment/reaction
         // attribution is unchanged.
         hidePostedAttribution
+        // FEED-ONLY: surface the per-post Connect / Follow header action (the
+        // profile passes nothing, so its activity posts never show it). The
+        // action targets the post author; which action (or none) is driven by
+        // post.connectionAction in the mock data.
+        showConnectionAction
         slotBeforeStats={
           mode === 'replaiy' && post.relevanceReason ? (
             <RelevanceChip reason={post.relevanceReason} />

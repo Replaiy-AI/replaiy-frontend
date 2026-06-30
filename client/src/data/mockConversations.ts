@@ -170,6 +170,19 @@ export interface LinkedInPost {
    *  "Matches your ICP", "Posted by a 2nd-degree lead"). Posts without it are
    *  noise that the Replaiy mode filters out; the LinkedIn mode shows all. */
   relevanceReason?: string;
+  /** FEED ONLY — which relationship action to surface in the post header's
+   *  top-right, mirroring a real LinkedIn feed:
+   *   'connect' = a person you are not yet connected to (person+ icon "Connect"),
+   *   'follow'  = a company / page or someone you can follow ("+ Follow"),
+   *   'none'    = nothing (already connected, your own / lead identity where an
+   *               action would be redundant).
+   *  This is rendered ONLY when the host opts in (the feed passes
+   *  showConnectionAction to PostCard); the PROFILE never opts in, so the
+   *  profile's activity posts never show a per-post action (the profile hero
+   *  already carries the single Connect button). When unset it is treated as
+   *  'none' (no action) to stay safe. The action targets the POST AUTHOR (the
+   *  person whose content the card header shows). */
+  connectionAction?: 'connect' | 'follow' | 'none';
 }
 
 export interface LinkedInProfile {

@@ -27,6 +27,17 @@
 //   • "Replaiy" mode    — engagement-by-pipeline/ICP prioritized to the top,
 //     then ICP posts, with non-relevant noise dropped; each shown item carries
 //     a quiet intent chip (relevanceReason).
+//
+// FEED HEADER ACTION (connectionAction) — each post also carries which
+// relationship action the feed surfaces in its header top-right (the action
+// targets the POST AUTHOR). Mirroring a real LinkedIn feed, the mix is:
+//   • 'connect' — a person you are not yet connected to (most people),
+//   • 'follow'  — a page-like author you can follow (a couple of posts),
+//   • 'none'    — no action (some posts, incl. the leads' own posts where a
+//                 per-post Connect is redundant), so the feed is not wall-to-
+//                 wall buttons.
+// Current distribution: 9 'connect', 2 'follow', 5 'none'. This is FEED-only
+// (the profile never opts into showConnectionAction, so it is inert there).
 // ─────────────────────────────────────────────────────────────────
 import type { LinkedInPost } from './mockConversations';
 
@@ -63,6 +74,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // intent signal: a lead reacted to a post about exactly our problem.
   {
     id: 'feed-1',
+    connectionAction: 'connect',
     kind: 'reaction',
     actorName: EMMA.name,
     actorHeadline: EMMA.headline,
@@ -81,6 +93,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 2 — plain noise post (not ICP relevant).
   {
     id: 'feed-2',
+    connectionAction: 'none',
     kind: 'post',
     authorName: 'Hugo Lambert',
     authorHeadline: 'CEO at Northbeam',
@@ -96,6 +109,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // pipeline and actively engaging.
   {
     id: 'feed-3',
+    connectionAction: 'connect',
     kind: 'comment',
     actorName: JAN.name,
     actorHeadline: JAN.headline,
@@ -115,6 +129,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 4 — plain ICP post (matches our ideal customer profile).
   {
     id: 'feed-4',
+    connectionAction: 'connect',
     kind: 'post',
     authorName: 'Aisha Rahman',
     authorHeadline: 'RevOps Manager at Flowstate',
@@ -136,6 +151,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // commentary. Engagement by a lead = intent.
   {
     id: 'feed-5',
+    connectionAction: 'connect',
     kind: 'repost',
     actorName: HANNAH.name,
     actorHeadline: HANNAH.headline,
@@ -154,6 +170,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 6 — noise post.
   {
     id: 'feed-6',
+    connectionAction: 'follow',
     kind: 'post',
     authorName: 'Nadia Haddad',
     authorHeadline: 'Marketing Director at Kettle and Co',
@@ -167,6 +184,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 7 — plain ICP post (lead, Emma Chen, with an image).
   {
     id: 'feed-7',
+    connectionAction: 'none',
     kind: 'post',
     authorName: EMMA.name,
     authorHeadline: EMMA.headline,
@@ -184,6 +202,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // account) on a relevant post.
   {
     id: 'feed-8',
+    connectionAction: 'connect',
     kind: 'reaction',
     actorName: 'Sophie Bakker',
     actorHeadline: 'Head of Demand Gen at Loopline',
@@ -202,6 +221,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 9 — noise post with image.
   {
     id: 'feed-9',
+    connectionAction: 'none',
     kind: 'post',
     authorName: 'Karl Jensen',
     authorHeadline: 'CRO at Brightpath',
@@ -216,6 +236,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 10 — plain ICP post (lead, Jan de Vries).
   {
     id: 'feed-10',
+    connectionAction: 'connect',
     kind: 'post',
     authorName: JAN.name,
     authorHeadline: JAN.headline,
@@ -230,6 +251,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 11 — PLAIN reshare (no added comment) by an ICP-relevant person.
   {
     id: 'feed-11',
+    connectionAction: 'connect',
     kind: 'repost',
     actorName: 'Marta Kowalski',
     actorHeadline: 'SDR Lead at Cadence',
@@ -247,6 +269,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 12 — noise post (celebration).
   {
     id: 'feed-12',
+    connectionAction: 'none',
     kind: 'post',
     authorName: 'Fatima Said',
     authorHeadline: 'VP Marketing at Mavenly',
@@ -260,6 +283,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 13 — COMMENT by an ICP-relevant person (Olivia, head of outbound) on a post.
   {
     id: 'feed-13',
+    connectionAction: 'connect',
     kind: 'comment',
     actorName: 'Olivia Chen',
     actorHeadline: 'Head of Outbound at Loopline',
@@ -279,6 +303,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 14 — noise post.
   {
     id: 'feed-14',
+    connectionAction: 'none',
     kind: 'post',
     authorName: 'James Park',
     authorHeadline: 'Account Executive at Northwave Labs',
@@ -292,6 +317,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 15 — plain ICP post (matches ICP).
   {
     id: 'feed-15',
+    connectionAction: 'connect',
     kind: 'post',
     authorName: 'Olivia Chen',
     authorHeadline: 'Head of Outbound at Loopline',
@@ -306,6 +332,7 @@ export const FEED_POSTS: LinkedInPost[] = [
   // 16 — noise post.
   {
     id: 'feed-16',
+    connectionAction: 'follow',
     kind: 'post',
     authorName: 'Tom Visser',
     authorHeadline: 'Founder at Replyloop',
