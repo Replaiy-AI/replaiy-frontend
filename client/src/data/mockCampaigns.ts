@@ -256,6 +256,17 @@ export interface Campaign {
     replied: number; // leads who replied at least once (reply rate)
     goalAchieved: number; // conversions (the configurable goal)
   };
+  // Optional ~8-week weekly history per KPI, for the Overview sparklines +
+  // trend badges. Each array is oldest -> newest; the LAST value matches the
+  // current derived KPI value so the sparkline ends where the big number is.
+  // Mock only; the real model has no time-series. KPI cards must render
+  // gracefully (no sparkline / no badge) when this is absent.
+  history?: {
+    connectionRequests: number[]; // cumulative sent count per week
+    acceptRate: number[]; // % per week
+    replyRate: number[]; // % per week
+    goalAchieved: number[]; // % per week
+  };
   createdAt: string; // ISO
 }
 
@@ -402,6 +413,12 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
       replied: 61,
       goalAchieved: 11,
     },
+    history: {
+      connectionRequests: [40, 95, 150, 215, 270, 330, 380, 420],
+      acceptRate: [28, 30, 29, 31, 33, 32, 33, 34],
+      replyRate: [35, 37, 38, 40, 39, 41, 42, 43],
+      goalAchieved: [0, 1, 1, 1, 2, 2, 1, 2],
+    },
     createdAt: '2026-06-02T09:00:00Z',
   },
   {
@@ -450,6 +467,12 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
       replied: 34,
       goalAchieved: 6,
     },
+    history: {
+      connectionRequests: [30, 65, 100, 140, 175, 205, 235, 260],
+      acceptRate: [30, 31, 30, 32, 33, 33, 33, 34],
+      replyRate: [33, 34, 36, 35, 37, 38, 38, 39],
+      goalAchieved: [0, 0, 0, 0, 1, 1, 1, 1],
+    },
     createdAt: '2026-06-10T09:00:00Z',
   },
   {
@@ -497,6 +520,12 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
       messaged: 205,
       replied: 132,
       goalAchieved: 58,
+    },
+    history: {
+      connectionRequests: [70, 150, 230, 300, 370, 440, 490, 540],
+      acceptRate: [33, 34, 35, 36, 37, 38, 38, 39],
+      replyRate: [55, 57, 58, 59, 60, 61, 62, 63],
+      goalAchieved: [3, 4, 5, 5, 6, 6, 6, 7],
     },
     createdAt: '2026-05-21T09:00:00Z',
   },
@@ -583,6 +612,12 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
       messaged: 31,
       replied: 12,
       goalAchieved: 2,
+    },
+    history: {
+      connectionRequests: [15, 35, 55, 70, 85, 95, 105, 110],
+      acceptRate: [28, 29, 30, 30, 31, 30, 30, 31],
+      replyRate: [30, 32, 33, 34, 33, 34, 34, 35],
+      goalAchieved: [0, 0, 1, 1, 1, 1, 0, 1],
     },
     createdAt: '2026-06-15T09:00:00Z',
   },

@@ -20,7 +20,7 @@
 
 import { useMemo, useState, useRef, useEffect, useId } from 'react';
 import { useLocation, useParams } from 'wouter';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft,
   Target,
@@ -53,6 +53,7 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowUpRight,
+  ArrowDownRight,
   Languages as LanguagesIcon,
   Clock,
   Globe,
@@ -125,15 +126,108 @@ function heroStatusLine(campaign: Campaign): string {
   return `${state}, ${when}`;
 }
 
-// Derived "this week" deltas. No weekly trend data exists in the model, so we
-// take a small, plausible slice of the lifetime totals (~12% of sent, with
-// replied/goal kept proportional). Stable per render, quiet by design.
-function weeklyMomentum(campaign: Campaign): { sent: number; replied: number; goal: number } {
+// ── Overview KPI cards: count-up, sparkline, trend ──────────────────
+// The Overview's 4 headline KPIs (Connection requests, Accept rate, Reply
+// rate, Goal achieved) get "beleving": numbers count up on mount, each card
+// carries a tiny self-drawing sparkline of its ~8-week history, and a small
+// trend badge (last vs previous week). Blue (AI_ACCENT) is the only accent;
+// positive trend = blue, neutral/negative = muted. No green / red, no chart
+// library — sparklines are pure inline SVG.
+
+// Count from 0 to `value` over `durationMs` with an easeOut curve, via
+// requestAnimationFrame. Respects prefers-reduced-motion (returns the final
+// value instantly). Re-runs whenever `value` changes (e.g. switching campaign
+// or remounting the Overview tab).
+function useCountUp(value: number, durationMs = 700, enabled = true): number {
+  const [display, setDisplay] = useState(enabled ? 0 : value);
+  useEffect(() => {
+    if (!enabled) {
+      setDisplay(value);
+      return;
+    }
+    let raf = 0;
+    let start: number | null = null;
+    const from = 0;
+    const tick = (now: number) => {
+      if (start === null) start = now;
+      const t = Math.min(1, (now - start) / durationMs);
+      // easeOutCubic
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(from + (value - from) * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else setDisplay(value);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, durationMs, enabled]);
+  return display;
+}
+
+// The four Overview KPIs, derived from the campaign exactly like the old
+// CampaignStatStrip: Connection requests = sent, Accept rate = accepted/sent,
+// Reply rate = replyRatePct, Goal achieved = conversionPct. `series` is the
+// matching ~8-week history (or undefined when the campaign has none).
+type OverviewKpi = {
+  key: 'connectionRequests' | 'acceptRate' | 'replyRate' | 'goalAchieved';
+  label: string;
+  value: number; // numeric target for the count-up
+  isPercent: boolean;
+  series?: number[];
+};
+
+function overviewKpis(campaign: Campaign): OverviewKpi[] {
   const s = campaign.stats;
-  const sent = Math.round(s.sent * 0.12);
-  const replied = Math.round(s.replied * 0.12);
-  const goal = Math.round(s.goalAchieved * 0.12);
-  return { sent, replied, goal };
+  const acceptRate = s.sent === 0 ? 0 : Math.round((s.accepted / s.sent) * 100);
+  const h = campaign.history;
+  return [
+    {
+      key: 'connectionRequests',
+      label: 'Connection requests',
+      value: s.sent,
+      isPercent: false,
+      series: h?.connectionRequests,
+    },
+    {
+      key: 'acceptRate',
+      label: 'Accept rate',
+      value: acceptRate,
+      isPercent: true,
+      series: h?.acceptRate,
+    },
+    {
+      key: 'replyRate',
+      label: 'Reply rate',
+      value: replyRatePct(campaign),
+      isPercent: true,
+      series: h?.replyRate,
+    },
+    {
+      key: 'goalAchieved',
+      label: 'Goal achieved',
+      value: conversionPct(campaign),
+      isPercent: true,
+      series: h?.goalAchieved,
+    },
+  ];
+}
+
+// Week-over-week trend from a series: percentage change of the last point vs
+// the previous one. Returns null when there is no usable history. `positive`
+// drives the badge colour (blue) and arrow direction.
+function kpiTrend(
+  series?: number[],
+): { pct: number; dir: 'up' | 'down' | 'flat' } | null {
+  if (!series || series.length < 2) return null;
+  const last = series[series.length - 1];
+  const prev = series[series.length - 2];
+  if (prev === 0) {
+    if (last === 0) return { pct: 0, dir: 'flat' };
+    return { pct: 100, dir: 'up' };
+  }
+  const pct = Math.round(((last - prev) / Math.abs(prev)) * 100);
+  // A flat week (no rounded change) reads as neutral, not a blue "up".
+  if (pct === 0) return { pct: 0, dir: 'flat' };
+  return { pct: Math.abs(pct), dir: pct > 0 ? 'up' : 'down' };
 }
 
 // A small set of ready-made ICP templates for the "Start from a template"
@@ -1780,6 +1874,141 @@ function SendingSection({
   );
 }
 
+// ── Overview KPI sparkline (pure inline SVG) ────────────────────────
+// A tiny single-stroke line of the KPI's ~8-week history, normalised into a
+// small viewBox. The path draws itself on mount via framer-motion pathLength
+// 0 -> 1 (skipped under reduced motion). No axes, no labels, no chart lib.
+// Renders nothing when there is too little history to draw a line.
+function KpiSparkline({
+  series,
+  delay = 0,
+  reduced = false,
+}: {
+  series?: number[];
+  delay?: number;
+  reduced?: boolean;
+}) {
+  if (!series || series.length < 2) return null;
+  const W = 100;
+  const H = 30;
+  const PAD = 2;
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const span = max - min || 1;
+  const n = series.length;
+  const points = series.map((v, i) => {
+    const x = PAD + (i / (n - 1)) * (W - PAD * 2);
+    const y = H - PAD - ((v - min) / span) * (H - PAD * 2);
+    return [x, y] as const;
+  });
+  const d = points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`)
+    .join(' ');
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      className="mt-2.5 w-full"
+      height={30}
+      aria-hidden="true"
+      style={{ display: 'block' }}
+    >
+      <motion.path
+        d={d}
+        fill="none"
+        stroke={AI_ACCENT}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+        initial={reduced ? false : { pathLength: 0, opacity: 0 }}
+        animate={reduced ? { pathLength: 1, opacity: 1 } : { pathLength: 1, opacity: 1 }}
+        transition={reduced ? { duration: 0 } : { duration: 0.6, ease: 'easeOut', delay }}
+      />
+    </svg>
+  );
+}
+
+// ── Overview KPI card ───────────────────────────────────────────────
+// One KPI per rp-card: big count-up number, label, self-drawing sparkline,
+// and a small week-over-week trend badge (positive = the only blue, with an
+// up-arrow; neutral/negative = muted with a down-arrow). Renders gracefully
+// when there is no history (no sparkline, no badge), never crashes.
+function OverviewKpiCard({
+  kpi,
+  index,
+  reduced,
+}: {
+  kpi: OverviewKpi;
+  index: number;
+  reduced: boolean;
+}) {
+  const animated = useCountUp(kpi.value, 700, !reduced);
+  const shown = reduced ? kpi.value : Math.round(animated);
+  const display = kpi.isPercent ? `${shown}%` : fmtNum(shown);
+  const trend = kpiTrend(kpi.series);
+  return (
+    <motion.div
+      data-testid={`overview-kpi-${kpi.key}`}
+      className="rp-card rounded-3xl px-3 py-3.5 lg:px-4 lg:py-[18px] min-w-0 hover-elevate"
+      initial={reduced ? false : { opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.32, ease: 'easeOut', delay: index * 0.05 }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div
+          className="text-[22px] lg:text-[24px] font-semibold tracking-[-0.02em] leading-none tabular-nums text-foreground"
+          data-testid={`overview-kpi-value-${kpi.key}`}
+        >
+          {display}
+        </div>
+        {trend && (
+          <span
+            className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium leading-none tabular-nums"
+            style={{ color: trend.dir === 'up' ? AI_ACCENT : undefined }}
+          >
+            {trend.dir === 'up' ? (
+              <ArrowUpRight size={12} strokeWidth={2.4} aria-hidden="true" />
+            ) : trend.dir === 'down' ? (
+              <ArrowDownRight
+                size={12}
+                strokeWidth={2.4}
+                aria-hidden="true"
+                className="text-foreground/45"
+              />
+            ) : null}
+            <span className={trend.dir === 'up' ? '' : 'text-foreground/45'}>
+              {trend.dir === 'flat' ? 'flat' : `${trend.pct}%`}
+            </span>
+          </span>
+        )}
+      </div>
+      <div className="mt-2 text-[12px] lg:text-[12.5px] text-muted-foreground leading-snug">
+        {kpi.label}
+      </div>
+      <KpiSparkline series={kpi.series} delay={reduced ? 0 : 0.15 + index * 0.07} reduced={reduced} />
+    </motion.div>
+  );
+}
+
+// The 4 Overview KPI cards in a responsive grid (2 cols mobile, 4 desktop) —
+// same breakpoints as the old CampaignStatStrip, but each KPI is now its own
+// rp-card with trend + sparkline (richer than the old flat divided bar).
+function OverviewKpiCards({ campaign }: { campaign: Campaign }) {
+  const reducedRaw = useReducedMotion();
+  const reduced = reducedRaw === true;
+  const kpis = overviewKpis(campaign);
+  return (
+    <section data-testid="overview-kpis">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {kpis.map((kpi, i) => (
+          <OverviewKpiCard key={kpi.key} kpi={kpi} index={i} reduced={reduced} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ── Goal card - what Replaiy steers toward, now editable in place ───
 // View mode shows the goal + hint with an Edit affordance. Editing reveals
 // the same goal picker the create view uses, and persists via updateCampaign.
@@ -2615,84 +2844,20 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
     </section>
   );
 
-  // ── "This week" momentum strip ────────────────────────────────────
-  // ONE quiet line of derived weekly deltas - light text, commas (no middot),
-  // a single tiny up-arrow micro-accent in the only blue. Not a heavy card;
-  // it sits under the funnel as a calm sign of life.
-  const week = weeklyMomentum(campaign);
-  const momentumStrip = (
-    <section data-testid="overview-momentum">
-      <div className="flex items-center gap-2 px-1 text-[12.5px] leading-snug text-foreground/55">
-        <ArrowUpRight
-          size={13}
-          strokeWidth={2.2}
-          className="shrink-0"
-          style={{ color: AI_ACCENT }}
-          aria-hidden="true"
-        />
-        <span className="tabular-nums">
-          <span className="font-medium text-foreground/75">+{fmtNum(week.sent)}</span> sent
-          {', '}
-          <span className="font-medium text-foreground/75">+{fmtNum(week.replied)}</span> replied
-          {', '}
-          <span className="font-medium text-foreground/75">+{fmtNum(week.goal)}</span>{' '}
-          {GOAL_META[campaign.goalType].achievedShort.toLowerCase()} this week
-        </span>
-      </div>
-    </section>
-  );
-
-  // ── Quiet tab-links ───────────────────────────────────────────────
-  // Low-key "go to" affordances that deep-link to the other tabs. They reuse
-  // the exact `button-view-leads` glass-pill + ChevronRight look. Counts are
-  // derived: audience pool total (sum of warmth buckets, else stats.found),
-  // flow step count (campaign.flow ?? DEFAULT_FLOW), and member count.
-  const poolTotal = campaign.audience
-    ? campaign.audience.pool.cold +
-      campaign.audience.pool.warm +
-      campaign.audience.pool.warmest
-    : campaign.stats.found;
-  const stepCount = (campaign.flow ?? DEFAULT_FLOW).length;
-  const memberCount = campaign.memberIds.length;
-  const overviewLinks: { tab: CampaignTab; testId: string; label: string }[] = [
-    { tab: 'audience', testId: 'overview-link-audience', label: `${fmtNum(poolTotal)} in audience` },
-    { tab: 'outreach', testId: 'overview-link-outreach', label: `${fmtNum(stepCount)} ${stepCount === 1 ? 'step' : 'steps'} in outreach` },
-    { tab: 'team', testId: 'overview-link-team', label: `${fmtNum(memberCount)} on the team` },
-  ];
-  const tabLinks = (
-    <section data-testid="overview-tab-links">
-      <div className="flex flex-wrap items-center gap-2">
-        {overviewLinks.map((l) => (
-          <button
-            key={l.tab}
-            type="button"
-            data-testid={l.testId}
-            onClick={() => setTab(l.tab)}
-            className="glass-pill pill inline-flex items-center gap-1.5 h-[30px] pl-3 pr-2.5 text-[12.5px] font-medium text-foreground/80 hover-elevate active-elevate-2"
-          >
-            {l.label}
-            <ChevronRight size={14} strokeWidth={2.2} className="text-foreground/45" />
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-
   // Per-tab content. Each tab shows ONLY its own sections so the screen stays
   // short and scannable instead of one endless scroll. Sections keep all their
   // existing content + functionality; they are only regrouped under tabs.
   const tabContent: Record<CampaignTab, React.ReactNode> = {
-    // Overview - a light hub: crafted hero (name + status), the funnel as the
-    // heart, a quiet weekly-momentum line, the goal, and quiet deep-links to
-    // the other tabs. The old duplicate 4-col stat strip is gone (the funnel
-    // already carries the same journey + reply% / conversion%).
+    // Overview - the crafted hero (name + status), then the 4 rich KPI cards
+    // (the headline data, now with per-KPI trend + sparkline + count-up), the
+    // funnel as the heart, and the goal last. No nav tab-links, no duplicate
+    // momentum line - those added noise without adding value.
     overview: (
       <>
         {overviewHero}
+        <OverviewKpiCards campaign={campaign} />
         <FunnelCard campaign={campaign} />
-        {momentumStrip}
         <GoalCard campaign={campaign} />
-        {tabLinks}
       </>
     ),
     // Audience - who this campaign reaches (pool + sources + ICP + match
