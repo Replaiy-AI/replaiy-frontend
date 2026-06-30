@@ -1584,7 +1584,7 @@ function ThreadChromeSlot({
       hidden: chromeHidden,
       leftSlot: (
         <ActionPill testId="button-back" label="Back" onClick={onBack}>
-          <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+          <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
         </ActionPill>
       ),
       togglePill: (
@@ -1661,7 +1661,7 @@ function LeadPanelChromeSlot({ onClose }: { onClose: () => void }) {
       priority: 200,
       leftSlot: (
         <ActionPill testId="lead-panel-close" label="Back to conversation" onClick={onClose}>
-          <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+          <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
         </ActionPill>
       ),
       togglePill: (

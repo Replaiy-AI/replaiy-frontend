@@ -192,7 +192,7 @@ export function MobileTopChromeShell() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.85 }}
               transition={APPLE_SPRING}
-              className="glass-pill h-[52px] w-[52px] rounded-full flex items-center justify-center text-icon active-elevate-2 pointer-events-auto shrink-0"
+              className="glass-pill h-[44px] w-[44px] rounded-full flex items-center justify-center text-icon active-elevate-2 pointer-events-auto shrink-0"
               aria-label="More"
             >
               <MoreHorizontal size={19} strokeWidth={1.75} />
@@ -248,8 +248,8 @@ export function MobileTopChromeShell() {
           className="pointer-events-auto shrink-0"
         >
           <VadikGlass
-            width={52}
-            height={52}
+            width={44}
+            height={44}
             shape="circle"
             data-testid="button-search-toggle"
             aria-label="Search"

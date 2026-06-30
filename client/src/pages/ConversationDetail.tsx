@@ -514,7 +514,7 @@ function ConversationDetailChromeSlot({
       priority: 100,
       leftSlot: (
         <ActionPill testId="button-back" label="Back" onClick={onBack}>
-          <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+          <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
         </ActionPill>
       ),
       togglePill: (

@@ -69,7 +69,7 @@ function Pill({
         aria-label={label}
         aria-pressed={ariaPressed}
         onClick={onClick}
-        className={`lg-pill h-[52px] w-[52px] rounded-full flex items-center justify-center text-icon ${
+        className={`lg-pill h-[44px] w-[44px] rounded-full flex items-center justify-center text-icon ${
           active ? 'lg-strong' : ''
         }`}
       >

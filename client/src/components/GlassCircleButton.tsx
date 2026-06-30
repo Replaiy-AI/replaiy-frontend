@@ -44,7 +44,7 @@ export function GlassCircleButton({
   ariaPressed,
   showTooltip = false,
   tooltipSide = 'right',
-  size = 52,
+  size = 44,
 }: Props) {
   const [hover, setHover] = useState(false);
 

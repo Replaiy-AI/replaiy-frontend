@@ -96,9 +96,9 @@ export function SnoozeButton({
         aria-label="Snooze"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="glass-pill h-[52px] w-[52px] rounded-full flex items-center justify-center active-elevate-2 hover-elevate text-foreground"
+        className="glass-pill h-[44px] w-[44px] rounded-full flex items-center justify-center active-elevate-2 hover-elevate text-foreground"
       >
-        <Clock size={22} strokeWidth={1.5} />
+        <Clock size={20} strokeWidth={1.5} />
       </button>
     </div>
   );

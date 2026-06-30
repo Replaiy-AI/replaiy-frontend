@@ -132,7 +132,7 @@ export function ProfileChromeSlot({ onClose }: { onClose: () => void }) {
       priority: 300,
       leftSlot: (
         <ActionPill testId="profile-back" label="Back to contact" onClick={onClose}>
-          <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+          <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
         </ActionPill>
       ),
       togglePill: (
@@ -446,7 +446,7 @@ export function LinkedInProfileView({
         <div className="hidden md:flex items-center justify-between gap-2.5 absolute top-3 left-3 right-3 z-[2] pointer-events-none">
           <div className="pointer-events-auto shrink-0">
             <ActionPill testId="profile-back" label="Back to contact" onClick={onClose}>
-              <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+              <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
             </ActionPill>
           </div>
           {/* Centered title, mirroring the mobile chrome's "LinkedIn profile"

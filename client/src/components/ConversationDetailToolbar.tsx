@@ -242,8 +242,8 @@ export function SubjectPill({
 }
 
 // ─── Single action pill ───────────────────────────────────────────
-// 52×52 round glass pill — same size as the Identity pill height so all
-// pills sit on the same baseline.
+// 44×44 round glass pill — sits centered in the 52px Identity pill row so all
+// pills share the same baseline.
 export function ActionPill({
   testId,
   label,
@@ -266,8 +266,8 @@ export function ActionPill({
            box-shadow met de tab-pill, en bevat de iOS Safari fallback.
            v30.30 — Hover-tooltip verwijderd, aria-label blijft voor screen readers. */}
       <VadikGlass
-        width={52}
-        height={52}
+        width={44}
+        height={44}
         shape="circle"
         data-testid={testId}
         aria-label={label}

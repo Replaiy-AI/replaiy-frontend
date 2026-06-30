@@ -1454,7 +1454,7 @@ export function EngagersChromeSlot({
       priority,
       leftSlot: (
         <ActionPill testId="engagers-back" label={backLabel} onClick={onClose}>
-          <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+          <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
         </ActionPill>
       ),
       togglePill: (
@@ -1543,7 +1543,7 @@ export function EngagersView({
       <div className="hidden md:flex items-center justify-between gap-2.5 absolute top-3 left-3 right-3 z-[2] pointer-events-none">
         <div className="pointer-events-auto shrink-0">
           <ActionPill testId="engagers-back" label={backLabel} onClick={onClose}>
-            <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+            <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
           </ActionPill>
         </div>
         <span className="min-w-0 flex-1 text-center text-[13px] font-semibold tracking-[-0.005em] text-foreground truncate">

@@ -1308,7 +1308,7 @@ function CampaignMissing() {
             label="Back"
             onClick={() => navigate('/campaigns')}
           >
-            <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+            <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
           </ActionPill>
         ),
       }),
@@ -2786,7 +2786,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
             label="Back"
             onClick={() => navigate('/campaigns')}
           >
-            <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+            <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
           </ActionPill>
         ),
         // v-tabs-in-topbar — Name no longer lives in the center chrome pill; it
@@ -3088,7 +3088,7 @@ function CampaignCreate() {
             label="Back"
             onClick={() => navigate('/campaigns')}
           >
-            <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
+            <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
           </ActionPill>
         ),
         togglePill: (
