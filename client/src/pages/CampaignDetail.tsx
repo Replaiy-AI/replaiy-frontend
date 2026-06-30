@@ -49,7 +49,6 @@ import {
   Upload,
   SlidersHorizontal,
   ShieldCheck,
-  Copy,
   ChevronDown,
   ChevronRight,
   ArrowUpRight,
@@ -718,8 +717,8 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                 data-testid={`source-row-${src.kind}`}
                 className="px-4 py-3.5 flex items-center gap-3"
               >
-                <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
-                  <Icon size={16} strokeWidth={1.8} />
+                <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+                  <Icon size={16} strokeWidth={1.9} className="text-foreground/70" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -791,12 +790,12 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
   );
 }
 
-// ── C) Ideal customer (ICP) - editable chip groups on local state ───
-// Read-only by default; "Edit" turns chips removable and shows an add input.
-// "Start from a template" opens a small picker that fills the ICP.
+// ── C) Ideal customer (ICP) - always-editable chip groups on local state ─
+// Calm Persona/knowledge language: chips are always removable (hover-revealed)
+// and every group has an inline add-input, no Edit mode. "Start from a
+// template" is a quiet bottom affordance that fills the ICP via a popover.
 function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
   const [icp, setIcp] = useState<IcpCriteria>(audience.icp);
-  const [editing, setEditing] = useState(false);
 
   const empty =
     icp.titles.length === 0 &&
@@ -821,137 +820,112 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
       <AudienceHeader
         label="Ideal customer"
         sub="The profile we match leads against."
-        trailing={
-          <div className="flex items-center gap-1.5">
-            <GlassPopover
-              anchor="bottom"
-              align="right"
-              width="w-64"
-              testId="icp-template-menu"
-              trigger={({ open, toggle }) => (
-                <button
-                  type="button"
-                  data-testid="button-icp-template"
-                  aria-haspopup="menu"
-                  aria-expanded={open}
-                  onClick={toggle}
-                  className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
-                >
-                  <Copy size={12} strokeWidth={2} className="text-foreground/55" />
-                  Start from a template
-                </button>
-              )}
-            >
-              {({ close }) => (
-                <div className="flex flex-col">
-                  {ICP_TEMPLATES.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      data-testid={`icp-template-${t.id}`}
-                      onClick={() => {
-                        setIcp(t.icp);
-                        setEditing(true);
-                        close();
-                      }}
-                      className="w-full text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2"
-                    >
-                      <div className="text-[13px] font-semibold text-foreground">{t.name}</div>
-                      <div className="text-[11.5px] text-foreground/50 leading-snug">{t.sub}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </GlassPopover>
-            <button
-              type="button"
-              data-testid="button-icp-edit"
-              onClick={() => setEditing((v) => !v)}
-              aria-pressed={editing}
-              className="glass-pill pill inline-flex items-center gap-1.5 h-[26px] pl-2 pr-2.5 text-[12px] font-medium text-foreground/75 hover-elevate active-elevate-2"
-            >
-              {editing ? (
-                <Check size={12} strokeWidth={2.4} className="text-foreground/55" />
-              ) : (
-                <Pencil size={12} strokeWidth={2} className="text-foreground/55" />
-              )}
-              {editing ? 'Done' : 'Edit'}
-            </button>
-          </div>
-        }
       />
       <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-icp">
-        {empty && !editing ? (
-          <p className="text-[13px] text-foreground/45 leading-snug">
-            No ideal customer defined yet. Start from a template or clone another
-            campaign to set who this reaches.
+        {empty && (
+          <p className="text-[13px] text-foreground/45 leading-snug mb-5">
+            No ideal customer defined yet. Add criteria below or start from a
+            template to set who this reaches.
           </p>
-        ) : (
-          <div className="flex flex-col gap-5">
-            <IcpEditableGroup
-              caption="Titles"
-              field="titles"
-              values={icp.titles}
-              editing={editing}
-              onRemove={removeAt}
-              onAdd={addTo}
-            />
-            <IcpEditableGroup
-              caption="Industries"
-              field="industries"
-              values={icp.industries}
-              editing={editing}
-              onRemove={removeAt}
-              onAdd={addTo}
-            />
-            {icp.companySize && (
-              <IcpGroup caption="Company size" values={[icp.companySize]} />
-            )}
-            <IcpEditableGroup
-              caption="Locations"
-              field="locations"
-              values={icp.locations}
-              editing={editing}
-              onRemove={removeAt}
-              onAdd={addTo}
-            />
-            <IcpEditableGroup
-              caption="Seniority"
-              field="seniority"
-              values={icp.seniority}
-              editing={editing}
-              onRemove={removeAt}
-              onAdd={addTo}
-            />
-            {(icp.exclusions.length > 0 || editing) && (
-              <>
-                <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07]" />
-                <IcpEditableGroup
-                  caption="Exclusions"
-                  field="exclusions"
-                  values={icp.exclusions}
-                  editing={editing}
-                  muted
-                  onRemove={removeAt}
-                  onAdd={addTo}
-                />
-              </>
-            )}
-          </div>
         )}
+        <div className="flex flex-col gap-5">
+          <IcpEditableGroup
+            caption="Titles"
+            field="titles"
+            values={icp.titles}
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          <IcpEditableGroup
+            caption="Industries"
+            field="industries"
+            values={icp.industries}
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          {icp.companySize && (
+            <IcpGroup caption="Company size" values={[icp.companySize]} />
+          )}
+          <IcpEditableGroup
+            caption="Locations"
+            field="locations"
+            values={icp.locations}
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          <IcpEditableGroup
+            caption="Seniority"
+            field="seniority"
+            values={icp.seniority}
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07]" />
+          <IcpEditableGroup
+            caption="Exclusions"
+            field="exclusions"
+            values={icp.exclusions}
+            muted
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+        </div>
+
+        {/* Quiet bottom affordance: start from a template (popover picker),
+            mirroring knowledge's "Add your own question" pill. No header
+            buttons, no Edit mode. */}
+        <GlassPopover
+          anchor="top"
+          align="left"
+          width="w-64"
+          testId="icp-template-menu"
+          trigger={({ open, toggle }) => (
+            <button
+              type="button"
+              data-testid="button-icp-template"
+              aria-haspopup="menu"
+              aria-expanded={open}
+              onClick={toggle}
+              className="mt-5 w-full glass-pill pill h-11 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold text-foreground/70 hover-elevate active-elevate-2"
+            >
+              <Plus size={15} strokeWidth={2} />
+              Start from a template
+            </button>
+          )}
+        >
+          {({ close }) => (
+            <div className="flex flex-col">
+              {ICP_TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  data-testid={`icp-template-${t.id}`}
+                  onClick={() => {
+                    setIcp(t.icp);
+                    close();
+                  }}
+                  className="w-full text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2"
+                >
+                  <div className="text-[13px] font-semibold text-foreground">{t.name}</div>
+                  <div className="text-[11.5px] text-foreground/50 leading-snug">{t.sub}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </GlassPopover>
       </div>
     </section>
   );
 }
 
-// One editable ICP group: caption + chips. In edit mode each chip shows a
-// remove control and a small "add" input appears at the end. Sits directly in
-// the parent card (no inner box) so there is no block-in-block.
+// One always-editable ICP group: caption + chips + an inline add-input. Each
+// chip has a hover-revealed remove control (the calm knowledge pattern); the
+// add-input is always present so there is no Edit mode. Sits directly in the
+// parent card (no inner box) so there is no block-in-block.
 function IcpEditableGroup({
   caption,
   field,
   values,
-  editing,
   muted = false,
   onRemove,
   onAdd,
@@ -959,66 +933,58 @@ function IcpEditableGroup({
   caption: string;
   field: 'titles' | 'industries' | 'locations' | 'seniority' | 'exclusions';
   values: string[];
-  editing: boolean;
   muted?: boolean;
   onRemove: (key: typeof field, value: string) => void;
   onAdd: (key: typeof field, value: string) => void;
 }) {
   const [draft, setDraft] = useState('');
-  if (values.length === 0 && !editing) return null;
   return (
     <div>
       <SubLabel>{caption}</SubLabel>
       <div className="flex flex-wrap items-center gap-2">
-        {values.map((v) =>
-          editing ? (
-            <span
-              key={v}
-              className={`glass-pill inline-flex items-center gap-1 h-[28px] pl-3 pr-1.5 rounded-full text-[12.5px] font-medium ${
-                muted ? 'text-foreground/45' : 'text-foreground/80'
-              }`}
+        {values.map((v) => (
+          <span
+            key={v}
+            className={`group glass-pill inline-flex items-center gap-1 h-[28px] pl-3 pr-1.5 rounded-full text-[12.5px] font-medium ${
+              muted ? 'text-foreground/45' : 'text-foreground/80'
+            }`}
+          >
+            {muted && (
+              <span aria-hidden="true" className="text-foreground/35 leading-none">
+                &minus;
+              </span>
+            )}
+            {v}
+            <button
+              type="button"
+              data-testid={`icp-remove-${field}-${v}`}
+              onClick={() => onRemove(field, v)}
+              aria-label={`Remove ${v}`}
+              className="opacity-0 group-hover:opacity-100 transition-opacity h-[18px] w-[18px] rounded-full flex items-center justify-center text-foreground/40 hover-elevate active-elevate-2"
             >
-              {muted && (
-                <span aria-hidden="true" className="text-foreground/35 leading-none">
-                  &minus;
-                </span>
-              )}
-              {v}
-              <button
-                type="button"
-                data-testid={`icp-remove-${field}-${v}`}
-                onClick={() => onRemove(field, v)}
-                aria-label={`Remove ${v}`}
-                className="h-[18px] w-[18px] rounded-full flex items-center justify-center text-foreground/40 hover-elevate active-elevate-2"
-              >
-                <X size={11} strokeWidth={2.4} />
-              </button>
-            </span>
-          ) : (
-            <IcpChip key={v} label={v} muted={muted} />
-          ),
-        )}
-        {editing && (
-          <input
-            data-testid={`icp-add-${field}`}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                onAdd(field, draft);
-                setDraft('');
-              }
-            }}
-            onBlur={() => {
-              if (draft.trim()) {
-                onAdd(field, draft);
-                setDraft('');
-              }
-            }}
-            placeholder="Add"
-            className="h-[28px] w-[110px] bg-foreground/[0.04] dark:bg-white/[0.06] rounded-full px-3 outline-none text-[12.5px] text-foreground placeholder:text-foreground/40"
-          />
-        )}
+              <X size={11} strokeWidth={2.4} />
+            </button>
+          </span>
+        ))}
+        <input
+          data-testid={`icp-add-${field}`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              onAdd(field, draft);
+              setDraft('');
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) {
+              onAdd(field, draft);
+              setDraft('');
+            }
+          }}
+          placeholder="Add"
+          className="h-[28px] w-[110px] bg-foreground/[0.04] dark:bg-white/[0.06] rounded-full px-3 outline-none text-[12.5px] text-foreground placeholder:text-foreground/40"
+        />
       </div>
     </div>
   );
