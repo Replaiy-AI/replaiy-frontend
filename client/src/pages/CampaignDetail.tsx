@@ -84,6 +84,8 @@ import { ReplaiyAvatar } from '@/components/Avatar';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { GlassToggle } from '@/components/GlassToggle';
+import { GlassCircleButton } from '@/components/GlassCircleButton';
+import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import { GlassPopover } from '@/components/GlassPopover';
 import { ResponsiveSheet } from '@/components/ResponsiveSheet';
 import { conversionPct, replyRatePct } from '@/components/CampaignsList';
@@ -194,6 +196,19 @@ const GOAL_ICONS: Record<CampaignGoalType, typeof Target> = {
 // large surfaces). Mirrors the Persona/Knowledge gold standard exactly.
 const AI_ACCENT = '#2F6BFF';
 
+// ── Detail tabs ─────────────────────────────────────────────────────
+// The detail content is split across four tabs so each view is short and
+// scannable instead of one endless scroll. The switcher itself is the SHARED
+// VadikLiquidSwitcher (text variant) used by the feed (All/Relevant) and the
+// lead panel (Overview/Contact).
+type CampaignTab = 'overview' | 'audience' | 'outreach' | 'team';
+const CAMPAIGN_TAB_SEGMENTS: { key: CampaignTab; label: string; width: number }[] = [
+  { key: 'overview', label: 'Overview', width: 92 },
+  { key: 'audience', label: 'Audience', width: 96 },
+  { key: 'outreach', label: 'Outreach', width: 96 },
+  { key: 'team', label: 'Team', width: 70 },
+];
+
 // ====================================================================
 // AUDIENCE - who this campaign reaches. Rendered at the TOP of the detail.
 // Built as Persona-style sub-blocks: a FineTuneSection-style header (a
@@ -276,6 +291,32 @@ function AudienceHeader({
   );
 }
 
+// ── SubLabel - the ONE subordinate label style ──────────────────────
+// The single, consistent treatment for a sub-grouping INSIDE a section
+// (e.g. "Opening message" vs "Conversation replies" within Sending, or the
+// ICP "Titles" / "Industries" groups). Clearly subordinate to SectionLabel:
+// smaller (11px), semibold, muted (foreground/45), tight tracking, normal
+// case. Used everywhere a sub-heading is needed so the hierarchy reads as
+// exactly two levels: SectionLabel (section title) > SubLabel (sub-group).
+function SubLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[11px] font-semibold tracking-[-0.005em] text-foreground/45 mb-2">
+      {children}
+    </div>
+  );
+}
+
+// ── The single SELECTED-row treatment ───────────────────────────────
+// A chosen option (opening-message / reply-mode / goal / language) is shown
+// by a SUBTLE accent: a faint accent tint + a left accent rail + an accent
+// check. NEVER by wrapping the row in a second opaque background layer. This
+// is the one selected-state pattern used across the whole detail.
+function selectedRowClass(selected: boolean): string {
+  return selected
+    ? 'bg-[#2F6BFF]/[0.06] dark:bg-[#2F6BFF]/[0.10]'
+    : '';
+}
+
 // Small read-only chip - quiet glass pill. Used for ICP criteria. `muted`
 // renders exclusions distinctly (lower contrast + a small minus), no red.
 function IcpChip({ label, muted = false }: { label: string; muted?: boolean }) {
@@ -309,9 +350,7 @@ function IcpGroup({
   if (values.length === 0) return null;
   return (
     <div>
-      <div className="text-[12px] font-semibold text-foreground/65 mb-2">
-        {caption}
-      </div>
+      <SubLabel>{caption}</SubLabel>
       <div className="flex flex-wrap items-center gap-2">
         {values.map((v) => (
           <IcpChip key={v} label={v} muted={muted} />
@@ -396,10 +435,8 @@ function AudiencePoolCard({
         {/* Tiny match-score distribution - quality, not just quantity. One
             hue (accent) deepening with score; a quiet horizontal histogram. */}
         <div className="flex items-center justify-between gap-3 mb-2.5">
-          <span className="text-[12px] font-semibold text-foreground/65">
-            Match-score spread
-          </span>
-          <span className="text-[11.5px] text-foreground/45">higher is a better fit</span>
+          <SubLabel>Match-score spread</SubLabel>
+          <span className="text-[11.5px] text-foreground/45 pb-2">higher is a better fit</span>
         </div>
         <div className="flex flex-col gap-1.5" data-testid="audience-histogram">
           {scoreBuckets.map((b, i) => {
@@ -737,7 +774,7 @@ function IcpEditableGroup({
   if (values.length === 0 && !editing) return null;
   return (
     <div>
-      <div className="text-[12px] font-semibold text-foreground/65 mb-2">{caption}</div>
+      <SubLabel>{caption}</SubLabel>
       <div className="flex flex-wrap items-center gap-2">
         {values.map((v) =>
           editing ? (
@@ -818,9 +855,9 @@ function AudienceThresholdCard({
         <div className="flex items-baseline justify-between gap-3 mb-3">
           <div className="flex items-center gap-2">
             <SlidersHorizontal size={15} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
-            <span className="text-[12px] font-semibold text-foreground/65">
+            <div className="text-[11px] font-semibold tracking-[-0.005em] text-foreground/45">
               Minimum match score
-            </span>
+            </div>
           </div>
           <span className="text-[15px] font-semibold tabular-nums text-foreground">
             {value}%
@@ -1130,89 +1167,77 @@ function CampaignMissing() {
 // removes. Archive was redundant alongside Paused, so it's gone entirely.
 function OverflowMenu({
   campaign,
-  align = 'desktop',
   onRename,
 }: {
   campaign: Campaign;
-  align?: 'desktop' | 'mobile';
   onRename?: () => void;
 }) {
   const [, navigate] = useLocation();
   const { updateCampaign } = useReplaiy();
-  const [open, setOpen] = useState(false);
 
   // Mock data has no hard remove; marking the campaign archived + leaving the
   // detail is the closest honest "delete" action against the mock store.
   const del = () => {
-    setOpen(false);
     updateCampaign(campaign.id, { status: 'archived' });
     navigate('/campaigns');
   };
 
+  // The trigger is the SHARED GlassCircleButton (the same glass affordance as
+  // CampaignsList's search / new buttons), wrapping MoreHorizontal. The menu
+  // itself is the SHARED GlassPopover, so this overflow reuses existing
+  // components end to end instead of a hand-rolled button + dropdown.
   return (
-    <div className="relative">
-      <button
-        type="button"
-        data-testid="button-campaign-overflow"
-        aria-label="Campaign actions"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="h-[34px] w-[34px] rounded-full flex items-center justify-center text-icon hover-elevate active-elevate-2"
-      >
-        <MoreHorizontal size={19} strokeWidth={1.9} />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <>
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setOpen(false)}
-              aria-hidden="true"
-            />
-            <motion.div
-              data-testid="campaign-actions-menu"
-              role="menu"
-              initial={{ y: -8, opacity: 0, scale: 0.97 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: -8, opacity: 0, scale: 0.97 }}
-              transition={APPLE_SPRING}
-              style={{ transformOrigin: 'top right' }}
-              className={`absolute z-50 ${
-                align === 'mobile' ? 'right-0 top-[42px]' : 'right-0 top-[42px]'
-              } w-[200px] glass-strong rounded-3xl p-2 shadow-2xl`}
+    <GlassPopover
+      anchor="bottom"
+      align="right"
+      width="w-[200px]"
+      testId="campaign-actions-menu"
+      trigger={({ open, toggle }) => (
+        <div data-active={open || undefined}>
+          <GlassCircleButton
+            label="Campaign actions"
+            testId="button-campaign-overflow"
+            onClick={toggle}
+            ariaPressed={open}
+            size={44}
+          >
+            <MoreHorizontal size={19} strokeWidth={1.9} className="text-icon" />
+          </GlassCircleButton>
+        </div>
+      )}
+    >
+      {({ close }) => (
+        <div className="flex flex-col gap-0.5">
+          {onRename && (
+            <button
+              role="menuitem"
+              data-testid="action-rename"
+              onClick={() => {
+                close();
+                onRename();
+              }}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[14px] font-medium hover-elevate active-elevate-2 text-left text-foreground"
             >
-              <div className="flex flex-col gap-0.5">
-                {onRename && (
-                  <button
-                    role="menuitem"
-                    data-testid="action-rename"
-                    onClick={() => {
-                      setOpen(false);
-                      onRename();
-                    }}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[14px] font-medium hover-elevate active-elevate-2 text-left text-foreground"
-                  >
-                    <Pencil size={17} strokeWidth={1.6} className="shrink-0 text-icon" />
-                    <span>Rename</span>
-                  </button>
-                )}
-                <button
-                  role="menuitem"
-                  data-testid="action-delete"
-                  onClick={del}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[14px] font-medium hover-elevate active-elevate-2 text-left"
-                  style={{ color: 'hsl(var(--destructive))' }}
-                >
-                  <Trash2 size={17} strokeWidth={1.6} className="shrink-0" />
-                  <span>Delete</span>
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
+              <Pencil size={17} strokeWidth={1.6} className="shrink-0 text-icon" />
+              <span>Rename</span>
+            </button>
+          )}
+          <button
+            role="menuitem"
+            data-testid="action-delete"
+            onClick={() => {
+              close();
+              del();
+            }}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[14px] font-medium hover-elevate active-elevate-2 text-left"
+            style={{ color: 'hsl(var(--destructive))' }}
+          >
+            <Trash2 size={17} strokeWidth={1.6} className="shrink-0" />
+            <span>Delete</span>
+          </button>
+        </div>
+      )}
+    </GlassPopover>
   );
 }
 
@@ -1248,16 +1273,17 @@ function GoalPicker({
               data-testid={`goal-option-${g}`}
               onClick={() => onPick(g)}
               aria-pressed={selected}
-              className={`w-full text-left px-4 py-3.5 hover-elevate active-elevate-2 ${
-                selected ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
-              }`}
+              className={`w-full text-left px-4 py-3.5 hover-elevate active-elevate-2 ${selectedRowClass(
+                selected,
+              )}`}
             >
               <div className="flex items-center gap-3">
                 {/* Small plain glyph, no background box. */}
                 <Icon
                   size={16}
                   strokeWidth={1.9}
-                  className={`shrink-0 ${selected ? 'text-foreground/70' : 'text-foreground/40'}`}
+                  className="shrink-0"
+                  style={{ color: selected ? AI_ACCENT : undefined }}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="text-[14.5px] font-semibold tracking-[-0.005em] text-foreground">
@@ -1267,12 +1293,13 @@ function GoalPicker({
                     {meta.hint}
                   </div>
                 </div>
-                {/* Quiet selection mark - small muted check, no filled circle. */}
+                {/* Quiet selection mark - a small accent check, no filled box. */}
                 {selected && (
                   <Check
                     size={17}
-                    strokeWidth={2.4}
-                    className="shrink-0 text-foreground/70"
+                    strokeWidth={2.6}
+                    className="shrink-0"
+                    style={{ color: AI_ACCENT }}
                   />
                 )}
               </div>
@@ -1336,15 +1363,16 @@ function LanguageSection({ campaign }: { campaign: Campaign }) {
                 data-testid={`language-option-${row.value}`}
                 onClick={() => setMode(row.value)}
                 aria-pressed={selected}
-                className={`w-full text-left px-4 py-3.5 hover-elevate active-elevate-2 ${
-                  selected ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
-                }`}
+                className={`w-full text-left px-4 py-3.5 hover-elevate active-elevate-2 ${selectedRowClass(
+                  selected,
+                )}`}
               >
                 <div className="flex items-center gap-3">
                   <LanguagesIcon
                     size={16}
                     strokeWidth={1.9}
-                    className={`shrink-0 ${selected ? 'text-foreground/70' : 'text-foreground/40'}`}
+                    className="shrink-0"
+                    style={{ color: selected ? AI_ACCENT : undefined }}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
@@ -1355,7 +1383,7 @@ function LanguageSection({ campaign }: { campaign: Campaign }) {
                     </div>
                   </div>
                   {selected && (
-                    <Check size={17} strokeWidth={2.4} className="shrink-0 text-foreground/70" />
+                    <Check size={17} strokeWidth={2.6} className="shrink-0" style={{ color: AI_ACCENT }} />
                   )}
                 </div>
               </button>
@@ -1511,7 +1539,7 @@ function TimingSection({ campaign }: { campaign: Campaign }) {
             >
               <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] font-semibold text-foreground/65">Work window</span>
+                <div className="text-[11px] font-semibold tracking-[-0.005em] text-foreground/45">Work window</div>
                 <span
                   data-testid="timing-window"
                   className="glass-pill inline-flex items-center gap-1.5 h-[28px] px-3 rounded-full text-[12.5px] font-medium text-foreground/80"
@@ -1563,7 +1591,9 @@ function SendingSection({
   reply: 'review' | 'autopilot';
   onReply: (mode: 'review' | 'autopilot') => void;
 }) {
-  // One row in a 2-choice selector - the EXACT Language-row treatment.
+  // One row in a 2-choice selector. Flat row inside the shared card: hairline
+  // divider above (except the first), a leading glyph, label + hint, and the
+  // single selected treatment (accent tint + accent check, NO nested block).
   function ChoiceRow({
     selected,
     onSelect,
@@ -1593,15 +1623,16 @@ function SendingSection({
           data-testid={testId}
           onClick={onSelect}
           aria-pressed={selected}
-          className={`w-full text-left px-4 py-3.5 hover-elevate active-elevate-2 ${
-            selected ? 'bg-foreground/[0.05] dark:bg-white/[0.06]' : ''
-          }`}
+          className={`w-full text-left px-4 py-3.5 hover-elevate active-elevate-2 ${selectedRowClass(
+            selected,
+          )}`}
         >
           <div className="flex items-center gap-3">
             <Icon
               size={16}
               strokeWidth={1.9}
-              className={`shrink-0 ${selected ? 'text-foreground/70' : 'text-foreground/40'}`}
+              className="shrink-0"
+              style={{ color: selected ? AI_ACCENT : undefined }}
             />
             <div className="min-w-0 flex-1">
               <div className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
@@ -1612,7 +1643,7 @@ function SendingSection({
               </div>
             </div>
             {selected && (
-              <Check size={17} strokeWidth={2.4} className="shrink-0 text-foreground/70" />
+              <Check size={17} strokeWidth={2.6} className="shrink-0" style={{ color: AI_ACCENT }} />
             )}
           </div>
         </button>
@@ -1628,11 +1659,17 @@ function SendingSection({
         sub="How Replaiy reaches out and replies."
       />
 
+      {/* ONE card for the whole section. The two sub-groups (Opening message /
+          Conversation replies) are SubLabel headings INSIDE the card, divided
+          by a single hairline, option rows flat beneath. No card-in-card;
+          selection is accent tint + accent check; the revealed fixed-opener
+          field is a flat field in the same card. */}
+      <div className="rp-card rounded-3xl overflow-hidden" data-testid="campaign-sending">
       {/* Opening message - AI writes each opener, or one fixed opener. */}
-      <div className="mb-2 px-2 text-[12px] font-semibold text-foreground/65">
-        Opening message
+      <div className="px-4 pt-4 pb-1">
+        <SubLabel>Opening message</SubLabel>
       </div>
-      <div className="rp-card rounded-3xl overflow-hidden" data-testid="sending-opener">
+      <div data-testid="sending-opener">
         <ChoiceRow
           first
           selected={opener.mode === 'ai'}
@@ -1682,11 +1719,14 @@ function SendingSection({
         </ChoiceRow>
       </div>
 
+      {/* Group divider - the two sub-groups sit in ONE card, no nesting. */}
+      <div className="h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+
       {/* Conversation replies - review everything, or autopilot. */}
-      <div className="mt-5 mb-2 px-2 text-[12px] font-semibold text-foreground/65">
-        Conversation replies
+      <div className="px-4 pt-4 pb-1">
+        <SubLabel>Conversation replies</SubLabel>
       </div>
-      <div className="rp-card rounded-3xl overflow-hidden" data-testid="sending-reply">
+      <div data-testid="sending-reply">
         <ChoiceRow
           first
           selected={reply === 'review'}
@@ -1705,6 +1745,7 @@ function SendingSection({
           hint="Replaiy sends replies automatically, and holds back low-confidence ones to your inbox for approval."
           testId="reply-option-autopilot"
         />
+      </div>
       </div>
 
       {/* Quiet note: automated sending honours the work window + safe limits. */}
@@ -2422,6 +2463,11 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
     campaign.replyMode ?? 'review',
   );
 
+  // ── Tabs - split the (previously endless) scroll into four scannable
+  //    tabs, using the SAME VadikLiquidSwitcher (text variant) the feed and
+  //    lead panel use. Default Overview. Local state only. ──────────────
+  const [tab, setTab] = useState<CampaignTab>('overview');
+
   // ── Inline editable name ──────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(campaign.name);
@@ -2464,37 +2510,25 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
             <ArrowLeft size={22} strokeWidth={1.7} className="text-icon" />
           </ActionPill>
         ),
-        togglePill: (
-          <div className="inline-flex items-center gap-2 px-1 h-[52px] max-w-[210px]">
-            {editingName ? (
-              <input
-                ref={nameInputRef}
-                data-testid="input-edit-name-mobile"
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                onBlur={commitName}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitName();
-                  if (e.key === 'Escape') cancelName();
-                }}
-                className="bg-transparent outline-none border-b border-foreground/20 focus:border-foreground/40 text-foreground text-[14px] font-semibold tracking-[-0.005em] w-full max-w-full"
-              />
-            ) : (
-              <span className="text-[14px] font-semibold tracking-[-0.005em] truncate text-foreground">
-                {campaign.name}
-              </span>
-            )}
-          </div>
-        ),
+        // v-tabs-in-topbar — Name no longer lives in the center chrome pill; it
+        // moves into the body as an inline-editable field below the tabs. The
+        // mobile top chrome keeps only back (left) + toggle/overflow (right);
+        // the tab switcher sits just under the chrome at the top of the body.
         rightSlot: (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span
+              data-testid="campaign-status-label-mobile"
+              className="text-[12px] font-medium text-foreground/65"
+            >
+              {isOn ? 'Active' : 'Paused'}
+            </span>
             <GlassToggle
               on={isOn}
               onChange={toggle}
               testId="campaign-toggle-detail-mobile"
               ariaLabel={`${isOn ? 'Pause' : 'Activate'} ${campaign.name}`}
             />
-            <OverflowMenu campaign={campaign} align="mobile" onRename={beginNameEdit} />
+            <OverflowMenu campaign={campaign} onRename={beginNameEdit} />
           </div>
         ),
       }),
@@ -2544,61 +2578,125 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
       </button>
     );
 
+  // Per-tab content. Each tab shows ONLY its own sections so the screen stays
+  // short and scannable instead of one endless scroll. Sections keep all their
+  // existing content + functionality; they are only regrouped under tabs.
+  const tabContent: Record<CampaignTab, React.ReactNode> = {
+    // Overview - how it is performing + what it drives toward.
+    overview: (
+      <>
+        <CampaignStatStrip campaign={campaign} />
+        <FunnelCard campaign={campaign} />
+        <GoalCard campaign={campaign} />
+      </>
+    ),
+    // Audience - who this campaign reaches (pool + sources + ICP + match
+    // quality + skip-the-wrong-people, all inside AudienceSection).
+    audience: <AudienceSection campaign={campaign} />,
+    // Outreach - how it reaches out and replies.
+    outreach: (
+      <>
+        <FlowCard
+          campaign={campaign}
+          openerMode={openerMode}
+          openerFixedText={openerFixedText}
+          onOpenerText={setOpenerFixedText}
+        />
+        <SendingSection
+          opener={{ mode: openerMode, fixedText: openerFixedText }}
+          onOpenerMode={setOpenerMode}
+          onOpenerText={setOpenerFixedText}
+          reply={replyMode}
+          onReply={setReplyMode}
+        />
+        <TimingSection campaign={campaign} />
+        <LanguageSection campaign={campaign} />
+      </>
+    ),
+    // Team - which seats run this campaign.
+    team: <TeamCard campaign={campaign} />,
+  };
+
   const body = (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
-      className="max-w-2xl mx-auto w-full flex flex-col gap-6 md:gap-7"
-    >
-      {/* Name lives ONLY in the top chrome (mobile) / floating header
-          (desktop), never duplicated in the body, exactly like the inbox
-          conversation. Rename on mobile is reached via the overflow menu. */}
-      {/* Order: Audience (the heart) and its enrichment, then how it reaches
-          out (Language, Send timing), then what it drives toward (Goal,
-          Funnel, Flow), then who it runs from (seats and their personas). */}
-      <CampaignStatStrip campaign={campaign} />
-      <AudienceSection campaign={campaign} />
-      <LanguageSection campaign={campaign} />
-      <TimingSection campaign={campaign} />
-      <SendingSection
-        opener={{ mode: openerMode, fixedText: openerFixedText }}
-        onOpenerMode={setOpenerMode}
-        onOpenerText={setOpenerFixedText}
-        reply={replyMode}
-        onReply={setReplyMode}
-      />
-      <GoalCard campaign={campaign} />
-      <FunnelCard campaign={campaign} />
-      <FlowCard
-        campaign={campaign}
-        openerMode={openerMode}
-        openerFixedText={openerFixedText}
-        onOpenerText={setOpenerFixedText}
-      />
-      <TeamCard campaign={campaign} />
-    </motion.div>
+    <div className="max-w-2xl mx-auto w-full">
+      {/* v-tabs-in-topbar — On DESKTOP the tab switcher lives in the top bar
+          (top-left of the pane), so the body does NOT repeat it. On MOBILE the
+          top chrome is already full (back + toggle + overflow), so the tabs sit
+          just under the chrome at the top of the body — same shared
+          VadikLiquidSwitcher (text variant) the feed and lead panel use. */}
+      <div className="lg:hidden flex justify-center w-full mb-5">
+        <VadikLiquidSwitcher<CampaignTab>
+          testId="campaign-tab"
+          variant="text"
+          scale={0.78}
+          textPaddingX={10}
+          value={tab}
+          onChange={setTab}
+          segments={CAMPAIGN_TAB_SEGMENTS}
+        />
+      </div>
+
+      {/* Campaign name as an inline-editable field, BELOW the tabs — the same
+          editable affordance (label text + rename pencil) the app uses for
+          other editable values. No longer the big top-bar title. */}
+      <div className="mb-6 md:mb-7">{renderNameField('lg')}</div>
+
+      {/* Only the active tab's sections render - short, scannable, no endless
+          scroll. A light cross-fade on switch, same feel as the lead panel. */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.16, ease: 'easeOut' }}
+          className="flex flex-col gap-6 md:gap-7"
+        >
+          {tabContent[tab]}
+        </motion.div>
+      </AnimatePresence>
+    </div>
   );
 
   return (
     <div className="flex flex-col h-full min-h-0 relative">
-      {/* DESKTOP floating top pill row - editable name (left) + switch +
-          overflow (right), on the same top:12 baseline as ConversationDetail. */}
+      {/* DESKTOP floating top bar - tab switcher (top-left) + switch +
+          overflow (right), on the same top:12 baseline as ConversationDetail.
+          v-tabs-in-topbar: the tabs now live HERE, in the top bar, instead of
+          below a title; the campaign name moved into the body as an editable
+          field. */}
       <div
         data-testid="campaign-desktop-header"
         className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none"
       >
         <div className="flex items-center justify-between gap-3 px-4 lg:px-6">
           <div className="pointer-events-auto min-w-0 flex items-center h-[52px]">
-            {renderNameField('lg')}
+            <VadikLiquidSwitcher<CampaignTab>
+              testId="campaign-tab-desktop"
+              variant="text"
+              scale={0.78}
+              textPaddingX={10}
+              value={tab}
+              onChange={setTab}
+              segments={CAMPAIGN_TAB_SEGMENTS}
+            />
           </div>
           <div className="pointer-events-auto flex items-center gap-3 shrink-0">
-            <GlassToggle
-              on={isOn}
-              onChange={toggle}
-              testId="campaign-toggle-detail"
-              ariaLabel={`${isOn ? 'Pause' : 'Activate'} ${campaign.name}`}
-            />
+            <div className="flex items-center gap-2">
+              {/* Small text label so the toggle has clear context. */}
+              <span
+                data-testid="campaign-status-label"
+                className="text-[13px] font-medium text-foreground/65"
+              >
+                {isOn ? 'Active' : 'Paused'}
+              </span>
+              <GlassToggle
+                on={isOn}
+                onChange={toggle}
+                testId="campaign-toggle-detail"
+                ariaLabel={`${isOn ? 'Pause' : 'Activate'} ${campaign.name}`}
+              />
+            </div>
             <OverflowMenu campaign={campaign} />
           </div>
         </div>
