@@ -22,10 +22,20 @@
 // `priority` so each host can scope the engagers chrome above its own chrome.
 // ─────────────────────────────────────────────────────────────────
 import { useState, useMemo, useContext, createContext } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ChevronRight, UserPlus, Plus, Check, Clock } from 'lucide-react';
-import { APPLE_SPRING } from '@/lib/motion';
+import {
+  ArrowLeft,
+  ChevronRight,
+  UserPlus,
+  Plus,
+  Check,
+  Clock,
+  X,
+  Maximize2,
+} from 'lucide-react';
+import { APPLE_SPRING, APPLE_EASE } from '@/lib/motion';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
@@ -64,6 +74,22 @@ export interface EngageRequest {
 // top-level engagers view without prop-drilling. Defaults to a no-op so a
 // PostCard rendered outside a host (none today) is inert.
 export const EngageContext = createContext<(req: EngageRequest) => void>(() => {});
+
+// ─── Media context · tap a post's image / video -> open the lightbox ──
+// A request to open the fullscreen media lightbox for a specific post. Mirrors
+// EngageContext exactly: any PostCard anywhere in the tree raises this through
+// context, and the top-level host (feed or profile) owns the single lightbox
+// overlay stacked above everything. The lightbox reads post.imageUrl /
+// post.videoUrl / post.videoPosterUrl for the media and the post's text +
+// counts + engagersFor(post,'comments') for the conversation panel.
+export interface MediaRequest {
+  post: LinkedInPost;
+}
+
+// Defaults to a no-op so a PostCard rendered outside a host stays inert (the
+// image/video expand affordance does nothing). Hosts always provide a real
+// value now, so feed + profile media is always openable.
+export const MediaContext = createContext<(req: MediaRequest) => void>(() => {});
 
 // ─── Profile-open context · click a person -> open their full profile ─
 // On a real LinkedIn feed you tap a person's NAME or AVATAR to open their full
@@ -244,6 +270,10 @@ export function PostCard({
   // opens the engagers push-in for that kind (likes -> reactions, since
   // LinkedIn files reactions under the likes count). Zero counts are omitted.
   const openEngagers = useContext(EngageContext);
+  // Tapping the post's media (image full-surface, or the video's expand button)
+  // opens the fullscreen lightbox through MediaContext. Default is a no-op, so
+  // a PostCard outside a host stays inert; hosts always provide a real opener.
+  const openMedia = useContext(MediaContext);
   const statSegments: { key: EngageKind; label: string; testId: string }[] = [];
   if (post.likes)
     statSegments.push({
@@ -376,7 +406,13 @@ export function PostCard({
           (calm by default, the user taps play). Same rounded, height-capped
           container as the image so video and image read consistently. */}
       {post.videoUrl ? (
-        <div className="mt-3 rounded-xl overflow-hidden bg-foreground/[0.06] dark:bg-white/[0.07]">
+        /* The inline <video> keeps its native play controls so the post plays
+           in place exactly as before. A SMALL expand affordance (Maximize2 in a
+           dark scrim circle, top-right) opens the fullscreen lightbox. We do
+           NOT make the whole video surface a click target — that would fight the
+           play / scrub controls. The expand button stops propagation so a tap
+           never reaches the video. */
+        <div className="relative mt-3 rounded-xl overflow-hidden bg-foreground/[0.06] dark:bg-white/[0.07]">
           <video
             src={post.videoUrl}
             poster={post.videoPosterUrl}
@@ -386,17 +422,37 @@ export function PostCard({
             data-testid={`post-${post.id}-video`}
             className="w-full max-h-[360px] object-contain bg-black block"
           />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openMedia({ post });
+            }}
+            data-testid={`post-${post.id}-open-media`}
+            aria-label="Open video in full screen"
+            className="absolute top-2 right-2 z-[2] inline-flex items-center justify-center h-8 w-8 rounded-full bg-black/55 backdrop-blur-sm text-white/90 hover:bg-black/70 active:bg-black/75 transition-colors"
+          >
+            <Maximize2 size={15} strokeWidth={2} aria-hidden />
+          </button>
         </div>
       ) : post.imageUrl ? (
-        /* Optional image · rounded, height-capped so one image never dominates. */
-        <div className="mt-3 rounded-xl overflow-hidden bg-foreground/[0.06] dark:bg-white/[0.07]">
+        /* Optional image · rounded, height-capped so one image never dominates.
+           The image carries no controls, so the WHOLE surface is a click target
+           that opens the fullscreen lightbox (cursor-zoom-in + hover-elevate). */
+        <button
+          type="button"
+          onClick={() => openMedia({ post })}
+          data-testid={`post-${post.id}-open-media`}
+          aria-label="Open image in full screen"
+          className="block w-full mt-3 rounded-xl overflow-hidden bg-foreground/[0.06] dark:bg-white/[0.07] cursor-zoom-in hover-elevate active-elevate-2"
+        >
           <img
             src={post.imageUrl}
             alt=""
             loading="lazy"
             className="w-full max-h-[240px] object-cover block"
           />
-        </div>
+        </button>
       ) : post.linkPreview ? (
         /* Link-preview card · a tappable shared-article card. Reuses the EXACT
            embedded-repost inset surface (border + faint fill) used for the
@@ -972,4 +1028,297 @@ export function EngagersView({
       />
     </motion.div>
   );
+}
+
+// ─── Media lightbox · a fullscreen overlay for a tapped image / video ─
+// The most complex shared piece. Tapping a post's image (full surface) or a
+// video's expand button raises a MediaRequest; the HOST owns the open state and
+// renders THIS component inside its own <AnimatePresence>, so exactly ONE
+// lightbox stacks above each host. It is its OWN top layer at z-[90] — ABOVE
+// the engagers push-in (z-[80]) and the profile view (z-[70]) — so it overlays
+// everything, including the mobile top-chrome. It draws its OWN close (X), so
+// it does NOT fight the chrome-slot system (cleaner for a fullscreen overlay).
+//
+// MECHANICS — unlike the engagers push-in (a horizontal x:'100%' slide), a
+// lightbox FADES its dark backdrop in and SCALES/opacity-eases its content in,
+// which is the right physical metaphor for "zoom into this media". APPLE_SPRING
+// drives the content; the backdrop uses a short tween so the dark wash feels
+// instant and calm.
+//
+// LAYOUT —
+//   • DESKTOP (md+): two columns. LEFT (~62%) = the media centered on the dark
+//     backdrop (image object-contain max-h-screen, or a real autoplaying
+//     <video controls>). RIGHT (~38%, a bg-background surface panel) = a
+//     scrollable conversation column: author identity, post text, the reaction
+//     + comment count summary, then the comments list. Mirrors LinkedIn's
+//     desktop lightbox (media left, conversation right).
+//   • MOBILE (< md): the media fills the area above a bottom SHEET (rounded-top
+//     bg-background, max-h ~55vh, scrolls internally) carrying the same post
+//     info + comments. The media occupies the space ABOVE the sheet so it is
+//     never hidden behind it.
+// Both respect safe areas; a self-drawn X (dark scrim circle on mobile, plain
+// pill on desktop) is always reachable above the media.
+function MediaLightboxComments({ post }: { post: LinkedInPost }) {
+  // REUSE engagersFor(post,'comments') — the SAME deterministic comment people
+  // the engagers push-in shows, already capped to the post's comment count. We
+  // render them with the SAME avatar + name + headline + comment-text visual as
+  // EngagerRow (read-only rows here, no chevron / open affordance).
+  const comments = useMemo(() => engagersFor(post, 'comments'), [post]);
+  if (comments.length === 0) {
+    return (
+      <p
+        className="text-[12.5px] text-foreground/40 italic m-0 px-0.5"
+        data-testid="lightbox-comments-empty"
+      >
+        No comments yet
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2.5" data-testid="lightbox-comments">
+      {comments.map((c) => (
+        <div key={c.id} className="flex items-start gap-2.5" data-testid={`lightbox-comment-${c.id}`}>
+          <ReplaiyAvatar name={c.name} src={c.avatarUrl} size={34} />
+          <div className="min-w-0 flex-1 rounded-[14px] bg-foreground/[0.04] dark:bg-white/[0.04] px-3 py-2">
+            <div className="text-[12.5px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+              {noDash(c.name)}
+            </div>
+            {c.headline && (
+              <div className="text-[11px] text-foreground/50 leading-snug truncate">
+                {noDash(c.headline)}
+              </div>
+            )}
+            {c.comment && (
+              <p className="text-[12.5px] leading-[1.5] text-foreground/75 m-0 mt-1 break-words">
+                {noDash(c.comment)}
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// The conversation column shared by desktop (right panel) and mobile (bottom
+// sheet): author identity + post text + count summary + comments list.
+function MediaLightboxPanel({ post }: { post: LinkedInPost }) {
+  // Count summary, reusing formatCount, normal case, no middot. Only non-zero
+  // counts appear, joined by plain spacing exactly like the card's stats row.
+  const summary: string[] = [];
+  if (post.likes) summary.push(`${formatCount(post.likes)} reactions`);
+  if (post.comments) summary.push(`${formatCount(post.comments)} comments`);
+  if (post.reposts) summary.push(`${formatCount(post.reposts)} reposts`);
+  return (
+    <div className="flex flex-col gap-3.5">
+      {/* Author identity · ReplaiyAvatar + name + headline, reused verbatim. */}
+      <div className="flex items-start gap-2.5">
+        <ReplaiyAvatar name={post.authorName} src={post.authorAvatarUrl} size={40} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[13.5px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+            {noDash(post.authorName)}
+          </div>
+          {post.authorHeadline && (
+            <div className="text-[11.5px] text-foreground/55 leading-snug truncate">
+              {noDash(post.authorHeadline)}
+            </div>
+          )}
+          <div className="text-[11.5px] text-foreground/45 leading-snug tabular-nums mt-0.5">
+            {noDash(post.timeAgo)}
+          </div>
+        </div>
+      </div>
+
+      {/* Post text · full (un-clamped — the lightbox has room to read it all). */}
+      <p
+        className="text-[13px] leading-[1.55] text-foreground/80 m-0 whitespace-pre-line break-words"
+        data-testid="lightbox-post-text"
+      >
+        {noDash(post.text)}
+      </p>
+
+      {/* Reaction / comment / repost summary, muted, normal case, no middot. */}
+      {summary.length > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-foreground/50 tabular-nums"
+          data-testid="lightbox-counts"
+        >
+          {summary.map((s) => (
+            <span key={s}>{s}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Hairline divider before the comments, the app's standard token. */}
+      <div className="-mx-0.5 border-t border-foreground/[0.08] dark:border-white/[0.08]" />
+
+      <MediaLightboxComments post={post} />
+    </div>
+  );
+}
+
+// The actual media surface (image or autoplaying video), object-contain so it
+// is never cropped. Shared by both layouts; sizing/placement differs per layout
+// via the wrapping container.
+function MediaLightboxMedia({ post }: { post: LinkedInPost }) {
+  if (post.videoUrl) {
+    return (
+      <video
+        src={post.videoUrl}
+        poster={post.videoPosterUrl}
+        controls
+        autoPlay
+        playsInline
+        data-testid="lightbox-video"
+        className="max-w-full max-h-full object-contain bg-black rounded-lg"
+      />
+    );
+  }
+  if (post.imageUrl) {
+    return (
+      <img
+        src={post.imageUrl}
+        alt=""
+        data-testid="lightbox-image"
+        className="max-w-full max-h-full object-contain rounded-lg"
+      />
+    );
+  }
+  return null;
+}
+
+export function MediaLightbox({
+  post,
+  open,
+  onClose,
+}: {
+  post: LinkedInPost;
+  // `open` is always true while mounted (the host gates mounting on its media
+  // state and wraps this in AnimatePresence); kept in the signature for clarity
+  // and parity with EngagersView's host contract.
+  open: boolean;
+  onClose: () => void;
+}) {
+  void open;
+  // Rendered through a portal to document.body so the fullscreen overlay is a
+  // TRUE top-level layer, above the persistent MobileTopChromeShell (z-40) and
+  // every host stacking context. A fixed inset-0 z-[90] div trapped inside the
+  // feed/profile subtree would be confined by intermediate stacking contexts
+  // (framer-motion opacity / transform), letting the mobile chrome bleed over
+  // the close button. The portal sidesteps that entirely. AnimatePresence in
+  // the host still drives the enter/exit because the motion.div remains the
+  // direct child it animates.
+  const overlay = (
+    <motion.div
+      key="media-lightbox"
+      data-testid="media-lightbox"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: APPLE_EASE }}
+      className="fixed inset-0 z-[90] bg-black/90 backdrop-blur-md"
+      // Clicking the backdrop (anywhere not caught by an inner stopPropagation)
+      // closes the lightbox.
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      {/* Dedicated backdrop layer · sits behind the media and the panel and owns
+          the close-on-tap behaviour explicitly, so a tap on the empty dark area
+          always closes regardless of how the inner flex layout bubbles events.
+          The media/panel wrappers each stopPropagation, so taps on them never
+          reach this layer. */}
+      <div
+        data-testid="lightbox-backdrop"
+        aria-hidden
+        className="absolute inset-0"
+        onClick={onClose}
+      />
+      {/* Self-drawn close (X) · always above the media, top-right on both
+          platforms, in a dark scrim circle so it reads on the media or the
+          backdrop. Sits at z-[3] above the media + panel. Respects the top
+          safe-area inset. */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        data-testid="lightbox-close"
+        aria-label="Close"
+        className="absolute right-3 z-[3] inline-flex items-center justify-center h-9 w-9 rounded-full bg-black/55 backdrop-blur-sm text-white/90 hover:bg-black/70 active:bg-black/75 transition-colors"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+      >
+        <X size={20} strokeWidth={2} aria-hidden />
+      </button>
+
+      {/* ── DESKTOP (md+) · two columns: media left, conversation right ── */}
+      <div className="hidden md:flex absolute inset-0">
+        {/* LEFT · media centered on the dark backdrop. Clicks on the empty dark
+            area close it (backdrop), but a click on the media itself does not. */}
+        <div className="flex-1 min-w-0 flex items-center justify-center p-8">
+          <div
+            className="flex items-center justify-center max-h-full max-w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MediaLightboxMedia post={post} />
+          </div>
+        </div>
+        {/* RIGHT · the conversation panel, a bg-background surface, scrollable. */}
+        <motion.aside
+          initial={{ opacity: 0, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 24 }}
+          transition={APPLE_SPRING}
+          onClick={(e) => e.stopPropagation()}
+          data-testid="lightbox-panel-desktop"
+          className="w-[clamp(340px,38%,460px)] shrink-0 h-full bg-background border-l border-foreground/[0.08] dark:border-white/[0.08] overflow-y-auto no-scrollbar"
+        >
+          <div className="px-5 py-6 pt-[60px]">
+            <MediaLightboxPanel post={post} />
+          </div>
+        </motion.aside>
+      </div>
+
+      {/* ── MOBILE (< md) · media on top, conversation in a bottom sheet ── */}
+      <div className="md:hidden absolute inset-0 flex flex-col">
+        {/* Media area · fills the space above the sheet, centered, contained, so
+            it is never hidden behind the sheet. A tap on the empty area closes
+            (backdrop); a tap on the media does not. */}
+        <div className="flex-1 min-h-0 flex items-center justify-center px-3 pt-[calc(env(safe-area-inset-top,0px)+56px)] pb-2">
+          <div
+            className="flex items-center justify-center max-h-full max-w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MediaLightboxMedia post={post} />
+          </div>
+        </div>
+        {/* Bottom sheet · rounded-top bg-background surface, scrolls internally,
+            capped at ~55vh so the media always keeps the top portion. */}
+        <motion.div
+          initial={{ y: 28, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 28, opacity: 0 }}
+          transition={APPLE_SPRING}
+          onClick={(e) => e.stopPropagation()}
+          data-testid="lightbox-sheet-mobile"
+          className="shrink-0 max-h-[55vh] bg-background rounded-t-[20px] overflow-y-auto no-scrollbar shadow-[0_-8px_30px_rgba(0,0,0,0.25)]"
+        >
+          {/* Grab handle · a calm, non-interactive affordance hinting the sheet. */}
+          <div className="sticky top-0 z-[1] flex justify-center pt-2.5 pb-1.5 bg-background">
+            <div
+              aria-hidden
+              className="h-1 w-9 rounded-full bg-foreground/15 dark:bg-white/20"
+            />
+          </div>
+          <div className="px-4 pb-[calc(env(safe-area-inset-bottom,0px)+20px)]">
+            <MediaLightboxPanel post={post} />
+          </div>
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+  return typeof document !== 'undefined'
+    ? createPortal(overlay, document.body)
+    : overlay;
 }

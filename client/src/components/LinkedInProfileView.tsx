@@ -40,14 +40,16 @@ import { useIsMobile } from '@/hooks/use-mobile';
 // them inline (behaviour-preserving extraction).
 import {
   EngageContext,
+  MediaContext,
   EngagersView,
   EngagersChromeSlot,
+  MediaLightbox,
   ActivityItem,
   ENGAGE_TITLE,
   noDash,
   formatCount,
 } from '@/components/linkedin-post';
-import type { EngageRequest } from '@/components/linkedin-post';
+import type { EngageRequest, MediaRequest } from '@/components/linkedin-post';
 import type {
   Conversation,
   LinkedInExperience,
@@ -359,6 +361,17 @@ export function LinkedInProfileView({
     },
     [],
   );
+
+  // ── Media lightbox (tap a post's image / video in this profile's Activity) ──
+  // The profile owns a single fullscreen lightbox, stacked OVER everything at
+  // z-[90] (above the engagers' z-[80] and this view's own z-[70]). Any
+  // PostCard's tapped image / video-expand raises a MediaRequest through
+  // MediaContext; we open it here and render it in its OWN AnimatePresence,
+  // sibling of the engagers one. It draws its own close (X), so no chrome slot
+  // is needed (cleaner for a fullscreen overlay).
+  const [media, setMedia] = useState<MediaRequest | null>(null);
+  const openMedia = useMemo(() => (req: MediaRequest) => setMedia(req), []);
+  const closeMedia = useMemo(() => () => setMedia(null), []);
   const visiblePosts = useMemo(() => {
     // Posts tab = own posts OR reposts. LinkedIn files a repost under the
     // person's "Posts" activity (a repost IS a posting action), so the Posts
@@ -377,6 +390,7 @@ export function LinkedInProfileView({
 
   return (
     <EngageContext.Provider value={openEngagers}>
+    <MediaContext.Provider value={openMedia}>
       {/* NOTE: the mobile ProfileChromeSlot is NOT mounted here. Mounting it
           inside this component fails the chrome handoff, because this whole
           component sits inside the parent's <AnimatePresence> and stays mounted
@@ -742,6 +756,23 @@ export function LinkedInProfileView({
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* Media lightbox · the fullscreen overlay opened by tapping a post's
+          image / video in this profile's Activity. Its OWN AnimatePresence,
+          rendered OUTSIDE the profile's motion.div (a sibling) so its fixed
+          z-[90] overlay sits above the profile view AND its engagers push-in.
+          It draws its own close (X) — no chrome slot needed. */}
+      <AnimatePresence>
+        {media && (
+          <MediaLightbox
+            key={`profile-media-${media.post.id}`}
+            post={media.post}
+            open
+            onClose={closeMedia}
+          />
+        )}
+      </AnimatePresence>
+    </MediaContext.Provider>
     </EngageContext.Provider>
   );
 }

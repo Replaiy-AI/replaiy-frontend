@@ -33,8 +33,10 @@ import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import {
   EngageContext,
   ProfileOpenContext,
+  MediaContext,
   EngagersView,
   EngagersChromeSlot,
+  MediaLightbox,
   ActivityItem,
   ENGAGE_TITLE,
 } from '@/components/linkedin-post';
@@ -45,7 +47,7 @@ import {
   LinkedInProfileView,
   ProfileChromeSlot,
 } from '@/components/LinkedInProfileView';
-import type { EngageRequest, ProfileOpenValue } from '@/components/linkedin-post';
+import type { EngageRequest, ProfileOpenValue, MediaRequest } from '@/components/linkedin-post';
 import type {
   LinkedInPost,
   LinkedInEngager,
@@ -313,6 +315,17 @@ export function Feed() {
     [],
   );
 
+  // ── Media lightbox (tap a post's image / video) ──
+  // The feed owns the single fullscreen lightbox, stacked OVER everything at
+  // z-[90] (above engagers' z-[80] and the profile's z-[70]). Any PostCard's
+  // tapped image / video-expand raises a MediaRequest through MediaContext; we
+  // open it here and render it in its OWN top-level AnimatePresence (a sibling
+  // of the engagers / profile ones). It draws its own close (X), so it needs no
+  // chrome slot — cleaner than fighting the chrome system for a full overlay.
+  const [media, setMedia] = useState<MediaRequest | null>(null);
+  const openMedia = useMemo(() => (req: MediaRequest) => setMedia(req), []);
+  const closeMedia = useMemo(() => () => setMedia(null), []);
+
   // ── Full LinkedIn profile push-in (click a lead's name / avatar) ──
   // We REUSE LinkedInProfileView exactly as the lead panel does. The feed owns
   // a `profileName` (the clicked person's name) -> the matching lead
@@ -346,6 +359,7 @@ export function Feed() {
   return (
     <ProfileOpenContext.Provider value={profileOpenValue}>
     <EngageContext.Provider value={openEngagers}>
+    <MediaContext.Provider value={openMedia}>
       {/* Feed mobile chrome (title + mode toggle), priority 100. */}
       <FeedChromeSlot mode={mode} onChange={setMode} />
       {/* Engagers mobile chrome slot (priority 400), mounted on the open boolean
@@ -486,7 +500,24 @@ export function Feed() {
             />
           )}
         </AnimatePresence>
+
+        {/* Media lightbox · the fullscreen overlay opened by tapping a post's
+            image / video. Its OWN top-level AnimatePresence (sibling of the
+            engagers + profile ones). At z-[90] (fixed inset-0) it overlays the
+            entire feed, the engagers push-in AND the profile push-in, drawing
+            its own close (X) — no chrome slot needed. */}
+        <AnimatePresence>
+          {media && (
+            <MediaLightbox
+              key={`feed-media-${media.post.id}`}
+              post={media.post}
+              open
+              onClose={closeMedia}
+            />
+          )}
+        </AnimatePresence>
       </div>
+    </MediaContext.Provider>
     </EngageContext.Provider>
     </ProfileOpenContext.Provider>
   );
