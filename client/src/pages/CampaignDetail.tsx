@@ -1268,6 +1268,20 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
   const leads = campaign.audience?.sampleLeads ?? [];
   const back = () => navigate('/campaigns/' + campaign.id);
 
+  // Live persona drives the small talking-mascot avatar that marks each AI
+  // insight, exactly like the inbox AI-voice and the Overview "Your AI" card.
+  // We never mark AI with a sparkle - the mascot IS our AI voice.
+  const { persona: livePersona } = useReplaiy();
+  const p = activePersona(livePersona); // { color, mascot }
+
+  // Opening a lead's full profile from this routed full-screen view would need
+  // significant plumbing (the profile-open context lives in the inbox/feed
+  // shells, not here). Per the brief we keep the row clickable + chevron but
+  // make the click a safe no-op for now rather than building a new flow.
+  const openLead = () => {
+    /* safe no-op: full profile open is not wired into this routed view yet */
+  };
+
   // Mobile chrome - back arrow (left), same pattern as the detail's button-back.
   useMobileTopChromeSlot(
     useMemo(
@@ -1307,14 +1321,20 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
               {i > 0 && (
                 <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
               )}
-              <div
+              {/* Each lead is the canonical person row (mirrors EngagerRow):
+                  a tappable button with ReplaiyAvatar 44 + name + headline +
+                  trailing chevron. The AI insight beneath is marked by our
+                  small talking mascot, never a sparkle. */}
+              <button
+                type="button"
+                onClick={openLead}
                 data-testid={`view-lead-${i}`}
-                className="flex items-start gap-3 px-2 py-3"
+                className="w-full text-left rounded-[16px] px-2 py-3 flex items-start gap-3 hover-elevate active-elevate-2"
               >
-                <ReplaiyAvatar name={lead.name} src={lead.avatar} size={40} className="shrink-0" />
+                <ReplaiyAvatar name={lead.name} src={lead.avatar} size={44} className="shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate">
+                    <span className="min-w-0 text-[14px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
                       {lead.name}
                     </span>
                     <span className="glass-pill inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/55 shrink-0">
@@ -1326,25 +1346,43 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                       {WARMTH_META[lead.warmth].label}
                     </span>
                   </div>
-                  <div className="text-[12.5px] text-foreground/55 truncate">
+                  <div className="text-[12px] text-foreground/55 leading-snug truncate mt-0.5">
                     {lead.title} at {lead.company}
                   </div>
+                  {/* AI insight - what your AI noticed. Marked by the small
+                      persona mascot on a soft p.color-tinted circle (the
+                      AI-voice treatment), NOT a sparkle. */}
                   <div className="mt-1.5 flex items-start gap-1.5">
-                    <Sparkles
-                      size={12}
-                      strokeWidth={2}
-                      style={{ color: AI_ACCENT }}
-                      className="shrink-0 mt-[2px]"
-                    />
+                    <span
+                      aria-hidden
+                      className="relative shrink-0 mt-[1px] inline-flex items-center justify-center w-[16px] h-[16px] rounded-full"
+                      style={{ background: `${p.color}26` }}
+                    >
+                      <img
+                        src={p.mascot}
+                        alt=""
+                        draggable={false}
+                        className="w-[14px] h-[14px] object-contain select-none pointer-events-none"
+                      />
+                    </span>
                     <span className="text-[12px] text-foreground/60 leading-snug">
                       {lead.insight}
                     </span>
                   </div>
                 </div>
-                <span className="shrink-0 text-[12px] font-semibold tabular-nums text-foreground/70">
-                  {lead.matchScore}%
-                </span>
-              </div>
+                <div className="shrink-0 flex items-center gap-2 mt-0.5">
+                  <span className="text-[12px] font-semibold tabular-nums text-foreground/70">
+                    {lead.matchScore}%
+                  </span>
+                  {/* Trailing chevron - the "open this lead" affordance. */}
+                  <ChevronRight
+                    size={16}
+                    strokeWidth={1.8}
+                    className="shrink-0 text-foreground/30"
+                    aria-hidden
+                  />
+                </div>
+              </button>
             </div>
           ))}
         </div>
