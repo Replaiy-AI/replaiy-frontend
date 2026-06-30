@@ -579,31 +579,14 @@ function AudiencePoolCard({
     <section>
       <AudienceHeader label="Audience" sub="Who this campaign reaches." />
       <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-pool">
-        {/* Big live total + warmth breakdown pills (warmest first). */}
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[34px] font-semibold tracking-[-0.02em] tabular-nums text-foreground leading-none">
-                {fmtNum(total)}
-              </span>
-              <span className="text-[13px] text-foreground/45">in pool</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2" data-testid="audience-warmth">
-            {WARMTH_ORDER.map((w) => (
-              <span
-                key={w}
-                className="glass-pill inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[12px] font-medium text-foreground/70"
-              >
-                <span
-                  aria-hidden="true"
-                  className="inline-block h-[7px] w-[7px] rounded-full"
-                  style={{ background: AI_ACCENT, opacity: WARMTH_META[w].tint }}
-                />
-                <span className="tabular-nums text-foreground/85">{fmtNum(pool[w])}</span>
-                {WARMTH_META[w].label}
-              </span>
-            ))}
+        {/* Big live total. Warmth now lives ONLY at Sources, so the pool stays
+            calm: total -> one-line health sentence -> histogram -> View leads. */}
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[34px] font-semibold tracking-[-0.02em] tabular-nums text-foreground leading-none">
+              {fmtNum(total)}
+            </span>
+            <span className="text-[13px] text-foreground/45">in pool</span>
           </div>
         </div>
 
@@ -683,8 +666,20 @@ function AudiencePoolCard({
 function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
   // Representational: local toggle state, no backend write this round.
   const [sources, setSources] = useState(audience.sources);
-  // A small mock upload affordance for the manual-import source.
-  const [uploadOpen, setUploadOpen] = useState(false);
+  // Manual-import: a clean inline import field with a believable mock result.
+  const [importDraft, setImportDraft] = useState('');
+  const [importedCount, setImportedCount] = useState<number | null>(null);
+  const reduceMotion = useReducedMotion();
+  // Commit the pasted URLs (Enter or the inline Import affordance). We derive a
+  // believable count from the pasted lines, falling back to a fixed mock.
+  const commitImport = () => {
+    const lines = importDraft
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setImportedCount(lines.length > 0 ? lines.length : 128);
+    setImportDraft('');
+  };
   // Warmest first, then warm, then cold; import (cold) naturally lands last.
   const ordered = useMemo(
     () =>
@@ -743,43 +738,77 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                   ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
                 />
               </div>
-              {/* Manual import, when on, offers a quiet upload affordance that
-                  opens a small mock flow on local state. */}
+              {/* Manual import, when on, shows a CLEAN inline import area in the
+                  row's expanded space: a quiet rounded surface with an upload
+                  icon, a one-line prompt and a bare inline input. After commit
+                  (Enter or the inline Import affordance) it becomes a calm
+                  "N leads imported" confirmation with an "Import more" reset. */}
               {src.kind === 'import' && src.enabled && (
                 <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
-                  <button
-                    type="button"
-                    data-testid="source-import-upload"
-                    onClick={() => setUploadOpen((v) => !v)}
-                    aria-expanded={uploadOpen}
-                    className="glass-pill pill inline-flex items-center gap-1.5 h-[30px] px-3 text-[12.5px] font-medium text-foreground/75 hover-elevate active-elevate-2"
-                  >
-                    <Upload size={13} strokeWidth={2} className="text-foreground/55" />
-                    Upload CSV or paste URLs
-                  </button>
-                  <AnimatePresence initial={false}>
-                    {uploadOpen && (
+                  <div className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3 py-2.5">
+                    {importedCount === null ? (
+                      <div className="flex items-center gap-2.5">
+                        <Upload
+                          size={16}
+                          strokeWidth={1.9}
+                          className="text-foreground/40 shrink-0"
+                        />
+                        <input
+                          data-testid="source-import-input"
+                          value={importDraft}
+                          onChange={(e) => setImportDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && importDraft.trim()) {
+                              commitImport();
+                            }
+                          }}
+                          placeholder="Drop a CSV or paste LinkedIn URLs"
+                          className="flex-1 min-w-0 bg-transparent outline-none text-[12.5px] text-foreground placeholder:text-foreground/45"
+                        />
+                        {importDraft.trim() && (
+                          <button
+                            type="button"
+                            data-testid="source-import-commit"
+                            onClick={commitImport}
+                            className="shrink-0 inline-flex items-center h-[24px] px-2.5 rounded-full text-[12px] font-semibold hover-elevate active-elevate-2"
+                            style={{ color: AI_ACCENT }}
+                          >
+                            Import
+                          </button>
+                        )}
+                      </div>
+                    ) : (
                       <motion.div
-                        initial={{ opacity: 0, y: 4, height: 0 }}
-                        animate={{ opacity: 1, y: 0, height: 'auto' }}
-                        exit={{ opacity: 0, y: -4, height: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                        className="overflow-hidden"
+                        initial={reduceMotion ? false : { opacity: 0, y: 2 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                        className="flex items-center justify-between gap-2.5"
                       >
-                        <div className="mt-2.5 rounded-2xl border border-dashed border-foreground/15 dark:border-white/15 px-4 py-4 flex flex-col items-center text-center gap-1.5">
-                          <Upload size={18} strokeWidth={1.7} className="text-foreground/40" />
-                          <p className="text-[12.5px] text-foreground/60 leading-snug">
-                            Drop a CSV here, or paste LinkedIn URLs
-                          </p>
-                          <input
-                            data-testid="source-import-input"
-                            placeholder="Paste one or more LinkedIn URLs"
-                            className="mt-1 w-full bg-foreground/[0.04] dark:bg-white/[0.06] rounded-xl px-3 py-2 outline-none text-[13px] text-foreground placeholder:text-foreground/40"
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Check
+                            size={15}
+                            strokeWidth={2.4}
+                            className="shrink-0"
+                            style={{ color: AI_ACCENT }}
                           />
+                          <span className="text-[12.5px] text-foreground/70 truncate">
+                            <span className="font-semibold text-foreground/85 tabular-nums">
+                              {fmtNum(importedCount)}
+                            </span>{' '}
+                            leads imported
+                          </span>
                         </div>
+                        <button
+                          type="button"
+                          data-testid="source-import-more"
+                          onClick={() => setImportedCount(null)}
+                          className="shrink-0 text-[12px] font-medium text-foreground/50 hover:text-foreground/75 transition-colors"
+                        >
+                          Import more
+                        </button>
                       </motion.div>
                     )}
-                  </AnimatePresence>
+                  </div>
                 </div>
               )}
             </div>
@@ -814,12 +843,62 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
     if (!v) return;
     setIcp((prev) => (prev[key].includes(v) ? prev : { ...prev, [key]: [...prev[key], v] }));
   };
+  // Company size is a single value; edit it inline with the same chip rhythm.
+  const setCompanySize = (v: string) =>
+    setIcp((prev) => ({ ...prev, companySize: v.trim() }));
+
+  // A small quiet "Start from a template" action lives in the header trailing
+  // slot (top-right, aligned) instead of floating loosely at the card bottom.
+  // It is a template picker, not an edit-mode toggle, so a header action reads
+  // cleaner here and keeps the card body uncluttered.
+  const templateAction = (
+    <GlassPopover
+      anchor="bottom"
+      align="right"
+      width="w-64"
+      testId="icp-template-menu"
+      trigger={({ open, toggle }) => (
+        <button
+          type="button"
+          data-testid="button-icp-template"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={toggle}
+          className="glass-pill pill inline-flex items-center gap-1.5 h-[30px] pl-2.5 pr-3 text-[12.5px] font-medium text-foreground/70 hover-elevate active-elevate-2"
+        >
+          <Plus size={14} strokeWidth={2} className="text-foreground/55" />
+          Start from a template
+        </button>
+      )}
+    >
+      {({ close }) => (
+        <div className="flex flex-col">
+          {ICP_TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              data-testid={`icp-template-${t.id}`}
+              onClick={() => {
+                setIcp(t.icp);
+                close();
+              }}
+              className="w-full text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2"
+            >
+              <div className="text-[13px] font-semibold text-foreground">{t.name}</div>
+              <div className="text-[11.5px] text-foreground/50 leading-snug">{t.sub}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </GlassPopover>
+  );
 
   return (
     <section>
       <AudienceHeader
         label="Ideal customer"
         sub="The profile we match leads against."
+        trailing={templateAction}
       />
       <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-icp">
         {empty && (
@@ -843,9 +922,12 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             onRemove={removeAt}
             onAdd={addTo}
           />
-          {icp.companySize && (
-            <IcpGroup caption="Company size" values={[icp.companySize]} />
-          )}
+          <IcpSingleValueGroup
+            caption="Company size"
+            value={icp.companySize}
+            placeholder="Add"
+            onChange={setCompanySize}
+          />
           <IcpEditableGroup
             caption="Locations"
             field="locations"
@@ -870,49 +952,6 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             onAdd={addTo}
           />
         </div>
-
-        {/* Quiet bottom affordance: start from a template (popover picker),
-            mirroring knowledge's "Add your own question" pill. No header
-            buttons, no Edit mode. */}
-        <GlassPopover
-          anchor="top"
-          align="left"
-          width="w-64"
-          testId="icp-template-menu"
-          trigger={({ open, toggle }) => (
-            <button
-              type="button"
-              data-testid="button-icp-template"
-              aria-haspopup="menu"
-              aria-expanded={open}
-              onClick={toggle}
-              className="mt-5 w-full glass-pill pill h-11 flex items-center justify-center gap-1.5 text-[13.5px] font-semibold text-foreground/70 hover-elevate active-elevate-2"
-            >
-              <Plus size={15} strokeWidth={2} />
-              Start from a template
-            </button>
-          )}
-        >
-          {({ close }) => (
-            <div className="flex flex-col">
-              {ICP_TEMPLATES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  data-testid={`icp-template-${t.id}`}
-                  onClick={() => {
-                    setIcp(t.icp);
-                    close();
-                  }}
-                  className="w-full text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2"
-                >
-                  <div className="text-[13px] font-semibold text-foreground">{t.name}</div>
-                  <div className="text-[11.5px] text-foreground/50 leading-snug">{t.sub}</div>
-                </button>
-              ))}
-            </div>
-          )}
-        </GlassPopover>
       </div>
     </section>
   );
@@ -985,6 +1024,65 @@ function IcpEditableGroup({
           placeholder="Add"
           className="h-[28px] w-[110px] bg-foreground/[0.04] dark:bg-white/[0.05] rounded-full px-3 outline-none text-[12.5px] text-foreground placeholder:text-foreground/40"
         />
+      </div>
+    </div>
+  );
+}
+
+// A single-value ICP group (e.g. Company size). Mirrors IcpEditableGroup's
+// caption + chip + inline add-input rhythm exactly so every ICP row aligns: a
+// removable chip when set, or a chip-shaped add-input when empty. Editing in
+// place, no Edit mode, flat (non-blur) backgrounds.
+function IcpSingleValueGroup({
+  caption,
+  value,
+  placeholder = 'Add',
+  onChange,
+}: {
+  caption: string;
+  value: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  return (
+    <div>
+      <SubLabel>{caption}</SubLabel>
+      <div className="flex flex-wrap items-center gap-2">
+        {value ? (
+          <span className="group inline-flex items-center gap-1 h-[28px] pl-3 pr-1.5 rounded-full text-[12.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/80">
+            {value}
+            <button
+              type="button"
+              data-testid="icp-remove-companySize"
+              onClick={() => onChange('')}
+              aria-label={`Remove ${value}`}
+              className="opacity-0 group-hover:opacity-100 transition-opacity h-[18px] w-[18px] rounded-full flex items-center justify-center text-foreground/40 hover-elevate active-elevate-2"
+            >
+              <X size={11} strokeWidth={2.4} />
+            </button>
+          </span>
+        ) : (
+          <input
+            data-testid="icp-add-companySize"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && draft.trim()) {
+                onChange(draft);
+                setDraft('');
+              }
+            }}
+            onBlur={() => {
+              if (draft.trim()) {
+                onChange(draft);
+                setDraft('');
+              }
+            }}
+            placeholder={placeholder}
+            className="h-[28px] w-[110px] bg-foreground/[0.04] dark:bg-white/[0.05] rounded-full px-3 outline-none text-[12.5px] text-foreground placeholder:text-foreground/40"
+          />
+        )}
       </div>
     </div>
   );
