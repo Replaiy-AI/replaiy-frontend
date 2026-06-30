@@ -16,7 +16,7 @@ import {
   Calendar as CalendarIcon,
   Brain,
   CircleCheck,
-  Rss,
+  Layers,
   Settings as SettingsIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,10 +35,10 @@ export type NavItem = {
 // workspace, rol-gated). De avatar blijft vrij voor later account-gebruik.
 // v-feed — Feed is the FIRST (most prominent) nav item, before Inbox. The app
 // still opens on the Inbox by default (/), so Feed gets its own /feed route
-// rather than taking over /. Rss fits the existing monochrome lucide icon set
+// rather than taking over /. Layers fits the existing monochrome lucide icon set
 // (Inbox / Target / Brain / Calendar are all simple line glyphs).
 export const PRIMARY_NAV: NavItem[] = [
-  { key: 'feed',      label: 'Feed',      href: '/feed',      icon: Rss,          testId: 'nav-feed' },
+  { key: 'feed',      label: 'Feed',      href: '/feed',      icon: Layers,       testId: 'nav-feed' },
   { key: 'inbox',     label: 'Inbox',     href: '/',          icon: Inbox,        testId: 'nav-inbox' },
   { key: 'campaigns', label: 'Campaigns', href: '/campaigns', icon: Target,       testId: 'nav-campaigns' },
   { key: 'ai',        label: 'My AI',   href: '/ai',        icon: Brain,        testId: 'nav-ai' },

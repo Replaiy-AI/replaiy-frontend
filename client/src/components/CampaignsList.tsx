@@ -16,7 +16,7 @@
 // conversion read-out is calm: a neutral glass track + a muted % number.
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Target } from 'lucide-react';
+import { Plus, Target } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import { useReplaiy } from '@/state/ReplaiyContext';
@@ -279,8 +279,26 @@ function CampaignSection({
   );
 }
 
-// Creating a campaign is handled by the single floating + button in the
-// bottom chrome (consistent with Inbox/Calendar) — no duplicate in-list pill.
+// v32 — Creating a campaign lives in this list header (top-right): a
+// GlassCircleButton with a Plus icon, the SAME glass affordance that used to
+// float in the bottom chrome and that Search/Profile/Done/Snooze use. It is
+// the permanent home for the "new campaign" action.
+const NEW_CAMPAIGN_HREF = '/campaigns/new';
+
+function NewCampaignButton() {
+  const [, navigate] = useLocation();
+  return (
+    <GlassCircleButton
+      label="New campaign"
+      testId="button-new-campaign"
+      onClick={() => navigate(NEW_CAMPAIGN_HREF)}
+      showTooltip={false}
+      size={44}
+    >
+      <Plus size={19} strokeWidth={1.75} className="text-icon" />
+    </GlassCircleButton>
+  );
+}
 
 // ════════════════════════════════════════════════════════════════════
 export function CampaignsList() {
@@ -379,7 +397,7 @@ export function CampaignsList() {
               }}
               className="shrink-0 w-[64px] h-[64px] sm:w-[84px] sm:h-[84px] object-contain select-none pointer-events-none"
             />
-            <div className="min-w-0">
+            <div className="flex-1 min-w-0">
               <h2 className="text-[24px] font-semibold tracking-[-0.02em] leading-tight">
                 Your campaigns
               </h2>
@@ -394,6 +412,12 @@ export function CampaignsList() {
                   far.
                 </span>
               </p>
+            </div>
+            {/* New-campaign action — top-right of the briefing header. Aligned to
+                the title baseline; shrink-0 so it never crowds the heading on a
+                390 phone. Reuses the central GlassCircleButton affordance. */}
+            <div className="shrink-0 self-start">
+              <NewCampaignButton />
             </div>
           </motion.div>
 

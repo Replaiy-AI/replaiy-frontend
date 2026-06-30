@@ -1,34 +1,14 @@
-import { Plus, Search, MoreHorizontal, type LucideIcon } from 'lucide-react';
+import { Search, MoreHorizontal } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PRIMARY_NAV } from '@/lib/nav';
 import { VadikLiquidSwitcher } from './VadikLiquidSwitcher';
 import { GlassCircleButton } from './GlassCircleButton';
 
-// v30.32 — FAB "+" gebruikt nu centrale GlassCircleButton, identiek aan
-// Search/Profile/Done/Snooze. Geen duplicate VadikGlass-wrapper meer.
-// v31 — In Mail-context tonen we SquarePen i.p.v. Plus (compose affordance).
-function FabComposeButton({
-  href,
-  ariaLabel,
-  icon: Icon = Plus,
-}: {
-  href: string;
-  ariaLabel: string;
-  icon?: LucideIcon;
-}) {
-  const [, navigate] = useLocation();
-  return (
-    <GlassCircleButton
-      label={ariaLabel}
-      testId="fab-compose"
-      onClick={() => navigate(href)}
-      showTooltip={false}
-    >
-      <Icon size={19} strokeWidth={1.75} className="text-icon" />
-    </GlassCircleButton>
-  );
-}
+// v32 — The mobile bottom nav is now a single centered pill on every surface.
+// The "+ new campaign" FAB that used to sit beside the pill on /campaigns has
+// moved into the Campaigns list header (top-right), so the bottom row is
+// consistent across Feed / Inbox / Campaigns / My AI / Calendar.
 
 // v15.4 — DesktopRail is now the narrow VerticalRail (72px).
 export { VerticalRail as DesktopRail } from './VerticalRail';
@@ -67,18 +47,14 @@ export function MobileBottomNav() {
     return null;
   }
 
-  // Replaiy has three surfaces: Inbox (conversations), Campaigns, and
-  // Calendar (a "Coming soon" placeholder). The FAB only adds a new
-  // campaign on /campaigns; the inbox has no cold-compose affordance
-  // (LinkedIn replies happen inline in a conversation) and Calendar is a
-  // placeholder, so the FAB is hidden on both.
+  // Replaiy surfaces: Feed, Inbox (conversations), Campaigns, My AI, and
+  // Calendar (a "Coming soon" placeholder). Creating a new campaign now lives
+  // in the Campaigns list header (top-right), so the bottom nav is a single
+  // centered pill on every surface.
   const onFeed = loc.startsWith('/feed');
   const onCampaigns = loc.startsWith('/campaigns');
   const onCalendar = loc.startsWith('/calendar');
   const onAi = loc.startsWith('/ai');
-  const fabHref = '/campaigns/new';
-  const fabLabel = 'New campaign';
-  const fabIcon: LucideIcon = Plus;
 
   // v-feed — Feed is the FIRST surface (its own /feed route). Inbox stays the
   // default at '/', so navValue falls through to 'inbox' for the bare route.
@@ -98,7 +74,7 @@ export function MobileBottomNav() {
 
 
   return (
-    <div className="md:hidden fixed bottom-4 inset-x-0 z-30 pointer-events-none flex items-center px-4 gap-2.5">
+    <div className="md:hidden fixed bottom-4 inset-x-0 z-30 pointer-events-none flex items-center justify-center px-4">
       <AnimatePresence>
         {!sheetOpen && (
           <motion.div
@@ -131,24 +107,6 @@ export function MobileBottomNav() {
               ]}
             />
 
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* FAB only on Campaigns (adds a new campaign). The inbox has no
-          cold-compose affordance — replies are inline in a conversation —
-          and Calendar is a placeholder. */}
-      <AnimatePresence>
-        {!sheetOpen && onCampaigns && (
-          <motion.div
-            key="fab"
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0 }}
-            transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
-            className="ml-auto pointer-events-auto"
-          >
-            <FabComposeButton href={fabHref} ariaLabel={fabLabel} icon={fabIcon} />
           </motion.div>
         )}
       </AnimatePresence>

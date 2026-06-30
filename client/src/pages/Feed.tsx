@@ -27,25 +27,58 @@
 // ─────────────────────────────────────────────────────────────────
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Rss } from 'lucide-react';
+import { Image as ImageIcon, Video, FileText } from 'lucide-react';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import {
   EngageContext,
+  ProfileOpenContext,
   EngagersView,
   EngagersChromeSlot,
   ActivityItem,
   ENGAGE_TITLE,
 } from '@/components/linkedin-post';
 import { MobileProfileAvatar } from '@/components/InboxList';
-import type { EngageRequest } from '@/components/linkedin-post';
-import type { LinkedInPost, LinkedInEngager } from '@/data/mockConversations';
+import { ReplaiyAvatar } from '@/components/Avatar';
+import { mockPersona } from '@/data/mockPersona';
+import {
+  LinkedInProfileView,
+  ProfileChromeSlot,
+} from '@/components/LinkedInProfileView';
+import type { EngageRequest, ProfileOpenValue } from '@/components/linkedin-post';
+import type {
+  LinkedInPost,
+  LinkedInEngager,
+  Conversation,
+} from '@/data/mockConversations';
+import { mockConversations } from '@/data/mockConversations';
 import { FEED_POSTS, REPLAIY_FEED_POSTS } from '@/data/mockFeed';
 
 const ACCENT = '#2F6BFF';
 
 // The two feed modes. Normal case labels (never all-caps), English only.
 type FeedMode = 'linkedin' | 'replaiy';
+
+// ─── Lead profiles · the only people clickable in the feed ────────
+// On LinkedIn you click a name/avatar to open a full profile. We REUSE the
+// existing LinkedInProfileView (opened from the lead panel) rather than build a
+// new view. Per the product decision, ONLY the three pipeline leads have full
+// mock profiles, so ONLY they are clickable. We build a NAME -> Conversation
+// lookup from the canonical mockConversations array (Emma -> d2, Jan -> d1,
+// Hannah -> d8), matching on the conversation's from.name. Everyone else maps
+// to nothing, so they stay inert (no cursor / hover affordance). The lookup is
+// keyed by the EXACT display name used both in the feed mock and in from.name.
+const LEAD_CONVERSATION_IDS = ['d2', 'd1', 'd8'] as const;
+const LEAD_CONVERSATIONS_BY_NAME: Record<string, Conversation> =
+  mockConversations.reduce<Record<string, Conversation>>((acc, c) => {
+    if (
+      (LEAD_CONVERSATION_IDS as readonly string[]).includes(c.id) &&
+      c.lead?.linkedinProfile
+    ) {
+      acc[c.from.name] = c;
+    }
+    return acc;
+  }, {});
 
 // ─── Mobile top-chrome slot for the Feed page ─────────────────────
 // Registered at priority 100 (same band as MijnAi's detail slot). It carries
@@ -71,13 +104,18 @@ function FeedChromeSlot({
           <VadikLiquidSwitcher<FeedMode>
             testId="feed-mode"
             variant="text"
-            optionWidth={120}
             scale={0.78}
             value={mode}
             onChange={onChange}
+            // v-rename — labels renamed to All / Relevant (display only; the
+            // internal mode keys 'linkedin' / 'replaiy' and all filtering logic
+            // stay exactly as-is). "All" is much shorter than "Relevant", so we
+            // give each segment its OWN width (per-seg-width mode) instead of a
+            // single uniform optionWidth — "All" gets a snug pill and "Relevant"
+            // a comfortable one, both nicely centered with no cramping/over-width.
             segments={[
-              { key: 'linkedin', label: 'LinkedIn' },
-              { key: 'replaiy', label: 'Replaiy' },
+              { key: 'linkedin', label: 'All', width: 76 },
+              { key: 'replaiy', label: 'Relevant', width: 116 },
             ]}
           />
         </div>
@@ -110,6 +148,91 @@ function RelevanceChip({ reason }: { reason: string }) {
   );
 }
 
+// ─── Compose card · LinkedIn-style "Start a post" composer ──────────
+// VISUAL ONLY — a proper composer CARD at the top of the feed stream (above the
+// first post, below the toggle), present in BOTH modes (it's the composer, not
+// a filter). It sits in the feed as a natural SIBLING of the posts, so it uses
+// the EXACT same surface PostCard uses: `rp-card rounded-[20px]`. No nested
+// glass-pill, no double container.
+//
+// Structure (one card, two stacked sections):
+//   • TOP ROW — the user's avatar (the SAME ReplaiyAvatar every feed post
+//     renders, fed the canonical persona name so it shows the "SB" initials,
+//     matching the bottom-left nav avatar) + a clean rounded "Start a post"
+//     field that fills the rest. The field is its own tappable button with a
+//     faint fill (bg-foreground/[0.04]) so it reads as a real input, calm and
+//     premium, never a heavy second card.
+//   • HAIRLINE DIVIDER — the app's standard low-contrast border token.
+//   • ACTION ROW — three evenly-distributed actions, each a monochrome lucide
+//     icon + a normal-case label: Photo (Image), Video (Video), Document
+//     (FileText). These map to what Unipile's create-post API actually supports
+//     (multiple images OR one video OR one document) — hence these three, not
+//     "Write article". Icons are monochrome (text-foreground/60), gaining a
+//     subtle blue (#2F6BFF) tint + hover-elevate on hover/active.
+//
+// Every interactive element is a no-op for now: clicking does nothing yet (the
+// post composer flow doesn't exist), so the card hints at the future feature
+// while reading as a polished, intentional, founder-grade surface.
+function ComposerAction({
+  icon: Icon,
+  label,
+  testId,
+}: {
+  icon: typeof ImageIcon;
+  label: string;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      // No-op: visual affordance only until the real composer ships.
+      onClick={() => {}}
+      data-testid={testId}
+      className="group flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-[12px] hover-elevate active-elevate-2"
+    >
+      <Icon
+        size={18}
+        strokeWidth={1.75}
+        className="shrink-0 text-foreground/60 transition-colors group-hover:text-[#2F6BFF] group-active:text-[#2F6BFF]"
+      />
+      <span className="text-[13px] font-medium text-foreground/65">{label}</span>
+    </button>
+  );
+}
+
+function FeedComposer() {
+  return (
+    <div
+      data-testid="feed-composer"
+      className="rp-card rounded-[20px] px-4 pt-3.5 pb-2"
+    >
+      {/* Top row · avatar + tappable "Start a post" field. */}
+      <div className="flex items-center gap-3">
+        <ReplaiyAvatar name={mockPersona.memberName} size={40} className="shrink-0" />
+        <button
+          type="button"
+          // No-op: visual affordance only until the real composer ships.
+          onClick={() => {}}
+          data-testid="feed-composer-start"
+          className="flex-1 min-w-0 text-left h-10 px-4 rounded-full bg-foreground/[0.04] dark:bg-white/[0.04] flex items-center hover-elevate active-elevate-2"
+        >
+          <span className="text-[14px] text-foreground/45">Start a post</span>
+        </button>
+      </div>
+
+      {/* Hairline divider · the app's standard low-contrast border token. */}
+      <div className="mt-2.5 -mx-4 border-t border-foreground/[0.06] dark:border-white/[0.06]" />
+
+      {/* Action row · three evenly-spaced monochrome actions. */}
+      <div className="mt-1.5 flex items-center">
+        <ComposerAction icon={ImageIcon} label="Photo" testId="feed-composer-photo" />
+        <ComposerAction icon={Video} label="Video" testId="feed-composer-video" />
+        <ComposerAction icon={FileText} label="Document" testId="feed-composer-document" />
+      </div>
+    </div>
+  );
+}
+
 // NOTE — "Add to campaign" hook intentionally NOT rendered.
 // The feed is a future lead-sourcing surface, but the Campaigns flow does not
 // exist yet, so an "add to campaign" affordance would be premature. When that
@@ -138,6 +261,11 @@ function FeedItem({ post, mode }: { post: LinkedInPost; mode: FeedMode }) {
         actorFirstName={actorFirstName}
         actorName={actorName}
         actorAvatar={actorAvatar}
+        // In the feed, a person's OWN plain post shows just the card (no
+        // "X posted this" line above it), like a real LinkedIn feed. The
+        // profile keeps its default (shows the line). repost/comment/reaction
+        // attribution is unchanged.
+        hidePostedAttribution
         slotBeforeStats={
           mode === 'replaiy' && post.relevanceReason ? (
             <RelevanceChip reason={post.relevanceReason} />
@@ -180,7 +308,38 @@ export function Feed() {
     [],
   );
 
+  // ── Full LinkedIn profile push-in (click a lead's name / avatar) ──
+  // We REUSE LinkedInProfileView exactly as the lead panel does. The feed owns
+  // a `profileName` (the clicked person's name) -> the matching lead
+  // Conversation drives the view. The ProfileOpenContext value tells PostCard /
+  // ActivityItem which identities are clickable (canOpen) and opens them
+  // (open). ONLY the three pipeline leads map to a conversation, so everyone
+  // else is inert with no hover/cursor affordance.
+  //
+  // Chrome handoff (v-fix-chrome-handoff): ProfileChromeSlot (priority 300)
+  // mounts on `profileOpen` OUTSIDE the AnimatePresence below, so it WINS over
+  // the feed page's own slot (priority 100) while open and de-registers the
+  // instant Back is tapped, restoring the feed's LinkedIn/Replaiy toggle +
+  // avatar chrome. The profile view itself is rendered inside an AnimatePresence
+  // as a child of the feed pane, sliding within the feed column.
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const activeConversation = profileName
+    ? LEAD_CONVERSATIONS_BY_NAME[profileName] ?? null
+    : null;
+  const profileOpen = !!activeConversation;
+  const closeProfile = useMemo(() => () => setProfileName(null), []);
+  const profileOpenValue = useMemo<ProfileOpenValue>(
+    () => ({
+      canOpen: (name: string) => !!LEAD_CONVERSATIONS_BY_NAME[name],
+      open: (name: string) => {
+        if (LEAD_CONVERSATIONS_BY_NAME[name]) setProfileName(name);
+      },
+    }),
+    [],
+  );
+
   return (
+    <ProfileOpenContext.Provider value={profileOpenValue}>
     <EngageContext.Provider value={openEngagers}>
       {/* Feed mobile chrome (title + mode toggle), priority 100. */}
       <FeedChromeSlot mode={mode} onChange={setMode} />
@@ -201,27 +360,34 @@ export function Feed() {
       <div className="relative flex flex-col h-full min-h-0 overflow-hidden">
         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
           <div className="px-4 lg:px-8 pt-[calc(env(safe-area-inset-top,0px)+96px)] md:pt-6 pb-24 lg:pb-12 max-w-2xl mx-auto w-full">
-            {/* Desktop header · title + the mode toggle. Mobile gets the toggle
-                from the top-chrome slot, so this header is md:flex only. */}
-            <div className="hidden md:flex items-center justify-between gap-3 mb-5">
-              <div className="flex items-center gap-2 min-w-0">
-                <Rss size={18} strokeWidth={1.8} className="text-icon shrink-0" />
-                <h1 className="text-[22px] font-semibold tracking-[-0.02em] leading-tight m-0">
-                  Feed
-                </h1>
-              </div>
+            {/* Desktop header · just the mode toggle, centered above the feed
+                column. Mobile gets the toggle from the top-chrome slot, so this
+                header is md:flex only. The title + Rss icon were removed — the
+                toggle is the only header element above the feed now. */}
+            <div className="hidden md:flex items-center justify-center gap-3 mb-5">
               <VadikLiquidSwitcher<FeedMode>
                 testId="feed-mode-desktop"
                 variant="text"
-                optionWidth={120}
                 scale={0.78}
                 value={mode}
                 onChange={setMode}
+                // v-rename — same All / Relevant labels + per-segment widths as
+                // the mobile chrome toggle above, so mobile and desktop match.
                 segments={[
-                  { key: 'linkedin', label: 'LinkedIn' },
-                  { key: 'replaiy', label: 'Replaiy' },
+                  { key: 'linkedin', label: 'All', width: 76 },
+                  { key: 'replaiy', label: 'Relevant', width: 116 },
                 ]}
               />
+            </div>
+
+            {/* Compose bar · the LinkedIn-style "Start a post" affordance. Sits
+                at the top of the feed content column (inside the same
+                max-w-2xl container as the posts, so it aligns with them),
+                above the first feed item. Present in BOTH modes (it's the
+                composer, independent of the filter). mb-3 matches the gap-3
+                inter-post spacing so the gap to the first post is even. */}
+            <div className="mb-3">
+              <FeedComposer />
             </div>
 
             {/* Replaiy-mode intro line · a calm one-liner explaining the filter,
@@ -291,7 +457,32 @@ export function Feed() {
             />
           )}
         </AnimatePresence>
+
+        {/* Full LinkedIn profile push-in, opened by clicking a LEAD's name /
+            avatar in the feed. REUSES LinkedInProfileView (same component the
+            lead panel uses) — no new profile view. Mounted as a sibling INSIDE
+            this feed pane so it slides within the feed column (at the profile's
+            own z-[70] layer, the same as in the lead panel). The engagers
+            push-in inside the profile keeps working (internal to the view). */}
+        {/* Mobile chrome slot mounted on `profileOpen` directly, OUTSIDE the
+            AnimatePresence below, so it de-registers the instant Back is tapped
+            and the feed chrome (toggle + avatar) hands back immediately. Same
+            handoff pattern as the lead panel; priority 300 wins over the feed
+            page's own slot (100). */}
+        {profileOpen && (
+          <ProfileChromeSlot onClose={closeProfile} />
+        )}
+        <AnimatePresence>
+          {profileOpen && activeConversation && (
+            <LinkedInProfileView
+              mail={activeConversation}
+              open={profileOpen}
+              onClose={closeProfile}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </EngageContext.Provider>
+    </ProfileOpenContext.Provider>
   );
 }

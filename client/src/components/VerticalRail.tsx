@@ -28,7 +28,7 @@ import {
   Target,
   Calendar as CalendarIcon,
   Brain,
-  Rss,
+  Layers,
   Search,
   Plus,
   type LucideIcon,
@@ -56,7 +56,7 @@ interface PrimaryItem {
 // v-feed — Feed is the FIRST surface (most prominent), before Inbox. The app
 // still defaults to the Inbox at '/', so Feed has its own /feed route.
 const PRIMARY: PrimaryItem[] = [
-  { key: 'feed',      icon: Rss,          href: '/feed',      label: 'Feed' },
+  { key: 'feed',      icon: Layers,       href: '/feed',      label: 'Feed' },
   { key: 'inbox',     icon: Inbox,        href: '/',          label: 'Inbox' },
   { key: 'campaigns', icon: Target,       href: '/campaigns', label: 'Campaigns' },
   { key: 'ai',        icon: Brain,        href: '/ai',        label: 'My AI' },

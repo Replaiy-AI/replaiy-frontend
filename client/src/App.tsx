@@ -306,9 +306,12 @@ function LayoutShell() {
         <motion.div
           className={`
             ${
-              showingCalendar
+              // v-feed — Feed is a TRUE full-width page: the list column is fully
+              // hidden (mobile AND desktop), unlike the other detail routes that
+              // keep the list beside them on desktop. Calendar is also fully hidden.
+              showingCalendar || showingFeed
                 ? 'hidden'
-                : showingConversation || showingBriefing || showingFeed || showingSettings || showingArchive || showingCampaignDetail || showingAiDetail
+                : showingConversation || showingBriefing || showingSettings || showingArchive || showingCampaignDetail || showingAiDetail
                   ? 'hidden md:flex'
                   : 'flex'
             }

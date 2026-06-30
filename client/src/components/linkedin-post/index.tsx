@@ -65,6 +65,26 @@ export interface EngageRequest {
 // PostCard rendered outside a host (none today) is inert.
 export const EngageContext = createContext<(req: EngageRequest) => void>(() => {});
 
+// ─── Profile-open context · click a person -> open their full profile ─
+// On a real LinkedIn feed you tap a person's NAME or AVATAR to open their full
+// profile. Rather than prop-drill a click handler into PostCard's header and
+// ActivityItem's actor block, the host provides this context (mirroring the
+// EngageContext pattern above). A person's identity becomes clickable ONLY when
+// `canOpen(name)` passes, and clicking calls `open(name)`.
+//
+// The DEFAULT is fully inert: `canOpen` always returns false and `open` is a
+// no-op. So any consumer NOT wired by a host (the profile view, the engagers
+// list) keeps its names as plain text exactly as before. The FEED provides a
+// real value that returns true only for the three pipeline leads.
+export interface ProfileOpenValue {
+  canOpen: (personName: string) => boolean;
+  open: (personName: string) => void;
+}
+export const ProfileOpenContext = createContext<ProfileOpenValue>({
+  canOpen: () => false,
+  open: () => {},
+});
+
 // Strict no em-dash normaliser (the design system bans em-dashes in all
 // user-facing text). Shared mock copy is already clean, but we guard anyway.
 export function noDash(s: string) {
@@ -148,6 +168,13 @@ export function PostCard({
   // Same threshold rationale as AboutSection: clamp once it is worth clamping.
   const canClamp = post.text.length > 220;
 
+  // Author identity -> open their full profile, but ONLY when the host's
+  // ProfileOpenContext says this person is openable (a pipeline lead in the
+  // feed). Otherwise the name/avatar stay plain text/inert, exactly as before.
+  const profileCtx = useContext(ProfileOpenContext);
+  const authorOpenable = profileCtx.canOpen(post.authorName);
+  const openAuthor = () => profileCtx.open(post.authorName);
+
   // Tappable stats segments. Each non-zero count becomes its OWN <button> that
   // opens the engagers push-in for that kind (likes -> reactions, since
   // LinkedIn files reactions under the likes count). Zero counts are omitted.
@@ -181,13 +208,39 @@ export function PostCard({
       }
       data-testid={`profile-post-${post.id}`}
     >
-      {/* Header row · avatar + name/headline stack + time-ago (right). */}
+      {/* Header row · avatar + name/headline stack + time-ago (right). When the
+          author is openable (a lead, in the feed) the avatar + name become a
+          clickable affordance to push in their full profile; otherwise they
+          render as plain, inert identity exactly as before. */}
       <div className="flex items-start gap-2.5">
-        <ReplaiyAvatar name={post.authorName} src={post.authorAvatarUrl} size={36} />
+        {authorOpenable ? (
+          <button
+            type="button"
+            onClick={openAuthor}
+            data-testid={`post-${post.id}-open-author-avatar`}
+            aria-label={`Open ${noDash(post.authorName)}'s profile`}
+            className="shrink-0 rounded-full hover-elevate active-elevate-2"
+          >
+            <ReplaiyAvatar name={post.authorName} src={post.authorAvatarUrl} size={36} />
+          </button>
+        ) : (
+          <ReplaiyAvatar name={post.authorName} src={post.authorAvatarUrl} size={36} />
+        )}
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
-            {noDash(post.authorName)}
-          </div>
+          {authorOpenable ? (
+            <button
+              type="button"
+              onClick={openAuthor}
+              data-testid={`post-${post.id}-open-author-name`}
+              className="block max-w-full text-left text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate hover:underline underline-offset-2 cursor-pointer"
+            >
+              {noDash(post.authorName)}
+            </button>
+          ) : (
+            <div className="text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+              {noDash(post.authorName)}
+            </div>
+          )}
           {post.authorHeadline && (
             <div className="text-[11.5px] text-foreground/55 leading-snug truncate">
               {noDash(post.authorHeadline)}
@@ -285,11 +338,17 @@ export function PostCard({
 // construction (plain words + a possessive).
 export function ActivityAttribution({
   profileFirstName,
+  actorName,
   verb,
   authorName,
   reactionLabel,
 }: {
   profileFirstName: string;
+  // The actor's FULL name, used only for the ProfileOpenContext lookup so the
+  // actor's first-name span can become clickable when the actor is openable (a
+  // lead, in the feed). Optional: when omitted (or not openable) the name stays
+  // plain text exactly as before, so the profile/engagers views are unaffected.
+  actorName?: string;
   // v-attribution-all — Every Activity item now shows an attribution line:
   //   'posted'    -> "[First] posted this"            (no author/possessive)
   //   'reposted'  -> "[First] reposted [author]'s post"
@@ -304,6 +363,9 @@ export function ActivityAttribution({
   const trimmed = noDash(authorName ?? '').trim();
   const possessive = /s$/i.test(trimmed) ? `${trimmed}'` : `${trimmed}'s`;
   const hasAuthor = trimmed.length > 0;
+  // The actor's name is clickable only when the host says it is openable.
+  const profileCtx = useContext(ProfileOpenContext);
+  const actorOpenable = !!actorName && profileCtx.canOpen(actorName);
   let tail: ReactNode;
   if (verb === 'posted' || (verb === 'reposted' && !hasAuthor)) {
     tail = <>this</>;
@@ -319,7 +381,18 @@ export function ActivityAttribution({
   return (
     <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mb-1.5 px-0.5 text-[12px] text-foreground/50 leading-snug">
       <span className="min-w-0">
-        <span className="font-semibold text-foreground/65">{profileFirstName}</span>{' '}
+        {actorOpenable ? (
+          <button
+            type="button"
+            onClick={() => actorName && profileCtx.open(actorName)}
+            data-testid="attribution-open-actor"
+            className="font-semibold text-foreground/65 hover:underline underline-offset-2 cursor-pointer"
+          >
+            {profileFirstName}
+          </button>
+        ) : (
+          <span className="font-semibold text-foreground/65">{profileFirstName}</span>
+        )}{' '}
         {verb} {tail}
       </span>
       {reactionLabel && (
@@ -353,14 +426,30 @@ export function ActivityItem({
   actorName,
   actorAvatar,
   slotBeforeStats,
+  hidePostedAttribution = false,
 }: {
   post: LinkedInPost;
   actorFirstName: string;
   actorName: string;
   actorAvatar?: string;
   slotBeforeStats?: ReactNode;
+  // v-feed-no-posted-attribution — In the FEED, a person's OWN plain post shows
+  // just the card (their name + headline already live in the PostCard header),
+  // with NO "X posted this" line above it, exactly like a real LinkedIn feed.
+  // The PROFILE Activity tab leaves this default (false) so it keeps showing
+  // "[First] posted this" on every item (an approved per-person activity log).
+  // This ONLY affects the plain 'post' branch; repost/comment/reaction keep
+  // their attribution line in both hosts.
+  hidePostedAttribution?: boolean;
 }) {
   const kind = post.kind ?? 'post';
+
+  // The actor's name is clickable in the repost-commentary block only when the
+  // host's ProfileOpenContext says it is openable (a lead, in the feed). The
+  // default context is inert, so the profile/engagers views are unaffected.
+  const profileCtx = useContext(ProfileOpenContext);
+  const actorOpenable = profileCtx.canOpen(actorName);
+  const openActor = () => profileCtx.open(actorName);
 
   if (kind === 'comment') {
     const reply = post.activityComment ? (
@@ -383,6 +472,7 @@ export function ActivityItem({
       <div data-testid={`activity-item-${post.id}`}>
         <ActivityAttribution
           profileFirstName={actorFirstName}
+          actorName={actorName}
           verb="commented"
           authorName={post.authorName}
         />
@@ -396,6 +486,7 @@ export function ActivityItem({
       <div data-testid={`activity-item-${post.id}`}>
         <ActivityAttribution
           profileFirstName={actorFirstName}
+          actorName={actorName}
           verb="reacted"
           authorName={post.authorName}
           reactionLabel={
@@ -411,17 +502,42 @@ export function ActivityItem({
     if (post.activityComment) {
       return (
         <div data-testid={`activity-item-${post.id}`}>
-          <ActivityAttribution profileFirstName={actorFirstName} verb="reposted" />
+          <ActivityAttribution
+            profileFirstName={actorFirstName}
+            actorName={actorName}
+            verb="reposted"
+          />
           <div className="rp-card rounded-[20px] px-4 py-3.5">
             <div
               className="flex items-start gap-2.5"
               data-testid={`activity-repost-comment-${post.id}`}
             >
-              <ReplaiyAvatar name={actorName} src={actorAvatar} size={36} />
+              {actorOpenable ? (
+                <button
+                  type="button"
+                  onClick={openActor}
+                  aria-label={`Open ${noDash(actorName)}'s profile`}
+                  className="shrink-0 rounded-full hover-elevate active-elevate-2"
+                >
+                  <ReplaiyAvatar name={actorName} src={actorAvatar} size={36} />
+                </button>
+              ) : (
+                <ReplaiyAvatar name={actorName} src={actorAvatar} size={36} />
+              )}
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
-                  {noDash(actorName)}
-                </div>
+                {actorOpenable ? (
+                  <button
+                    type="button"
+                    onClick={openActor}
+                    className="block max-w-full text-left text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate hover:underline underline-offset-2 cursor-pointer"
+                  >
+                    {noDash(actorName)}
+                  </button>
+                ) : (
+                  <div className="text-[13px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
+                    {noDash(actorName)}
+                  </div>
+                )}
                 <p className="text-[13px] leading-[1.55] text-foreground/80 m-0 mt-1 whitespace-pre-line break-words">
                   {noDash(post.activityComment)}
                 </p>
@@ -441,6 +557,7 @@ export function ActivityItem({
       <div data-testid={`activity-item-${post.id}`}>
         <ActivityAttribution
           profileFirstName={actorFirstName}
+          actorName={actorName}
           verb="reposted"
           authorName={post.authorName}
         />
@@ -449,9 +566,18 @@ export function ActivityItem({
     );
   }
 
+  // Plain post. In the feed (hidePostedAttribution) we render JUST the card,
+  // with the post's author in its header and NO "X posted this" line above it.
+  // The profile leaves the default, so it still shows "[First] posted this".
   return (
     <div data-testid={`activity-item-${post.id}`}>
-      <ActivityAttribution profileFirstName={actorFirstName} verb="posted" />
+      {!hidePostedAttribution && (
+        <ActivityAttribution
+          profileFirstName={actorFirstName}
+          actorName={actorName}
+          verb="posted"
+        />
+      )}
       <PostCard post={post} slotBeforeStats={slotBeforeStats} />
     </div>
   );
