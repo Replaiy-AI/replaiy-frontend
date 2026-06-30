@@ -196,6 +196,17 @@ const GOAL_ICONS: Record<CampaignGoalType, typeof Target> = {
 // large surfaces). Mirrors the Persona/Knowledge gold standard exactly.
 const AI_ACCENT = '#2F6BFF';
 
+// ── Shared content-column width ─────────────────────────────────────
+// The detail pane shares ONE centered max-width column for BOTH the desktop
+// top bar (tabs + Active toggle + overflow) AND all the scrolling content
+// (campaign name + each tab's sections). This MATCHES the conversation pane,
+// whose timeline + floating toolbar both center on a `maxWidth: 720` column
+// inside `px-4 lg:px-6` padding (see ConversationTimeline.tsx). Using the
+// identical value here makes the campaign detail and the conversation feel
+// like one app: the tabs, the name, and every card all start at the same left
+// edge, and the top-bar controls pin to that column's right edge.
+const CAMPAIGN_COLUMN_MAX = 720;
+
 // ── Detail tabs ─────────────────────────────────────────────────────
 // The detail content is split across four tabs so each view is short and
 // scannable instead of one endless scroll. The switcher itself is the SHARED
@@ -2618,7 +2629,7 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
   };
 
   const body = (
-    <div className="max-w-2xl mx-auto w-full">
+    <div className="mx-auto w-full" style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}>
       {/* v-tabs-in-topbar — On DESKTOP the tab switcher lives in the top bar
           (top-left of the pane), so the body does NOT repeat it. On MOBILE the
           top chrome is already full (back + toggle + overflow), so the tabs sit
@@ -2667,10 +2678,21 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
           field. */}
       <div
         data-testid="campaign-desktop-header"
-        className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none"
+        className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none px-4 lg:px-6"
       >
-        <div className="flex items-center justify-between gap-3 px-4 lg:px-6">
-          <div className="pointer-events-auto min-w-0 flex items-center h-[52px]">
+        {/* v-grid-align — The top bar's content sits in the SAME centered
+            column as the body: an `mx-auto` wrapper with the SAME max-width
+            inside the SAME `px-4 lg:px-6` padding (applied on the parent). This
+            makes the tabs (left) line up exactly with the campaign name and the
+            content cards below, and pins the Active toggle + overflow to that
+            column's right edge — one shared grid, like the conversation
+            toolbar. The whole row is vertically centered on a single h-[52px]
+            baseline so no element floats at a different height. */}
+        <div
+          className="mx-auto flex items-center justify-between gap-3 h-[52px]"
+          style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}
+        >
+          <div className="pointer-events-auto min-w-0 flex items-center">
             <VadikLiquidSwitcher<CampaignTab>
               testId="campaign-tab-desktop"
               variant="text"
@@ -2702,11 +2724,16 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
         </div>
       </div>
 
-      {/* DESKTOP scroll container - pt 76 clears the floating header. */}
+      {/* DESKTOP scroll container — paddingTop clears the floating top bar AND
+          matches the conversation pane's first-content height (toolbar top-3 =
+          12px + 52px pill + ~22px breathing room ≈ 86px) so the campaign detail
+          starts at the SAME vertical position as the conversation content. The
+          `px-4 lg:px-6` here mirrors the top bar's padding, so the centered
+          column lines up exactly between the bar and the body. */}
       <div
         data-testid="campaign-detail-scroll"
         className="hidden lg:flex flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar pb-10"
-        style={{ paddingTop: 76 }}
+        style={{ paddingTop: 86 }}
       >
         <div className="flex-1 px-4 lg:px-6">{body}</div>
       </div>

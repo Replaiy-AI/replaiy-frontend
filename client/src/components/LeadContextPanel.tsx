@@ -70,9 +70,12 @@ type Tab = 'overview' | 'contact';
 
 // ── Small em-dash-free normaliser ──────────────────────────────────
 // Shared summary / read copy may contain em-dashes; the design system is
-// strictly em-dash-free, so normalise to a mid-dot.
+// strictly em-dash-free AND middot-free, so normalise em-dashes to a plain
+// comma + space (natural, no "·"). (v-no-middot — was " · ", which itself
+// violated the no-middot rule and surfaced as e.g. "Q3 · Series-B founders"
+// in the Overview Campaign row.)
 function noDash(s: string) {
-  return s.replace(/\s*\u2014\s*/g, ' · ');
+  return s.replace(/\s*\u2014\s*/g, ', ');
 }
 
 // ── Flow timing model ──────────────────────────────────────────────
@@ -866,7 +869,7 @@ export function LeadContextPanel({ mail }: { mail: Conversation }) {
                 marginTop: 'calc(env(safe-area-inset-top, 0px) + 76px)',
                 paddingTop: '0.5rem',
               }
-            : { top: 0, paddingTop: '1rem' }
+            : { top: 0, paddingTop: '0.75rem' } /* v-baseline-align — 1rem(16px)→0.75rem(12px) so the Overview/Contact tab strip's top lands on the shared 12px baseline (matches the lead-pill `absolute top-3`, nav rail, and inbox greeting). */
         }
       >
         {/* v-vadik-textmode — The lead tabs now use the SAME premium

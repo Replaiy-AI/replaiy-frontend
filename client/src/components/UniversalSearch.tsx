@@ -172,7 +172,7 @@ export function UniversalSearch() {
     const mailItems: ResultConversation[] = mailsFiltered.slice(0, mailLimit).map((m) => {
       const headline = (m as any).leadHeadline ?? '';
       const company = (m as any).leadCompany ?? '';
-      const sub = [headline, company].filter(Boolean).join(' · ');
+      const sub = [headline, company].filter(Boolean).join(' at ');
       return {
         kind: 'mail',
         id: m.id,
@@ -208,7 +208,7 @@ export function UniversalSearch() {
         )
           continue;
         if (contactMap.has(name)) continue;
-        const sub = [headline, company].filter(Boolean).join(' · ');
+        const sub = [headline, company].filter(Boolean).join(' at ');
         contactMap.set(name, {
           kind: 'contact',
           id: m.id,

@@ -1082,7 +1082,8 @@ export function ConversationTimeline({ mail }: { mail: Conversation }) {
                 <SubjectIdentityPill
                   name={titleName}
                   avatar={mail.from.avatar}
-                  subject={[mail.leadHeadline, mail.leadCompany].filter(Boolean).join(' · ')}
+                  /* v-no-middot — role/company joined with " at " (natural, no · middot per UI rules). */
+                  subject={[mail.leadHeadline, mail.leadCompany].filter(Boolean).join(' at ')}
                   metaLabel={null}
                   onMetaClick={undefined}
                   metaActive={summaryPanelOpen}

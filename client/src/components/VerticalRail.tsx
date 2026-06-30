@@ -98,7 +98,11 @@ export function VerticalRail() {
       // glass pills. No container background, no border, no attached bar.
       // hidden below md so only phone keeps using MobileBottomNav; from md
       // (768) the rail shows so iPad/tablet gets the real desktop layout.
-      className="hidden md:flex flex-col items-center fixed left-4 top-4 bottom-4 z-30 gap-2 pointer-events-none"
+      // v-baseline-align — Top inset reduced 16px→12px (top-4 → top-3) so the
+      // rail's FIRST nav pill sits on the SAME 12px horizontal baseline as the
+      // conversation lead-pill (`absolute top-3`), the inbox greeting, and the
+      // lead-panel tab strip. One shared baseline across all desktop columns.
+      className="hidden md:flex flex-col items-center fixed left-4 top-3 bottom-4 z-30 gap-2 pointer-events-none"
       style={{ width: 64 }}
     >
       {/* 1. Tab pill — v23.1 Vadik Matveev's Liquid Glass Switcher.
