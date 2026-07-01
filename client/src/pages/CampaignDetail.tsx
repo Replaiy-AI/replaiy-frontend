@@ -937,44 +937,46 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
             </div>
           </div>
 
-          {/* Imported CSV files: rows in the SAME card, directly UNDER the
-              Import row, grouped as "what you uploaded". Each has a divider
-              above, a CSV icon aligned to the source icon column, filename,
-              counts, date, and a hover-revealed Undo. No toggle. */}
-          {batches.map((batch) => (
-            <div key={batch.id}>
-              <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-              <div
-                data-testid={`import-batch-${batch.id}`}
-                className="group px-4 py-3.5 flex items-center gap-3 hover-elevate active-elevate-2"
-              >
-                <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-                  <FileSpreadsheet size={16} strokeWidth={1.9} className="text-foreground/70" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-medium text-foreground truncate">
-                    {batch.filename}
-                  </div>
-                  <div className="text-[12px] text-foreground/50 truncate">
-                    {fmtNum(batch.net)} leads, {fmtNum(batch.qualified)} qualified,{' '}
-                    {fmtNum(batch.duplicates)} duplicates
-                  </div>
-                </div>
-                <span className="text-[11.5px] text-foreground/40 shrink-0">
-                  {batchDate(batch.importedAt)}
-                </span>
-                <button
-                  type="button"
-                  aria-label="Undo import"
-                  data-testid={`import-batch-undo-${batch.id}`}
-                  onClick={() => undoBatch(batch)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+          {/* Imported CSV files: NESTED sub-items of the Import row (not sources).
+              Indented so they hang under "Import your own leads" (aligned to its
+              title column, not the source icon column), with a small CSV icon
+              (no square), smaller and quieter text. No dividers between them -
+              they are one grouped set. This reads clearly as "what came in via
+              Import", distinct from the source rows above. */}
+          {batches.length > 0 && (
+            <div className="pl-[60px] pr-3 pb-1">
+              {batches.map((batch) => (
+                <div
+                  key={batch.id}
+                  data-testid={`import-batch-${batch.id}`}
+                  className="group rounded-xl px-2 py-2 flex items-center gap-2.5 hover-elevate active-elevate-2"
                 >
-                  <Trash2 size={13} strokeWidth={1.8} />
-                </button>
-              </div>
+                  <FileSpreadsheet size={15} strokeWidth={1.8} className="text-foreground/40 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12.5px] font-medium text-foreground/80 truncate">
+                      {batch.filename}
+                    </div>
+                    <div className="text-[11px] text-foreground/45 truncate">
+                      {fmtNum(batch.net)} leads, {fmtNum(batch.qualified)} qualified,{' '}
+                      {fmtNum(batch.duplicates)} duplicates
+                    </div>
+                  </div>
+                  <span className="text-[10.5px] text-foreground/40 shrink-0">
+                    {batchDate(batch.importedAt)}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Undo import"
+                    data-testid={`import-batch-undo-${batch.id}`}
+                    onClick={() => undoBatch(batch)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+                  >
+                    <Trash2 size={12} strokeWidth={1.8} />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
 
           {/* Upload block INSIDE the card, at the bottom, inset. Divider above
               to separate it from the rows. Shared FileDropzone. */}
