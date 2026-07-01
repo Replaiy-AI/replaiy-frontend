@@ -91,6 +91,14 @@ import {
   type SampleLead,
 } from '@/data/mockCampaigns';
 import { LANGUAGE_LABELS, activePersona, type LanguageCode } from '@/data/mockPersona';
+import {
+  INDUSTRY_TAXONOMY,
+  REGION_TAXONOMY,
+  TITLE_SUGGESTIONS,
+  genericTitlesForFunction,
+  SENIORITY_TO_BUCKET,
+  type SeniorityBucket,
+} from '@/data/icpTaxonomy';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
@@ -1069,7 +1077,9 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
   const [icp, setIcp] = useState<IcpCriteria>(audience.icp);
 
   // The ICP is "empty" only when every free-chip list is empty, every fixed
-  // multi-select is empty, years is unset, and no signal is on.
+  // multi-select is empty, and years is unset. Signals are no longer part of
+  // the editor (they moved to the Sources layer), so they are not read here;
+  // the `signals` field itself is preserved on the data model.
   const empty =
     icp.titles.length === 0 &&
     icp.excludedTitles.length === 0 &&
@@ -1082,10 +1092,7 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
     icp.companyType.length === 0 &&
     icp.yearsInRole === '' &&
     icp.keywords.length === 0 &&
-    icp.exclusions.length === 0 &&
-    !icp.signals.changedJobs &&
-    !icp.signals.activeOnLinkedin &&
-    !icp.signals.mentionedInNews;
+    icp.exclusions.length === 0;
 
   // Free-chip array fields (add/remove), on local state only.
   type ArrayKey =
@@ -1119,11 +1126,6 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
   // it; clicking another replaces it.
   const setYearsInRole = (v: string) =>
     setIcp((prev) => ({ ...prev, yearsInRole: prev.yearsInRole === v ? '' : v }));
-
-  // The three boolean intent signals.
-  type SignalKey = 'changedJobs' | 'activeOnLinkedin' | 'mentionedInNews';
-  const setSignal = (key: SignalKey, value: boolean) =>
-    setIcp((prev) => ({ ...prev, signals: { ...prev.signals, [key]: value } }));
 
   // A small quiet "Start from a template" action lives in the header trailing
   // slot (top-right, aligned) instead of floating loosely at the card bottom.
@@ -1187,22 +1189,6 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
         )}
         <IcpSectionHeader title="Who they are" />
         <div className="flex flex-col gap-5">
-          <IcpEditableGroup
-            caption="Titles"
-            field="titles"
-            values={icp.titles}
-            hint="Matched loosely, so close variants like 'Head of Growth', 'Growth Lead' and 'VP Growth' all count."
-            onRemove={removeAt}
-            onAdd={addTo}
-          />
-          <IcpEditableGroup
-            caption="Exclude titles"
-            field="excludedTitles"
-            values={icp.excludedTitles}
-            muted
-            onRemove={removeAt}
-            onAdd={addTo}
-          />
           <IcpFixedMultiGroup
             caption="Seniority"
             options={SENIORITY_OPTIONS}
@@ -1216,6 +1202,21 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             selected={icp.functions}
             onToggle={(v) => toggleFixed('functions', v)}
             testIdBase="icp-function"
+          />
+          <IcpTitleGroup
+            values={icp.titles}
+            seniority={icp.seniority}
+            functions={icp.functions}
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          <IcpEditableGroup
+            caption="Exclude titles"
+            field="excludedTitles"
+            values={icp.excludedTitles}
+            muted
+            onRemove={removeAt}
+            onAdd={addTo}
           />
           <IcpSingleSelectGroup
             caption="Years in current role"
@@ -1237,10 +1238,12 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             onToggle={(v) => toggleFixed('companySize', v)}
             testIdBase="icp-companySize"
           />
-          <IcpEditableGroup
+          <IcpSearchableGroup
             caption="Industries"
             field="industries"
             values={icp.industries}
+            options={INDUSTRY_TAXONOMY}
+            placeholder="Search industries"
             onRemove={removeAt}
             onAdd={addTo}
           />
@@ -1251,46 +1254,23 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             onToggle={(v) => toggleFixed('companyType', v)}
             testIdBase="icp-companyType"
           />
-          <IcpEditableGroup
+          <IcpSearchableGroup
             caption="Person location"
             field="locations"
             values={icp.locations}
+            options={REGION_TAXONOMY}
+            placeholder="Search locations"
             onRemove={removeAt}
             onAdd={addTo}
           />
-          <IcpEditableGroup
+          <IcpSearchableGroup
             caption="Company HQ location"
             field="hqLocations"
             values={icp.hqLocations}
+            options={REGION_TAXONOMY}
+            placeholder="Search locations"
             onRemove={removeAt}
             onAdd={addTo}
-          />
-        </div>
-
-        <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-6" />
-
-        <IcpSectionHeader
-          title="Signals"
-          sub="Optional. Narrow to people showing timing signals."
-        />
-        <div className="flex flex-col">
-          <IcpSignalToggle
-            label="Changed jobs in the last 90 days"
-            signalKey="changedJobs"
-            on={icp.signals.changedJobs}
-            onChange={setSignal}
-          />
-          <IcpSignalToggle
-            label="Active on LinkedIn recently"
-            signalKey="activeOnLinkedin"
-            on={icp.signals.activeOnLinkedin}
-            onChange={setSignal}
-          />
-          <IcpSignalToggle
-            label="Mentioned in news recently"
-            signalKey="mentionedInNews"
-            on={icp.signals.mentionedInNews}
-            onChange={setSignal}
           />
         </div>
 
@@ -1424,32 +1404,6 @@ function IcpSingleSelectGroup({
   );
 }
 
-// One boolean intent signal: a calm label + the shared GlassToggle in a row.
-// Quiet by design — signals are optional, they narrow, not define.
-function IcpSignalToggle({
-  label,
-  signalKey,
-  on,
-  onChange,
-}: {
-  label: string;
-  signalKey: 'changedJobs' | 'activeOnLinkedin' | 'mentionedInNews';
-  on: boolean;
-  onChange: (key: 'changedJobs' | 'activeOnLinkedin' | 'mentionedInNews', v: boolean) => void;
-}) {
-  return (
-    <div className="px-0 py-2 flex items-center justify-between gap-3">
-      <div className="text-[13px] text-foreground/80">{label}</div>
-      <GlassToggle
-        on={on}
-        onChange={(v) => onChange(signalKey, v)}
-        testId={`icp-signal-${signalKey}`}
-        ariaLabel={`${on ? 'Disable' : 'Enable'} ${label}`}
-      />
-    </div>
-  );
-}
-
 // One always-editable ICP group: caption + chips + an inline add-input. Each
 // chip has a hover-revealed remove control (the calm knowledge pattern); the
 // add-input is always present so there is no Edit mode. Sits directly in the
@@ -1531,6 +1485,239 @@ function IcpEditableGroup({
       {hint && (
         <div className="text-[11.5px] text-foreground/45 leading-snug mt-2">{hint}</div>
       )}
+    </div>
+  );
+}
+
+// The flagship ontzorg-moment: guided title selection. Reuses IcpEditableGroup
+// for the exact selected-chip look + Add input + fuzzy-match hint (so nothing
+// diverges), then renders a one-click suggestion row beneath it. Suggestions
+// are computed from the SELECTED functions and seniority buckets, so the moment
+// the user picks a function they get real, relevant titles to add with a click
+// instead of typing from a blank field. Suggestion chips are neutral (not the
+// blue selected-state); a title only turns into a normal selected chip once
+// added.
+function IcpTitleGroup({
+  values,
+  seniority,
+  functions,
+  onRemove,
+  onAdd,
+}: {
+  values: string[];
+  seniority: string[];
+  functions: string[];
+  onRemove: (
+    key: 'titles' | 'excludedTitles' | 'industries' | 'locations' | 'hqLocations' | 'keywords' | 'exclusions',
+    value: string,
+  ) => void;
+  onAdd: (
+    key: 'titles' | 'excludedTitles' | 'industries' | 'locations' | 'hqLocations' | 'keywords' | 'exclusions',
+    value: string,
+  ) => void;
+}) {
+  // Derive the active seniority buckets. If no seniority is selected yet, use
+  // all three so the suggestion row still works off the function alone.
+  const buckets: SeniorityBucket[] = (() => {
+    if (seniority.length === 0) return ['exec', 'lead', 'ic'];
+    const set = new Set<SeniorityBucket>();
+    for (const s of seniority) {
+      const b = SENIORITY_TO_BUCKET[s];
+      if (b) set.add(b);
+    }
+    return set.size > 0 ? Array.from(set) : ['exec', 'lead', 'ic'];
+  })();
+
+  // Suggestions only appear once at least one function is chosen. For each
+  // selected function and active bucket, pull curated titles (falling back to
+  // the generic per-bucket set when a function has no curated map). Flatten,
+  // dedupe, drop anything already added, cap at 8.
+  const suggestions: string[] = (() => {
+    if (functions.length === 0) return [];
+    const out: string[] = [];
+    const seen = new Set<string>(values);
+    // Curated functions first so specific titles (e.g. 'VP Sales') outrank the
+    // generated fallbacks (e.g. 'VP Operations') within the 8-item cap.
+    const ordered = [...functions].sort((a, b) => {
+      const ca = TITLE_SUGGESTIONS[a] ? 0 : 1;
+      const cb = TITLE_SUGGESTIONS[b] ? 0 : 1;
+      return ca - cb;
+    });
+    for (const fn of ordered) {
+      const map = TITLE_SUGGESTIONS[fn];
+      for (const b of buckets) {
+        const list = map ? map[b] : genericTitlesForFunction(fn, b);
+        for (const title of list) {
+          if (!seen.has(title)) {
+            seen.add(title);
+            out.push(title);
+          }
+        }
+      }
+    }
+    return out.slice(0, 8);
+  })();
+
+  return (
+    <div>
+      <IcpEditableGroup
+        caption="Titles"
+        field="titles"
+        values={values}
+        hint="Matched loosely, so close variants like 'Head of Growth', 'Growth Lead' and 'VP Growth' all count."
+        onRemove={onRemove}
+        onAdd={onAdd}
+      />
+      {suggestions.length > 0 && (
+        <div className="mt-3">
+          <div className="text-[11px] font-medium text-foreground/45 mb-2">
+            Suggested for your selection
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {suggestions.map((title) => (
+              <button
+                key={title}
+                type="button"
+                data-testid={`icp-title-suggest-${title}`}
+                onClick={() => onAdd('titles', title)}
+                className="inline-flex items-center gap-1 h-[28px] pl-2.5 pr-3 rounded-full text-[12.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/70 hover-elevate active-elevate-2"
+              >
+                <Plus size={14} strokeWidth={2} className="text-foreground/55" />
+                {title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A guided replacement for a blank type-field: the selected chips look exactly
+// like IcpEditableGroup's (neutral pill, hover-revealed X), but the "add"
+// affordance is a GlassPopover with a fuzzy search input over a taxonomy list
+// (industries / person location / company HQ). Clicking a result adds it and
+// keeps the popover open for multi-add; pressing Enter on an unmatched query
+// free-adds it, so custom values still work. Mirrors the CSV column picker's
+// search-input-inside-popover styling for consistency.
+function IcpSearchableGroup({
+  caption,
+  field,
+  values,
+  options,
+  onRemove,
+  onAdd,
+  placeholder,
+}: {
+  caption: string;
+  field: 'industries' | 'locations' | 'hqLocations';
+  values: string[];
+  options: string[];
+  onRemove: (key: 'industries' | 'locations' | 'hqLocations', value: string) => void;
+  onAdd: (key: 'industries' | 'locations' | 'hqLocations', value: string) => void;
+  placeholder?: string;
+}) {
+  const [query, setQuery] = useState('');
+
+  // Fuzzy = case-insensitive, every whitespace-separated query word must appear
+  // somewhere in the option. Already-selected options are excluded.
+  const filtered = (() => {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    return options.filter((opt) => {
+      if (values.includes(opt)) return false;
+      const low = opt.toLowerCase();
+      return words.every((w) => low.includes(w));
+    });
+  })();
+
+  return (
+    <div>
+      <SubLabel>{caption}</SubLabel>
+      <div className="flex flex-wrap items-center gap-2">
+        {values.map((v) => (
+          <span
+            key={v}
+            className="group inline-flex items-center gap-1 h-[28px] pl-3 pr-1.5 rounded-full text-[12.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/80"
+          >
+            {v}
+            <button
+              type="button"
+              data-testid={`icp-remove-${field}-${v}`}
+              onClick={() => onRemove(field, v)}
+              aria-label={`Remove ${v}`}
+              className="opacity-0 group-hover:opacity-100 transition-opacity h-[18px] w-[18px] rounded-full flex items-center justify-center text-foreground/40 hover-elevate active-elevate-2"
+            >
+              <X size={11} strokeWidth={2.4} />
+            </button>
+          </span>
+        ))}
+        <GlassPopover
+          anchor="bottom"
+          autoFlip
+          align="left"
+          width="w-64"
+          testId={`icp-picker-${field}`}
+          onOpenChange={(open) => {
+            if (!open) setQuery('');
+          }}
+          trigger={({ open, toggle }) => (
+            <button
+              type="button"
+              data-testid={`icp-add-${field}`}
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              onClick={toggle}
+              className="inline-flex items-center gap-1 h-[28px] px-3 rounded-full bg-foreground/[0.04] dark:bg-white/[0.05] text-[12.5px] text-foreground/40 hover-elevate active-elevate-2"
+            >
+              <Search size={13} strokeWidth={2} />
+              Add
+            </button>
+          )}
+        >
+          {() => (
+            <div className="flex flex-col">
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const q = query.trim();
+                    if (!q) return;
+                    const exact = filtered.find((o) => o.toLowerCase() === q.toLowerCase());
+                    onAdd(field, exact ?? q);
+                    setQuery('');
+                  }
+                }}
+                data-testid={`icp-search-${field}`}
+                placeholder={placeholder ?? 'Search'}
+                className="h-[34px] w-full bg-foreground/[0.04] dark:bg-white/[0.06] rounded-xl px-3 mb-1.5 outline-none text-[13px] text-foreground placeholder:text-foreground/40"
+              />
+              <div className="max-h-64 overflow-y-auto no-scrollbar" role="listbox">
+                {filtered.length === 0 ? (
+                  <div className="px-2.5 py-2 text-[13px] text-foreground/45">No matches</div>
+                ) : (
+                  filtered.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      role="option"
+                      data-testid={`icp-opt-${field}-${opt}`}
+                      onClick={() => {
+                        onAdd(field, opt);
+                        setQuery('');
+                      }}
+                      className="w-full text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2 text-[13px] text-foreground/70"
+                    >
+                      {opt}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </GlassPopover>
+      </div>
     </div>
   );
 }
