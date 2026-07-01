@@ -102,7 +102,6 @@ import {
   clearImportDraft,
   setImportResult,
   getImportResult,
-  clearImportResult,
 } from '@/state/importDraft';
 import {
   getImportBatches,
@@ -685,25 +684,148 @@ function AudiencePoolCard({
 // ── B) Sources - toggle rows in ONE card, warmest first ─────────────
 function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudience; campaignId: string }) {
   const [, navigate] = useLocation();
-  // Manual-import confirmation. The actual import now happens on the dedicated
-  // mapping screen (CampaignImportView); when it completes it writes the result
-  // into the importDraft module store. We read that here on render so the
-  // "{N} leads imported" confirmation shows after returning. No backend.
-  const result = getImportResult();
-  const importedCount = result && result.campaignId === campaignId ? result.count : null;
-  // Representational: local toggle state, no backend write this round. When we
-  // return straight after an import, the Manual-import source is shown ON (you
-  // just imported through it) so the confirmation is visible without a manual
-  // re-toggle.
-  const [sources, setSources] = useState(() =>
-    importedCount !== null
-      ? audience.sources.map((s) => (s.kind === 'import' ? { ...s, enabled: true } : s))
-      : audience.sources,
+  // Representational: local toggle state, no backend write this round.
+  const [sources, setSources] = useState(() => audience.sources);
+
+  // Accept a selected/dropped CSV: parse it client-side (real headers + first
+  // ~5 data rows), stash the parsed draft in the module store, and navigate to
+  // the column-mapping screen. Pragmatic CSV split: first non-empty line is the
+  // header row, comma-separated; no CSV library. The mapping screen owns the
+  // Import action now, so we no longer show an inline preview here.
+  const acceptFile = (file: File | null | undefined) => {
+    if (!file) return;
+    const go = (headers: string[], rows: string[][], total: number) => {
+      setImportDraft({ campaignId, filename: file.name, headers, rows, total });
+      navigate('/campaigns/' + campaignId + '/import');
+    };
+    const fallback = Math.max(12, Math.min(5000, Math.round(file.size / 64) || 128));
+    const split = (line: string) => line.split(',').map((c) => c.trim());
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length === 0) {
+        go(['Column 1'], [], fallback);
+        return;
+      }
+      const headers = split(lines[0]);
+      const dataLines = lines.slice(1);
+      const rows = dataLines.slice(0, 5).map(split);
+      const total = dataLines.length > 0 ? dataLines.length : fallback;
+      go(headers, rows, total);
+    };
+    reader.onerror = () => go(['Column 1'], [], fallback);
+    try {
+      reader.readAsText(file);
+    } catch {
+      go(['Column 1'], [], fallback);
+    }
+  };
+
+  // Warmest first, then warm, then cold; import (cold) naturally lands last.
+  const ordered = useMemo(
+    () =>
+      [...sources].sort(
+        (a, b) =>
+          WARMTH_ORDER.indexOf(LEAD_SOURCE_META[a.kind].warmth) -
+          WARMTH_ORDER.indexOf(LEAD_SOURCE_META[b.kind].warmth),
+      ),
+    [sources],
   );
+
+  const toggle = (kind: LeadSourceKind, on: boolean) =>
+    setSources((prev) =>
+      prev.map((s) => (s.kind === kind ? { ...s, enabled: on } : s)),
+    );
+
+  return (
+    <section>
+      <AudienceHeader label="Sources" sub="Where leads come from, warmest first." />
+      <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-sources">
+        {ordered.map((src, i) => {
+          const meta = LEAD_SOURCE_META[src.kind];
+          const Icon = SOURCE_ICONS[src.kind];
+          return (
+            <div key={src.kind}>
+              {i > 0 && (
+                <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+              )}
+              <div
+                data-testid={`source-row-${src.kind}`}
+                className="px-4 py-3.5 flex items-center gap-3"
+              >
+                <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+                  <Icon size={16} strokeWidth={1.9} className="text-foreground/70" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px] font-medium text-foreground truncate">
+                      {meta.label}
+                    </span>
+                    <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0">
+                      {WARMTH_META[meta.warmth].label}
+                    </span>
+                  </div>
+                  <div className="text-[12px] text-foreground/50 truncate">{meta.hint}</div>
+                </div>
+                {src.enabled && src.found > 0 && (
+                  <span className="text-[11.5px] tabular-nums text-foreground/40 shrink-0">
+                    {fmtNum(src.found)} found
+                  </span>
+                )}
+                <GlassToggle
+                  on={src.enabled}
+                  onChange={(v) => toggle(src.kind, v)}
+                  testId={`source-toggle-${src.kind}`}
+                  ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
+                />
+              </div>
+              {/* Manual import, when on, shows the SHARED FileDropzone.
+                  Dropping a CSV parses it, stashes the draft, and navigates to
+                  the column-mapping screen (which owns the Import action). The
+                  imported batches themselves live in the dedicated Imports
+                  section below, mirroring the knowledge Sources list. */}
+              {src.kind === 'import' && src.enabled && (
+                <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
+                  {/* Drop surface is the SHARED FileDropzone, identical to the
+                      knowledge upload. Dropping a CSV opens the column-mapping
+                      screen (no silent auto-import). */}
+                  <FileDropzone
+                    testId="source-import-dropzone"
+                    accept=".csv,text/csv"
+                    onFiles={(files) => acceptFile(files[0])}
+                    primaryLabel="Drop a CSV here, or click to choose"
+                    secondaryLabel="One lead per row"
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+
+// ── B2) Imports - imported CSV batches, mirroring the knowledge Sources list ─
+// A proper Audience section (not a sub-item of the Manual-import toggle). Each
+// imported batch renders as a first-class row using the EXACT Personal-knowledge
+// Sources markup (MijnAi.tsx ~1108-1146): one rp-card, hairline dividers, a
+// glass-pill icon square aligned to the same left column as the source rows,
+// title + hint, a quiet right meta, and a hover-revealed Trash (the Undo
+// affordance). The add affordance is the Manual-import dropzone above, not a
+// floating text link. All batch state/logic lives here.
+function AudienceImportsCard({
+  audience,
+  campaignId,
+}: {
+  audience: CampaignAudience;
+  campaignId: string;
+}) {
   const reduceMotion = useReducedMotion();
-  // Force a re-render after clearing the module-store result on "Import more",
-  // and after any batch add/remove/restore (getImportBatches is read on render
-  // from the module store, so a mutation needs an explicit re-render).
+  // getImportBatches is read on render from the module store, so a mutation
+  // needs an explicit re-render. `bump` forces that.
   const [, bump] = useState(0);
 
   // Live campaign audience + updater, used to reverse (undo) or re-apply
@@ -789,216 +911,81 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
     return sameDay ? 'today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
-  // Accept a selected/dropped CSV: parse it client-side (real headers + first
-  // ~5 data rows), stash the parsed draft in the module store, and navigate to
-  // the column-mapping screen. Pragmatic CSV split: first non-empty line is the
-  // header row, comma-separated; no CSV library. The mapping screen owns the
-  // Import action now, so we no longer show an inline preview here.
-  const acceptFile = (file: File | null | undefined) => {
-    if (!file) return;
-    const go = (headers: string[], rows: string[][], total: number) => {
-      setImportDraft({ campaignId, filename: file.name, headers, rows, total });
-      navigate('/campaigns/' + campaignId + '/import');
-    };
-    const fallback = Math.max(12, Math.min(5000, Math.round(file.size / 64) || 128));
-    const split = (line: string) => line.split(',').map((c) => c.trim());
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-      if (lines.length === 0) {
-        go(['Column 1'], [], fallback);
-        return;
-      }
-      const headers = split(lines[0]);
-      const dataLines = lines.slice(1);
-      const rows = dataLines.slice(0, 5).map(split);
-      const total = dataLines.length > 0 ? dataLines.length : fallback;
-      go(headers, rows, total);
-    };
-    reader.onerror = () => go(['Column 1'], [], fallback);
-    try {
-      reader.readAsText(file);
-    } catch {
-      go(['Column 1'], [], fallback);
-    }
-  };
-
-  // "Import more" reopens the dropzone: it clears the stored result (and any
-  // leftover draft) so the mapping flow starts clean. Batches persist in their
-  // own module store, so they are NOT cleared here. When batches exist we also
-  // flip a local flag so the dropzone shows again over the batch list.
-  const [importMoreOpen, setImportMoreOpen] = useState(false);
-  const importMore = () => {
-    clearImportResult();
-    clearImportDraft();
-    setImportMoreOpen(true);
-    bump((n) => n + 1);
-  };
-  // Warmest first, then warm, then cold; import (cold) naturally lands last.
-  const ordered = useMemo(
-    () =>
-      [...sources].sort(
-        (a, b) =>
-          WARMTH_ORDER.indexOf(LEAD_SOURCE_META[a.kind].warmth) -
-          WARMTH_ORDER.indexOf(LEAD_SOURCE_META[b.kind].warmth),
-      ),
-    [sources],
-  );
-
-  const toggle = (kind: LeadSourceKind, on: boolean) =>
-    setSources((prev) =>
-      prev.map((s) => (s.kind === kind ? { ...s, enabled: on } : s)),
-    );
+  // Render nothing when there is no imported batch AND no pending undo. When an
+  // undo just removed the last batch, keep the section alive so the Restore note
+  // still shows.
+  if (batches.length === 0 && !undone) return null;
 
   return (
     <section>
-      <AudienceHeader label="Sources" sub="Where leads come from, warmest first." />
-      <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-sources">
-        {ordered.map((src, i) => {
-          const meta = LEAD_SOURCE_META[src.kind];
-          const Icon = SOURCE_ICONS[src.kind];
-          return (
-            <div key={src.kind}>
-              {i > 0 && (
-                <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-              )}
-              <div
-                data-testid={`source-row-${src.kind}`}
-                className="px-4 py-3.5 flex items-center gap-3"
-              >
-                <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-                  <Icon size={16} strokeWidth={1.9} className="text-foreground/70" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[14px] font-medium text-foreground truncate">
-                      {meta.label}
-                    </span>
-                    <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0">
-                      {WARMTH_META[meta.warmth].label}
-                    </span>
-                  </div>
-                  <div className="text-[12px] text-foreground/50 truncate">{meta.hint}</div>
-                </div>
-                {src.enabled && src.found > 0 && (
-                  <span className="text-[11.5px] tabular-nums text-foreground/40 shrink-0">
-                    {fmtNum(src.found)} found
-                  </span>
+      <AudienceHeader label="Imports" sub="CSV files you imported into this audience." />
+      <div className="flex flex-col gap-2.5">
+        {/* Transient "Import undone. Restore?" note - a calm row ABOVE the list
+            so it still shows after undoing the LAST batch (empty list). */}
+        {undone && (
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 2 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            data-testid="import-undo-note"
+            className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-2.5 flex items-center justify-between gap-2.5"
+          >
+            <span className="text-[12.5px] text-foreground/60 truncate">
+              Import undone. Restore?
+            </span>
+            <button
+              type="button"
+              data-testid="import-batch-restore"
+              onClick={restoreBatch}
+              className="shrink-0 text-[12px] font-medium hover:opacity-80 transition-opacity"
+              style={{ color: AI_ACCENT }}
+            >
+              Restore
+            </button>
+          </motion.div>
+        )}
+        {/* Batch list: the EXACT Personal-knowledge Sources row markup
+            (MijnAi.tsx ~1108-1146) so imports read as first-class sources. */}
+        {batches.length > 0 && (
+          <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-imports">
+            {batches.map((batch, i) => (
+              <div key={batch.id}>
+                {i > 0 && (
+                  <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
                 )}
-                <GlassToggle
-                  on={src.enabled}
-                  onChange={(v) => toggle(src.kind, v)}
-                  testId={`source-toggle-${src.kind}`}
-                  ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
-                />
-              </div>
-              {/* Manual import, when on, shows the SHARED FileDropzone.
-                  Dropping a CSV parses it, stashes the draft, and navigates to
-                  the column-mapping screen (which owns the Import action). After
-                  a successful import it becomes the calm "N leads imported"
-                  confirmation with "Import more". */}
-              {src.kind === 'import' && src.enabled && (
-                <div className="px-4 pb-3.5 -mt-1 pl-[76px] flex flex-col gap-2">
-                  {/* Transient "Import undone. Restore?" note. Rendered ABOVE
-                      both branches so it still shows after undoing the LAST
-                      batch (when the list is empty and the dropzone returns). */}
-                  {undone && (
-                    <motion.div
-                      initial={reduceMotion ? false : { opacity: 0, y: 2 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
-                      data-testid="import-undo-note"
-                      className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-2.5 flex items-center justify-between gap-2.5"
-                    >
-                      <span className="text-[12.5px] text-foreground/60 truncate">
-                        Import undone. Restore?
-                      </span>
-                      <button
-                        type="button"
-                        data-testid="import-batch-restore"
-                        onClick={restoreBatch}
-                        className="shrink-0 text-[12px] font-medium hover:opacity-80 transition-opacity"
-                        style={{ color: AI_ACCENT }}
-                      >
-                        Restore
-                      </button>
-                    </motion.div>
-                  )}
-                  {batches.length === 0 || importMoreOpen ? (
-                    <div className="flex flex-col gap-2.5">
-                      {/* Drop surface is the SHARED FileDropzone, identical to
-                          the knowledge upload. Dropping a CSV opens the
-                          column-mapping screen (no silent auto-import). */}
-                      <FileDropzone
-                        testId="source-import-dropzone"
-                        accept=".csv,text/csv"
-                        onFiles={(files) => acceptFile(files[0])}
-                        primaryLabel="Drop a CSV here, or click to choose"
-                        secondaryLabel="One lead per row"
-                      />
+                <div
+                  data-testid={`import-batch-${batch.id}`}
+                  className="group px-4 py-3 flex items-center gap-3 hover-elevate active-elevate-2"
+                >
+                  <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
+                    <FileText size={16} strokeWidth={1.8} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[14px] font-medium text-foreground truncate">
+                      {batch.filename}
                     </div>
-                  ) : (
-                    // Batch overview: mirrors the Personal-knowledge Sources row
-                    // EXACTLY (MijnAi.tsx ~1108-1146) so imports read as first
-                    // class sources, not a bespoke block: one rp-card, rows split
-                    // by hairline dividers, a glass-pill icon square, title + hint,
-                    // a quiet right meta, and a hover Undo (the remove affordance).
-                    <div className="flex flex-col gap-2.5">
-                      <div className="rp-card rounded-3xl overflow-hidden">
-                        {batches.map((batch, i) => (
-                          <div key={batch.id}>
-                            {i > 0 && (
-                              <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-                            )}
-                            <div
-                              data-testid={`import-batch-${batch.id}`}
-                              className="group px-4 py-3 flex items-center gap-3 hover-elevate active-elevate-2"
-                            >
-                              <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
-                                <FileText size={16} strokeWidth={1.8} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-[14px] font-medium text-foreground truncate">
-                                  {batch.filename}
-                                </div>
-                                <div className="text-[12px] text-foreground/50 truncate">
-                                  {fmtNum(batch.net)} leads, {fmtNum(batch.qualified)} qualified,{' '}
-                                  {fmtNum(batch.duplicates)} duplicates
-                                </div>
-                              </div>
-                              <span className="text-[11.5px] text-foreground/40 shrink-0">
-                                {batchDate(batch.importedAt)}
-                              </span>
-                              <button
-                                type="button"
-                                aria-label="Undo import"
-                                data-testid={`import-batch-undo-${batch.id}`}
-                                onClick={() => undoBatch(batch)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
-                              >
-                                <Trash2 size={13} strokeWidth={1.8} />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        data-testid="source-import-more"
-                        onClick={importMore}
-                        className="self-start text-[12px] font-medium hover:opacity-80 transition-opacity"
-                        style={{ color: AI_ACCENT }}
-                      >
-                        Import more
-                      </button>
+                    <div className="text-[12px] text-foreground/50 truncate">
+                      {fmtNum(batch.net)} leads, {fmtNum(batch.qualified)} qualified,{' '}
+                      {fmtNum(batch.duplicates)} duplicates
                     </div>
-                  )}
+                  </div>
+                  <span className="text-[11.5px] text-foreground/40 shrink-0">
+                    {batchDate(batch.importedAt)}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Undo import"
+                    data-testid={`import-batch-undo-${batch.id}`}
+                    onClick={() => undoBatch(batch)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+                  >
+                    <Trash2 size={13} strokeWidth={1.8} />
+                  </button>
                 </div>
-              )}
-            </div>
-          );
-        })}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -2713,6 +2700,7 @@ function AudienceSection({ campaign }: { campaign: Campaign }) {
         onViewLeads={() => navigate('/campaigns/' + campaign.id + '/leads')}
       />
       <AudienceSourcesCard audience={audience} campaignId={campaign.id} />
+      <AudienceImportsCard audience={audience} campaignId={campaign.id} />
       <AudienceIcpCard audience={audience} />
       <AudienceThresholdCard audience={audience} value={threshold} onChange={setThreshold} />
       <AudienceSuppressCard audience={audience} />
