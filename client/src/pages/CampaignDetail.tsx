@@ -1533,11 +1533,11 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                       {lead.name}
                     </span>
                     {enriching ? (
-                      // Muted "Enriching" pill keeps the row height stable while
-                      // the real warmth label is still being resolved.
-                      <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/40 shrink-0">
-                        Enriching
-                      </span>
+                      // A subtle skeleton on the warmth-pill's spot keeps the row
+                      // height + layout stable while warmth is resolved, WITHOUT
+                      // reusing a warmth-style label (the status lives on the
+                      // right instead, so it never looks like a warmth category).
+                      <Skeleton className="h-[18px] w-14 rounded-full shrink-0" />
                     ) : (
                       <motion.span
                         initial={reduced ? false : { opacity: 0 }}
@@ -1582,7 +1582,13 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                 </div>
                 <div className="shrink-0 flex items-center gap-2 mt-0.5">
                   {enriching ? (
-                    <Skeleton className="h-[14px] w-9 rounded-full" />
+                    // Enrichment status lives on the RIGHT (where the score will
+                    // land), a small spinner + "Enriching", so it reads as a
+                    // status and never as a warmth category next to the name.
+                    <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-foreground/45">
+                      <Loader2 size={12} strokeWidth={2.2} className="animate-spin" aria-hidden />
+                      Enriching
+                    </span>
                   ) : (
                     <motion.span
                       initial={reduced ? false : { opacity: 0 }}
