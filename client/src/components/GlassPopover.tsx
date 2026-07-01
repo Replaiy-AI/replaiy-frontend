@@ -32,6 +32,7 @@
 // glass sheet.
 // ─────────────────────────────────────────────────────────────────
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { APPLE_SPRING } from '@/lib/motion';
 
@@ -94,7 +95,14 @@ export function GlassPopover({
   // When autoFlip is on, the resolved open direction (measured on each open).
   // Falls back to the `anchor` prop until the first measurement runs.
   const [flipDir, setFlipDir] = useState<'top' | 'bottom'>(anchor);
+  // Trigger's viewport rect, used to position the portaled fixed menu.
+  const [rect, setRect] = useState<DOMRect | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  // Ref on the portaled menu container. Because the menu is rendered to
+  // document.body (outside `ref`), outside-click detection must also treat
+  // clicks inside the menu as "inside" — otherwise selecting an option would
+  // close the popover before the option's onClick fires.
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const setOpenState = (next: boolean) => {
     setOpen(next);
@@ -118,20 +126,45 @@ export function GlassPopover({
   // viewport) AND there is more room above than below. Recomputed every open.
   useLayoutEffect(() => {
     if (!autoFlip || !open || !ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
+    const r = ref.current.getBoundingClientRect();
     const MENU_EST = 280;
-    const roomBelow = window.innerHeight - rect.bottom;
-    const roomAbove = rect.top;
-    const flipUp = rect.bottom + MENU_EST > window.innerHeight && roomAbove > roomBelow;
+    const roomBelow = window.innerHeight - r.bottom;
+    const roomAbove = r.top;
+    const flipUp = r.bottom + MENU_EST > window.innerHeight && roomAbove > roomBelow;
     setFlipDir(flipUp ? 'top' : 'bottom');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, autoFlip]);
+
+  // Measure the trigger rect while open so the portaled fixed menu can be
+  // positioned from viewport coordinates. Recompute on scroll (capture phase,
+  // passive, to catch any scrolling ancestor) and on resize so the menu tracks
+  // the trigger. Cleared + listeners removed on close/unmount.
+  useLayoutEffect(() => {
+    if (!open) {
+      setRect(null);
+      return;
+    }
+    const measure = () => {
+      if (ref.current) setRect(ref.current.getBoundingClientRect());
+    };
+    measure();
+    window.addEventListener('scroll', measure, { capture: true, passive: true });
+    window.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('scroll', measure, { capture: true } as EventListenerOptions);
+      window.removeEventListener('resize', measure);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Close on outside click / Escape.
   useLayoutEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpenState(false);
+      const target = e.target as Node;
+      const inTrigger = ref.current?.contains(target);
+      const inMenu = menuRef.current?.contains(target);
+      if (!inTrigger && !inMenu) setOpenState(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpenState(false);
@@ -154,49 +187,74 @@ export function GlassPopover({
   // Position + motion direction follow the resolved direction (autoFlip) or the
   // static anchor; horizontal edge follows align.
   const dir = autoFlip ? flipDir : anchor;
-  const vClass = dir === 'top' ? 'bottom-full mb-1.5' : 'mt-1.5';
-  const hClass = align === 'right' ? 'right-0' : 'left-0';
-  const positionClasses = `${vClass} ${hClass}`;
   const transformOrigin = `${dir === 'top' ? 'bottom' : 'top'} ${align}`;
   const y = dir === 'top' ? 6 : -6;
+
+  // Fixed viewport coordinates for the portaled menu, derived from the measured
+  // trigger rect. Horizontal: align=left → the menu's left edge hugs the
+  // trigger's left (left: rect.left); align=right → the menu's right edge hugs
+  // the trigger's right (right: window.innerWidth - rect.right) so we never
+  // need to measure the menu width. Vertical: `bottom` drops the menu just
+  // below the trigger (top: rect.bottom + 6); `top` anchors the menu's bottom
+  // just above the trigger (bottom: window.innerHeight - rect.top + 6).
+  const menuStyle: React.CSSProperties | null = rect
+    ? {
+        position: 'fixed',
+        zIndex: 1000,
+        transformOrigin,
+        ...(align === 'right'
+          ? { right: window.innerWidth - rect.right }
+          : { left: rect.left }),
+        ...(dir === 'top'
+          ? { bottom: window.innerHeight - rect.top + 6 }
+          : { top: rect.bottom + 6 }),
+      }
+    : null;
 
   return (
     <div ref={ref} className={`relative inline-block ${className}`}>
       {trigger(renderProps)}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y, scale: 0.97 }}
-            transition={APPLE_SPRING}
-            className={`absolute z-30 ${positionClasses} ${width}`}
-            style={{ transformOrigin }}
-          >
-            {/* Local dim-scrim: sits EXACTLY behind the sheet (same size +
-                radius, inset-0) so it never sticks out as a larger blurred
-                rectangle behind the rounded popover. It softens the busy
-                content directly behind the sheet without any halo. Stronger in
-                dark, very subtle in light. Not a full-screen modal dimmer. */}
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 -z-10 backdrop-blur-[3px] pointer-events-none"
-              style={{
-                borderRadius: 22,
-                background: dark ? 'rgba(0,0,0,0.34)' : 'rgba(0,0,0,0.05)',
-              }}
-            />
-            {/* Frosted glass sheet (UniversalSearch recipe). */}
-            <div
-              data-testid={testId}
-              className={`relative overflow-hidden p-1.5 ${surfaceClassName}`}
-              style={sheetStyle(dark)}
+      {/* Render the floating menu in a portal on document.body so it escapes
+          the card's DOM/stacking entirely — nothing (including sibling
+          backdrop-filter glass pills) can composite over or through it. */}
+      {createPortal(
+        <AnimatePresence>
+          {open && menuStyle && (
+            <motion.div
+              ref={menuRef}
+              initial={{ opacity: 0, y, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y, scale: 0.97 }}
+              transition={APPLE_SPRING}
+              className={width}
+              style={menuStyle}
             >
-              {typeof children === 'function' ? children(renderProps) : children}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {/* Local dim-scrim: sits EXACTLY behind the sheet (same size +
+                  radius, inset-0) so it never sticks out as a larger blurred
+                  rectangle behind the rounded popover. It softens the busy
+                  content directly behind the sheet without any halo. Stronger in
+                  dark, very subtle in light. Not a full-screen modal dimmer. */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 -z-10 backdrop-blur-[3px] pointer-events-none"
+                style={{
+                  borderRadius: 22,
+                  background: dark ? 'rgba(0,0,0,0.34)' : 'rgba(0,0,0,0.05)',
+                }}
+              />
+              {/* Frosted glass sheet (UniversalSearch recipe). */}
+              <div
+                data-testid={testId}
+                className={`relative overflow-hidden p-1.5 ${surfaceClassName}`}
+                style={sheetStyle(dark)}
+              >
+                {typeof children === 'function' ? children(renderProps) : children}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </div>
   );
 }

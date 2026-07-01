@@ -1647,18 +1647,6 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
         </div>
       </div>
 
-      {/* Trust note: CSV values are a starting point, LinkedIn is the source of
-          truth. Quiet inline line (same style as the Audience compliance /
-          sending notes), NOT a card, so it reads as a soft hint. */}
-      <p
-        data-testid="import-verify-note"
-        className="px-2 mb-4 flex items-start gap-1.5 text-[11.5px] text-foreground/45 leading-snug"
-      >
-        <ShieldCheck size={13} strokeWidth={1.9} className="shrink-0 mt-[2px] text-foreground/35" />
-        Replaiy verifies names, roles and companies against each LinkedIn profile, so your
-        messages stay accurate.
-      </p>
-
       {/* The mapping rows: one per Replaiy field. Each has the field name (+ a
           "required" hint on LinkedIn URL), a glass column picker
           (GlassPopover) to pick the CSV column (or "Don't import"), and an
@@ -1779,6 +1767,19 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
           );
         })}
       </div>
+
+      {/* Trust note: CSV values are a starting point, LinkedIn is the source of
+          truth. Quiet inline line (same style as the Audience compliance /
+          sending notes), NOT a card. Sits UNDER the mapping card, close to the
+          Import action, so it reassures the user right before they commit. */}
+      <p
+        data-testid="import-verify-note"
+        className="px-2 mt-3 flex items-start gap-1.5 text-[11.5px] text-foreground/45 leading-snug"
+      >
+        <ShieldCheck size={13} strokeWidth={1.9} className="shrink-0 mt-[2px] text-foreground/35" />
+        Replaiy verifies names, roles and companies against each LinkedIn profile, so your
+        messages stay accurate.
+      </p>
 
       {/* Bottom action: the primary Import button on the right. The round back
           button top-left is the single back affordance (consistent with the
