@@ -104,6 +104,7 @@ import {
   getImportResult,
   clearImportResult,
 } from '@/state/importDraft';
+import { matchImportTemplate, saveImportTemplate } from '@/state/importTemplates';
 import { APPLE_SPRING } from '@/lib/motion';
 
 // ── Overview derived helpers ────────────────────────────────────────
@@ -1455,12 +1456,16 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
   // Title + sub + the lead list - shared by desktop and mobile bodies.
   const body = (
     <div className="mx-auto w-full" style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}>
-      <div className="px-1 mb-4">
-        <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-foreground">
+      {/* Mobile title lives in the body (the back button sits in the mobile
+          chrome slot, not the body). On desktop the title moved BESIDE the
+          back button in the floating top bar, so this block is lg:hidden to
+          avoid a double render. */}
+      <div className="lg:hidden px-1 mb-4">
+        <h1 className="text-[19px] font-semibold tracking-[-0.02em] text-foreground">
           Leads in this audience
         </h1>
         <p className="text-[12.5px] text-foreground/50 leading-snug mt-1">
-          A sample, each enriched with recent activity and buying signals.
+          A view of the people in this audience.
         </p>
       </div>
 
@@ -1497,7 +1502,7 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
       <div className="rp-card rounded-3xl px-3 py-1.5">
         {leads.length === 0 && (
           <p className="px-2 py-8 text-center text-[13px] text-foreground/45">
-            No sample leads yet. They appear here once this audience is enriched.
+            No leads yet. Import a CSV or turn on a source to start building this audience.
           </p>
         )}
         <div className="flex flex-col">
@@ -1616,13 +1621,20 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
         className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none px-4 lg:px-6"
       >
         <div
-          className="mx-auto flex items-center h-[52px]"
+          className="mx-auto flex items-center gap-3 h-[52px]"
           style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}
         >
           <div className="pointer-events-auto">
             <ActionPill testId="button-back-leads" label="Back" onClick={back}>
               <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
             </ActionPill>
+          </div>
+          {/* Title sits BESIDE the back button on the same 52px row. Single
+              line, sized to fit; no subline in the bar (see body/progress). */}
+          <div className="pointer-events-auto min-w-0">
+            <h1 className="text-[17px] font-semibold tracking-[-0.02em] text-foreground truncate">
+              Leads in this audience
+            </h1>
           </div>
         </div>
       </div>
@@ -1757,11 +1769,52 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
   const total = valid ? draft!.total : 0;
   const filename = valid ? draft!.filename : '';
 
-  // The current field -> CSV-column mapping. Auto-mapped on load; the user can
-  // override each row via the glass column picker (GlassPopover).
-  const [mapping, setMapping] = useState<Record<ReplaiyFieldKey, string>>(() =>
-    valid ? autoMap(headers) : ({} as Record<ReplaiyFieldKey, string>),
+  // Recognize the file: if the incoming headers match a saved import layout
+  // closely enough, we prefill the whole mapping and show a calm banner (like
+  // Apollo / HeyReach saved mappings). Computed once from the headers.
+  const matched = useMemo(
+    () => (valid ? matchImportTemplate(headers) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [valid, headers.join('|')],
   );
+
+  // Resolve a template's NAME-based mapping into this file's INDEX-based shape
+  // (the same shape autoMap returns). For each Replaiy field we look up the
+  // template's stored header name in the current headers (normalized compare);
+  // found -> that column index as a string, else "Don't import". Keys the
+  // template doesn't cover also default to "Don't import", so it stays robust
+  // to column reordering between files.
+  const resolveTemplateMapping = (
+    template: NonNullable<ReturnType<typeof matchImportTemplate>>,
+  ): Record<ReplaiyFieldKey, string> => {
+    const norm = headers.map((h) => h.trim().toLowerCase());
+    const out = {} as Record<ReplaiyFieldKey, string>;
+    for (const field of REPLAIY_FIELDS) {
+      const wantName = template.mapping[field.key];
+      if (!wantName || wantName === DONT_IMPORT) {
+        out[field.key] = DONT_IMPORT;
+        continue;
+      }
+      const idx = norm.indexOf(wantName.trim().toLowerCase());
+      out[field.key] = idx >= 0 ? String(idx) : DONT_IMPORT;
+    }
+    return out;
+  };
+
+  // The current field -> CSV-column mapping. Prefilled from a recognized
+  // template when one matches, else auto-mapped on load; the user can override
+  // each row via the glass column picker (GlassPopover).
+  const [mapping, setMapping] = useState<Record<ReplaiyFieldKey, string>>(() =>
+    valid
+      ? matched
+        ? resolveTemplateMapping(matched)
+        : autoMap(headers)
+      : ({} as Record<ReplaiyFieldKey, string>),
+  );
+
+  // The recognized layout name drives the banner. Dismissable: clearing it only
+  // hides the note, the prefilled mapping stays.
+  const [recognizedName, setRecognizedName] = useState<string | null>(matched?.name ?? null);
 
   // Mobile chrome - back arrow (left), same pattern as the leads view.
   useMobileTopChromeSlot(
@@ -1905,6 +1958,22 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
         },
       });
     }
+
+    // Remember this layout so the next matching file is recognized and
+    // prefilled. Store the mapping by header NAME (robust to reordering): for
+    // each field, a real column index resolves to the normalized header name
+    // at that index; "don't import" stays as the sentinel. Dedupes by
+    // fingerprint in the store, so re-importing the same layout updates rather
+    // than duplicates. Runs once inside the appliedRef guard.
+    const norm = headers.map((h) => h.trim().toLowerCase());
+    const mappingByHeaderName: Record<string, string> = {};
+    for (const field of REPLAIY_FIELDS) {
+      const colStr = mapping[field.key] ?? DONT_IMPORT;
+      mappingByHeaderName[field.key] =
+        colStr === DONT_IMPORT ? DONT_IMPORT : norm[Number(colStr)] ?? DONT_IMPORT;
+    }
+    const templateName = filename.replace(/\.[^.]+$/, '').trim() || 'Imported layout';
+    saveImportTemplate(templateName, headers, mappingByHeaderName);
   };
 
   // Drive the enrichment steps once we enter 'enriching'. Chained setTimeouts
@@ -2041,6 +2110,44 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
           </span>
         </div>
       </div>
+
+      {/* Recognized layout banner: when the incoming file matched a saved
+          import layout we prefilled the whole mapping, so this calm inline row
+          tells the user we did it (like Apollo / HeyReach saved mappings). A
+          soft accent-tinted row, NOT a hard card: no border, very light tint.
+          Nothing locks - every row stays editable, and "Dismiss" only hides
+          this note. Reused inline-note tone, AI_ACCENT, motion + APPLE_SPRING. */}
+      {recognizedName && (
+        <motion.div
+          data-testid="import-recognized-banner"
+          initial={reduced ? false : { opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={reduced ? undefined : APPLE_SPRING}
+          className="mb-3 rounded-2xl px-3.5 py-2.5 flex items-center gap-2.5"
+          style={{ background: 'rgba(47,107,255,0.06)' }}
+        >
+          <span
+            aria-hidden
+            className="flex items-center justify-center w-[22px] h-[22px] rounded-full shrink-0"
+            style={{ background: 'rgba(47,107,255,0.12)' }}
+          >
+            <Check size={13} strokeWidth={2.6} style={{ color: AI_ACCENT }} />
+          </span>
+          <span className="text-[12.5px] text-foreground/70 leading-snug">
+            Recognized your{' '}
+            <span className="font-medium text-foreground/85">{recognizedName}</span> layout,
+            mapping applied.
+          </span>
+          <button
+            type="button"
+            data-testid="button-dismiss-recognized"
+            onClick={() => setRecognizedName(null)}
+            className="ml-auto shrink-0 text-[12px] text-foreground/45 hover:text-foreground/70"
+          >
+            Dismiss
+          </button>
+        </motion.div>
+      )}
 
       {/* The mapping rows: one per Replaiy field. Each has the field name (+ a
           "required" hint on LinkedIn URL), a glass column picker
