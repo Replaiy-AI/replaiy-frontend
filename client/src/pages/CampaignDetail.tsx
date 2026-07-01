@@ -95,7 +95,6 @@ import { GlassPopover } from '@/components/GlassPopover';
 import { conversionPct, replyRatePct } from '@/components/CampaignsList';
 import { SectionLabel } from '@/components/LeadContextPanel';
 import { ReplaiyLogo } from '@/components/Logo';
-import FileDropzone from '@/components/FileDropzone';
 import {
   setImportDraft,
   getImportDraft,
@@ -692,6 +691,11 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
   // Representational: local toggle state, no backend write this round.
   const [sources, setSources] = useState(() => audience.sources);
 
+  // File-input ref (the import action row triggers it) + drag-over state so the
+  // import row can highlight while a CSV is dragged over it.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
   // Warmest first, then warm, then cold. Manual import is no longer a toggle
   // source row (it is an imported file, rendered below), so we exclude the
   // 'import' kind entirely from the rendered discovery list.
@@ -840,8 +844,37 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
     <section>
       <AudienceHeader label="Sources" sub="Where leads come from." />
       <div className="flex flex-col gap-3">
-        {/* Discovery sources: toggleable rows, warmest first. */}
+        {/* Transient "Import undone. Restore?" note - a calm row ABOVE the
+            single Sources card so it still shows after undoing the LAST batch. */}
+        {undone && (
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 2 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            data-testid="import-undo-note"
+            className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-2.5 flex items-center justify-between gap-2.5"
+          >
+            <span className="text-[12.5px] text-foreground/60 truncate">
+              Import undone. Restore?
+            </span>
+            <button
+              type="button"
+              data-testid="import-batch-restore"
+              onClick={restoreBatch}
+              className="shrink-0 text-[12px] font-medium hover:opacity-80 transition-opacity"
+              style={{ color: AI_ACCENT }}
+            >
+              Restore
+            </button>
+          </motion.div>
+        )}
+
+        {/* ONE card: discovery toggle rows, then the import action row (no
+            toggle, whole row clickable), then each imported CSV as its own row
+            (no toggle, hover-revealed Undo). Conceptually an imported CSV is
+            just another source of leads, so it lives in the same card. */}
         <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-sources">
+          {/* 1) Discovery sources: toggleable rows, warmest first. */}
           {ordered.map((src, i) => {
             const meta = LEAD_SOURCE_META[src.kind];
             const Icon = SOURCE_ICONS[src.kind];
@@ -883,49 +916,60 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
               </div>
             );
           })}
-        </div>
 
-        {/* Transient "Import undone. Restore?" note - a calm row ABOVE the
-            imported-files card so it still shows after undoing the LAST batch. */}
-        {undone && (
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 2 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            data-testid="import-undo-note"
-            className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-2.5 flex items-center justify-between gap-2.5"
+          {/* 2) Import action row: same row shell as a discovery row (px-4
+              py-3.5, 9x9 icon square, title + subtext) but NO toggle. The whole
+              row is clickable and opens the file picker; a CSV can also be
+              dropped onto it. Divider above it since it follows discovery rows.
+              Always visible - this is how you add leads. */}
+          <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+          <button
+            type="button"
+            data-testid="source-import-row"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              acceptFile(e.dataTransfer.files?.[0]);
+            }}
+            className={`w-full text-left px-4 py-3.5 flex items-center gap-3 hover-elevate active-elevate-2 ${dragging ? 'bg-foreground/[0.04] dark:bg-white/[0.05]' : ''}`}
           >
-            <span className="text-[12.5px] text-foreground/60 truncate">
-              Import undone. Restore?
-            </span>
-            <button
-              type="button"
-              data-testid="import-batch-restore"
-              onClick={restoreBatch}
-              className="shrink-0 text-[12px] font-medium hover:opacity-80 transition-opacity"
-              style={{ color: AI_ACCENT }}
-            >
-              Restore
-            </button>
-          </motion.div>
-        )}
+            <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+              <Upload size={16} strokeWidth={1.9} className="text-foreground/70" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] font-medium text-foreground truncate">
+                Import your own leads
+              </div>
+              <div className="text-[12px] text-foreground/50 truncate">
+                Upload a CSV, one lead per row
+              </div>
+            </div>
+          </button>
+          {/* Hidden file input the import row triggers. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            data-testid="source-import-input"
+            onChange={(e) => {
+              acceptFile(e.target.files?.[0]);
+              e.currentTarget.value = '';
+            }}
+          />
 
-        {/* Quiet subheader above the imported files, only when there is at
-            least one imported batch. */}
-        {batches.length > 0 && (
-          <div className="px-2 pt-1 text-[12px] font-medium text-foreground/45">Imported files</div>
-        )}
-
-        {/* Imported CSV files: first-class source rows (no toggle), using the
-            EXACT Personal-knowledge Sources row markup (MijnAi.tsx ~1108-1146).
-            Only rendered when there is at least one imported batch. */}
-        {batches.length > 0 && (
-          <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-imports">
-            {batches.map((batch, i) => (
+          {/* 3) Imported CSV files: first-class source rows (no toggle) in the
+              SAME card, each with a divider above. FileText icon, filename,
+              counts, date, hover-revealed Undo. */}
+          {batches.map((batch) => (
               <div key={batch.id}>
-                {i > 0 && (
-                  <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-                )}
+                <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
                 <div
                   data-testid={`import-batch-${batch.id}`}
                   className="group px-4 py-3 flex items-center gap-3 hover-elevate active-elevate-2"
@@ -956,22 +1000,8 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Permanent upload surface: the SHARED FileDropzone, always available
-            (mirroring the knowledge Sources adder). Dropping a CSV parses it,
-            stashes the draft, and opens the column-mapping screen. It stays
-            visible with zero imports and after every import, so a second CSV can
-            always be added. */}
-        <FileDropzone
-          testId="source-import-dropzone"
-          accept=".csv,text/csv"
-          onFiles={(files) => acceptFile(files[0])}
-          primaryLabel="Drop a CSV here, or click to choose"
-          secondaryLabel="One lead per row"
-        />
+          ))}
+        </div>
       </div>
     </section>
   );
