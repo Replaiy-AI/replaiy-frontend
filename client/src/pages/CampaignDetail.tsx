@@ -841,7 +841,10 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
 
   return (
     <section>
-      <AudienceHeader label="Sources" sub="Where leads come from." />
+      <AudienceHeader
+        label="Sources"
+        sub="Replaiy finds and enriches your leads automatically, so your pipeline never runs dry."
+      />
       <div className="flex flex-col gap-3">
         {/* Transient "Import undone. Restore?" note - a calm row ABOVE the
             single Sources card so it still shows after undoing the LAST batch. */}
@@ -900,9 +903,13 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
                     </div>
                     <div className="text-[12px] text-foreground/50 truncate">{meta.hint}</div>
                   </div>
-                  {src.enabled && src.found > 0 && (
-                    <span className="text-[11.5px] tabular-nums text-foreground/40 shrink-0">
-                      {fmtNum(src.found)} found
+                  {src.enabled && (
+                    // Not a count - the value is that this source works
+                    // continuously and automatically. A calm "Always on" label
+                    // (no dot, no pulse) conveys that, consistent with the
+                    // app's quiet trailing labels.
+                    <span className="text-[11.5px] font-medium text-foreground/40 shrink-0">
+                      Always on
                     </span>
                   )}
                   <GlassToggle
@@ -1765,14 +1772,18 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
         </motion.div>
       )}
 
-      <div className="rp-card rounded-3xl px-3 py-1.5">
+      {/* Same container recipe as the Campaigns list: rp-card + rounded-3xl +
+          overflow-hidden, NO inner padding, so each ListRow goes edge-to-edge
+          and its hover-elevate highlight is full-bleed and clipped to the card
+          corners - identical to the campaign-row hover. */}
+      <div className="rp-card rounded-3xl overflow-hidden">
         {leads.length === 0 && (
-          <p className="px-2 py-8 text-center text-[13px] text-foreground/45">
+          <p className="px-4 py-8 text-center text-[13px] text-foreground/45">
             No leads yet. Import a CSV or turn on a source to start building this audience.
           </p>
         )}
         {leads.length > 0 && visibleLeads.length === 0 && (
-          <p className="px-2 py-8 text-center text-[13px] text-foreground/45">
+          <p className="px-4 py-8 text-center text-[13px] text-foreground/45">
             No leads match "{query.trim()}".
           </p>
         )}

@@ -96,17 +96,17 @@ export const LEAD_SOURCE_META: Record<
 > = {
   salesnav: {
     label: 'Sales Navigator',
-    hint: 'Cold prospects matched to your ICP',
+    hint: 'Matches fresh cold prospects to your ICP, sourced around the clock',
     warmth: 'cold',
   },
   signal: {
     label: 'Buying signals',
-    hint: 'Job changes, growth and relevant posts',
+    hint: 'Watches for job changes, hiring and growth signals as they happen',
     warmth: 'warm',
   },
   engagement: {
     label: 'Post engagement',
-    hint: 'People who engage with your team posts',
+    hint: 'Scans everyone who comments on or likes posts that match your ICP',
     warmth: 'warmest',
   },
   import: {
