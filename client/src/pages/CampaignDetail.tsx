@@ -2019,22 +2019,22 @@ const SUPPRESS_ROWS: {
   {
     key: 'inOtherCampaigns',
     label: 'Already in another campaign',
-    hint: 'Never approach a lead two teammates are working at once',
+    hint: 'Never contact a lead a teammate is already working.',
   },
   {
     key: 'alreadyContacted',
     label: 'Already contacted',
-    hint: 'Skip anyone your team has reached before',
+    hint: 'Skip anyone your team has reached before.',
   },
   {
     key: 'existingConnections',
     label: 'Existing connections',
-    hint: 'Leave people you already know out of cold outreach',
+    hint: 'Leave your existing connections out of cold outreach.',
   },
   {
     key: 'inActiveConversation',
     label: 'Already in conversation',
-    hint: 'If a teammate is in an active conversation, others can still connect or like, but will not start a competing one',
+    hint: "Others can still connect or like, but won't start a competing chat.",
   },
 ];
 
@@ -2046,8 +2046,8 @@ function AudienceSuppressCard({ audience }: { audience: CampaignAudience }) {
   return (
     <section>
       <AudienceHeader
-        label="Skip the wrong people"
-        sub="Avoid double or awkward outreach."
+        label="Protect your outreach"
+        sub="Skip people who shouldn't be contacted right now."
       />
       <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-suppress">
         {SUPPRESS_ROWS.map((row, i) => (
