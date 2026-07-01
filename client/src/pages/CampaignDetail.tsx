@@ -97,10 +97,6 @@ import { LANGUAGE_LABELS, activePersona, type LanguageCode } from '@/data/mockPe
 import {
   INDUSTRY_TAXONOMY,
   REGION_TAXONOMY,
-  TITLE_SUGGESTIONS,
-  genericTitlesForFunction,
-  SENIORITY_TO_BUCKET,
-  type SeniorityBucket,
 } from '@/data/icpTaxonomy';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -1294,6 +1290,15 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
         : [...prev[key], value],
     }));
 
+  // Seniority + Function are closed enums but now drive the searchable-picker
+  // pattern. The picker calls onAdd on select and onRemove on chip X, so use
+  // precise add/remove helpers (not toggleFixed) to avoid any ambiguity.
+  type EnumKey = 'seniority' | 'functions';
+  const addEnum = (key: EnumKey, value: string) =>
+    setIcp((prev) => (prev[key].includes(value) ? prev : { ...prev, [key]: [...prev[key], value] }));
+  const removeEnum = (key: EnumKey, value: string) =>
+    setIcp((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }));
+
   // Years in current role is a single bucket: clicking the selected one clears
   // it; clicking another replaces it.
   const setYearsInRole = (v: string) =>
@@ -1365,27 +1370,33 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
           icon={Users}
           label="Role and seniority"
           testId="icp-group-role"
-          defaultOpen
           summary={<RoleSummary icp={icp} />}
         >
-          <IcpFixedMultiGroup
+          <IcpSearchableGroup
             caption="Seniority"
+            field="seniority"
+            fixed
+            values={icp.seniority}
             options={SENIORITY_OPTIONS}
-            selected={icp.seniority}
-            onToggle={(v) => toggleFixed('seniority', v)}
-            testIdBase="icp-seniority"
+            placeholder="Search seniority"
+            onAdd={(_, v) => addEnum('seniority', v)}
+            onRemove={(_, v) => removeEnum('seniority', v)}
           />
-          <IcpFixedMultiGroup
+          <IcpSearchableGroup
             caption="Function"
+            field="functions"
+            fixed
+            values={icp.functions}
             options={FUNCTION_OPTIONS}
-            selected={icp.functions}
-            onToggle={(v) => toggleFixed('functions', v)}
-            testIdBase="icp-function"
+            placeholder="Search function"
+            onAdd={(_, v) => addEnum('functions', v)}
+            onRemove={(_, v) => removeEnum('functions', v)}
           />
-          <IcpTitleGroup
+          <IcpEditableGroup
+            caption="Titles"
+            field="titles"
             values={icp.titles}
-            seniority={icp.seniority}
-            functions={icp.functions}
+            hint="Matched loosely, so close variants like 'Head of Growth', 'Growth Lead' and 'VP Growth' all count."
             onRemove={removeAt}
             onAdd={addTo}
           />
@@ -1694,110 +1705,6 @@ function IcpEditableGroup({
   );
 }
 
-// The flagship ontzorg-moment: guided title selection. Reuses IcpEditableGroup
-// for the exact selected-chip look + Add input + fuzzy-match hint (so nothing
-// diverges), then renders a one-click suggestion row beneath it. Suggestions
-// are computed from the SELECTED functions and seniority buckets, so the moment
-// the user picks a function they get real, relevant titles to add with a click
-// instead of typing from a blank field. Suggestion chips are neutral (not the
-// blue selected-state); a title only turns into a normal selected chip once
-// added.
-function IcpTitleGroup({
-  values,
-  seniority,
-  functions,
-  onRemove,
-  onAdd,
-}: {
-  values: string[];
-  seniority: string[];
-  functions: string[];
-  onRemove: (
-    key: 'titles' | 'excludedTitles' | 'industries' | 'locations' | 'hqLocations' | 'keywords' | 'exclusions',
-    value: string,
-  ) => void;
-  onAdd: (
-    key: 'titles' | 'excludedTitles' | 'industries' | 'locations' | 'hqLocations' | 'keywords' | 'exclusions',
-    value: string,
-  ) => void;
-}) {
-  // Derive the active seniority buckets. If no seniority is selected yet, use
-  // all three so the suggestion row still works off the function alone.
-  const buckets: SeniorityBucket[] = (() => {
-    if (seniority.length === 0) return ['exec', 'lead', 'ic'];
-    const set = new Set<SeniorityBucket>();
-    for (const s of seniority) {
-      const b = SENIORITY_TO_BUCKET[s];
-      if (b) set.add(b);
-    }
-    return set.size > 0 ? Array.from(set) : ['exec', 'lead', 'ic'];
-  })();
-
-  // Suggestions only appear once at least one function is chosen. For each
-  // selected function and active bucket, pull curated titles (falling back to
-  // the generic per-bucket set when a function has no curated map). Flatten,
-  // dedupe, drop anything already added, cap at 8.
-  const suggestions: string[] = (() => {
-    if (functions.length === 0) return [];
-    const out: string[] = [];
-    const seen = new Set<string>(values);
-    // Curated functions first so specific titles (e.g. 'VP Sales') outrank the
-    // generated fallbacks (e.g. 'VP Operations') within the 8-item cap.
-    const ordered = [...functions].sort((a, b) => {
-      const ca = TITLE_SUGGESTIONS[a] ? 0 : 1;
-      const cb = TITLE_SUGGESTIONS[b] ? 0 : 1;
-      return ca - cb;
-    });
-    for (const fn of ordered) {
-      const map = TITLE_SUGGESTIONS[fn];
-      for (const b of buckets) {
-        const list = map ? map[b] : genericTitlesForFunction(fn, b);
-        for (const title of list) {
-          if (!seen.has(title)) {
-            seen.add(title);
-            out.push(title);
-          }
-        }
-      }
-    }
-    return out.slice(0, 8);
-  })();
-
-  return (
-    <div>
-      <IcpEditableGroup
-        caption="Titles"
-        field="titles"
-        values={values}
-        hint="Matched loosely, so close variants like 'Head of Growth', 'Growth Lead' and 'VP Growth' all count."
-        onRemove={onRemove}
-        onAdd={onAdd}
-      />
-      {suggestions.length > 0 && (
-        <div className="mt-3">
-          <div className="text-[11px] font-medium text-foreground/45 mb-2">
-            Suggested for your selection
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {suggestions.map((title) => (
-              <button
-                key={title}
-                type="button"
-                data-testid={`icp-title-suggest-${title}`}
-                onClick={() => onAdd('titles', title)}
-                className="inline-flex items-center gap-1 h-[28px] pl-2.5 pr-3 rounded-full text-[12.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/70 hover-elevate active-elevate-2"
-              >
-                <Plus size={14} strokeWidth={2} className="text-foreground/55" />
-                {title}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // A guided replacement for a blank type-field: the selected chips look exactly
 // like IcpEditableGroup's (neutral pill, hover-revealed X), but the "add"
 // affordance is a GlassPopover with a fuzzy search input over a taxonomy list
@@ -1805,7 +1712,12 @@ function IcpTitleGroup({
 // keeps the popover open for multi-add; pressing Enter on an unmatched query
 // free-adds it, so custom values still work. Mirrors the CSV column picker's
 // search-input-inside-popover styling for consistency.
-function IcpSearchableGroup({
+// Generic over the field key so each caller's onAdd/onRemove keep their own
+// precise key type (industries/locations/hqLocations via addTo/removeAt, or
+// seniority/functions via the enum helpers) without a union-contravariance
+// mismatch.
+type IcpSearchField = 'industries' | 'locations' | 'hqLocations' | 'seniority' | 'functions';
+function IcpSearchableGroup<F extends IcpSearchField>({
   caption,
   field,
   values,
@@ -1813,14 +1725,18 @@ function IcpSearchableGroup({
   onRemove,
   onAdd,
   placeholder,
+  fixed = false,
 }: {
   caption: string;
-  field: 'industries' | 'locations' | 'hqLocations';
+  field: F;
   values: string[];
   options: string[];
-  onRemove: (key: 'industries' | 'locations' | 'hqLocations', value: string) => void;
-  onAdd: (key: 'industries' | 'locations' | 'hqLocations', value: string) => void;
+  onRemove: (key: F, value: string) => void;
+  onAdd: (key: F, value: string) => void;
   placeholder?: string;
+  // When true (seniority / functions), values are a closed enum: you can only
+  // pick an exact option from the list, never free-add an invented value.
+  fixed?: boolean;
 }) {
   const [query, setQuery] = useState('');
 
@@ -1890,6 +1806,15 @@ function IcpSearchableGroup({
                     const q = query.trim();
                     if (!q) return;
                     const exact = filtered.find((o) => o.toLowerCase() === q.toLowerCase());
+                    // Fixed lists (seniority / functions) can only add an exact
+                    // option match, never a free-invented value.
+                    if (fixed) {
+                      if (exact) {
+                        onAdd(field, exact);
+                        setQuery('');
+                      }
+                      return;
+                    }
                     onAdd(field, exact ?? q);
                     setQuery('');
                   }
