@@ -47,7 +47,8 @@ import {
   Activity,
   Linkedin,
   Upload,
-  SlidersHorizontal,
+  FileText,
+  Link2,
   ShieldCheck,
   ChevronDown,
   ChevronRight,
@@ -568,7 +569,7 @@ function AudiencePoolCard({
   const maxBucket = Math.max(1, ...scoreBuckets.map((b) => b.count));
 
   // Audience-health one-liner: warmest count + share of the pool that sits at
-  // or above the live match bar. Computed from the score buckets.
+  // or above the live ICP bar. Computed from the score buckets.
   const bucketTotal = Math.max(1, scoreBuckets.reduce((a, b) => a + b.count, 0));
   const abovePct = Math.round((qualifiedCount(scoreBuckets, threshold) / bucketTotal) * 100);
   const hasLeads = total > 0;
@@ -600,16 +601,16 @@ function AudiencePoolCard({
             </span>{' '}
             warmest leads,{' '}
             <span className="font-semibold text-foreground/75 tabular-nums">{abovePct}%</span>{' '}
-            above your match bar.
+            above your ICP bar.
           </p>
         )}
 
         <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-5" />
 
-        {/* Tiny match-score distribution - quality, not just quantity. One
+        {/* Tiny ICP-score distribution - quality, not just quantity. One
             hue (accent) deepening with score; a quiet horizontal histogram. */}
         <div className="flex items-center justify-between gap-3 mb-2.5">
-          <SubLabel>Match-score spread</SubLabel>
+          <SubLabel>ICP-score spread</SubLabel>
           <span className="text-[11.5px] text-foreground/45 pb-2">higher is a better fit</span>
         </div>
         <div className="flex flex-col gap-1.5" data-testid="audience-histogram">
@@ -664,19 +665,54 @@ function AudiencePoolCard({
 function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
   // Representational: local toggle state, no backend write this round.
   const [sources, setSources] = useState(audience.sources);
-  // Manual-import: a clean inline import field with a believable mock result.
-  const [importDraft, setImportDraft] = useState('');
+  // Manual-import: a real (mock) import surface with a drag-and-drop CSV zone
+  // that is also a clickable file picker, a paste-URLs textarea that counts
+  // URLs live, and a calm "N leads imported" confirmation. No backend.
+  const [importDraft, setImportDraft] = useState(''); // pasted URLs
+  const [importFile, setImportFile] = useState<{ name: string; rows: number } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [importedCount, setImportedCount] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const reduceMotion = useReducedMotion();
-  // Commit the pasted URLs (Enter or the inline Import affordance). We derive a
-  // believable count from the pasted lines, falling back to a fixed mock.
+
+  // Count non-empty pasted URL lines live, for the "N URLs detected" hint.
+  const urlCount = useMemo(
+    () => importDraft.split(/\n+/).map((s) => s.trim()).filter(Boolean).length,
+    [importDraft],
+  );
+
+  // Accept a selected/dropped CSV: keep the filename and mock a believable row
+  // count. We cheaply read the file text and count non-empty lines when we can
+  // (minus a header row); otherwise a stable mock derived from the file size.
+  const acceptFile = (file: File | null | undefined) => {
+    if (!file) return;
+    const fallback = Math.max(12, Math.min(5000, Math.round(file.size / 64) || 128));
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const rows = lines.length > 1 ? lines.length - 1 : fallback;
+      setImportFile({ name: file.name, rows });
+    };
+    reader.onerror = () => setImportFile({ name: file.name, rows: fallback });
+    try {
+      reader.readAsText(file);
+    } catch {
+      setImportFile({ name: file.name, rows: fallback });
+    }
+  };
+
+  // How many leads this import will add: the CSV rows plus any pasted URLs.
+  const pendingCount = (importFile?.rows ?? 0) + urlCount;
+
+  // Commit the import. We add the file rows and pasted URL lines together,
+  // falling back to a fixed mock so the confirmation always reads sensibly.
   const commitImport = () => {
-    const lines = importDraft
-      .split(/[\s,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    setImportedCount(lines.length > 0 ? lines.length : 128);
+    const total = pendingCount > 0 ? pendingCount : 128;
+    setImportedCount(total);
     setImportDraft('');
+    setImportFile(null);
+    setDragOver(false);
   };
   // Warmest first, then warm, then cold; import (cold) naturally lands last.
   const ordered = useMemo(
@@ -736,46 +772,152 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                   ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
                 />
               </div>
-              {/* Manual import, when on, shows a CLEAN inline import area in the
-                  row's expanded space: a quiet rounded surface with an upload
-                  icon, a one-line prompt and a bare inline input. After commit
-                  (Enter or the inline Import affordance) it becomes a calm
-                  "N leads imported" confirmation with an "Import more" reset. */}
+              {/* Manual import, when on, shows a REAL (mock) import surface in
+                  the row's expanded space: a drag-and-drop CSV zone that is
+                  also a clickable file picker, a paste-URLs field that counts
+                  URLs live, and a clear Import action. After commit it becomes
+                  the calm "N leads imported" confirmation with "Import more". */}
               {src.kind === 'import' && src.enabled && (
                 <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
-                  <div className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3 py-2.5">
-                    {importedCount === null ? (
-                      <div className="flex items-center gap-2.5">
-                        <Upload
-                          size={16}
-                          strokeWidth={1.9}
-                          className="text-foreground/40 shrink-0"
-                        />
-                        <input
+                  {importedCount === null ? (
+                    <div className="flex flex-col gap-2.5">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,text/csv"
+                        hidden
+                        data-testid="source-import-file"
+                        onChange={(e) => {
+                          acceptFile(e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        data-testid="source-import-dropzone"
+                        onClick={() => fileInputRef.current?.click()}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOver(true);
+                        }}
+                        onDragLeave={() => setDragOver(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDragOver(false);
+                          acceptFile(e.dataTransfer.files?.[0]);
+                        }}
+                        className={`w-full text-left rounded-2xl border border-dashed px-3.5 py-3 flex items-center gap-3 transition-colors ${
+                          dragOver
+                            ? 'border-transparent bg-foreground/[0.04] dark:bg-white/[0.06]'
+                            : 'border-foreground/15 dark:border-white/15 bg-foreground/[0.04] dark:bg-white/[0.05] hover-elevate active-elevate-2'
+                        }`}
+                        style={dragOver ? { borderColor: AI_ACCENT } : undefined}
+                      >
+                        <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+                          {importFile ? (
+                            <FileText size={16} strokeWidth={1.9} className="text-foreground/70" />
+                          ) : (
+                            <Upload size={16} strokeWidth={1.9} className="text-foreground/70" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {importFile ? (
+                            <>
+                              <div className="text-[13px] font-medium text-foreground truncate">
+                                {importFile.name}
+                              </div>
+                              <div className="text-[12px] text-foreground/50">
+                                <span className="font-semibold text-foreground/70 tabular-nums">
+                                  {fmtNum(importFile.rows)}
+                                </span>{' '}
+                                rows detected
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-[13px] font-medium text-foreground">
+                                Drop a CSV here, or click to choose
+                              </div>
+                              <div className="text-[12px] text-foreground/50">
+                                One lead per row, with a header line
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        {importFile && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            data-testid="source-import-file-clear"
+                            aria-label="Remove file"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setImportFile(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setImportFile(null);
+                              }
+                            }}
+                            className="shrink-0 h-[22px] w-[22px] rounded-full flex items-center justify-center text-foreground/40 hover-elevate active-elevate-2"
+                          >
+                            <X size={13} strokeWidth={2.4} />
+                          </span>
+                        )}
+                      </button>
+                      <div className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Link2 size={14} strokeWidth={1.9} className="text-foreground/45 shrink-0" />
+                          <span className="text-[11px] font-semibold tracking-[-0.005em] text-foreground/45">
+                            Or paste LinkedIn or Sales Navigator URLs
+                          </span>
+                        </div>
+                        <textarea
                           data-testid="source-import-input"
                           value={importDraft}
                           onChange={(e) => setImportDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && importDraft.trim()) {
-                              commitImport();
-                            }
-                          }}
-                          placeholder="Drop a CSV or paste LinkedIn URLs"
-                          className="flex-1 min-w-0 bg-transparent outline-none text-[12.5px] text-foreground placeholder:text-foreground/45"
+                          rows={3}
+                          placeholder={'https://www.linkedin.com/in/...\nhttps://www.linkedin.com/in/...'}
+                          className="w-full resize-none bg-transparent outline-none text-[12.5px] leading-[1.6] text-foreground placeholder:text-foreground/40"
                         />
-                        {importDraft.trim() && (
-                          <button
-                            type="button"
-                            data-testid="source-import-commit"
-                            onClick={commitImport}
-                            className="shrink-0 inline-flex items-center h-[24px] px-2.5 rounded-full text-[12px] font-semibold hover-elevate active-elevate-2"
-                            style={{ color: AI_ACCENT }}
-                          >
-                            Import
-                          </button>
+                        {urlCount > 0 && (
+                          <div className="text-[12px] text-foreground/50 mt-0.5">
+                            <span className="font-semibold text-foreground/70 tabular-nums">
+                              {fmtNum(urlCount)}
+                            </span>{' '}
+                            {urlCount === 1 ? 'URL detected' : 'URLs detected'}
+                          </div>
                         )}
                       </div>
-                    ) : (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11.5px] text-foreground/45">
+                          {pendingCount > 0 ? (
+                            <>
+                              <span className="font-semibold text-foreground/65 tabular-nums">
+                                {fmtNum(pendingCount)}
+                              </span>{' '}
+                              leads ready to import
+                            </>
+                          ) : (
+                            'Add a CSV or paste URLs to begin'
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          data-testid="source-import-commit"
+                          onClick={commitImport}
+                          disabled={pendingCount === 0}
+                          className="shrink-0 inline-flex items-center h-[30px] px-3.5 rounded-full text-[12.5px] font-semibold hover-elevate active-elevate-2 disabled:opacity-40 disabled:pointer-events-none"
+                          style={{ color: AI_ACCENT }}
+                        >
+                          Import
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-3">
                       <motion.div
                         initial={reduceMotion ? false : { opacity: 0, y: 2 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -805,8 +947,8 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                           Import more
                         </button>
                       </motion.div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1086,9 +1228,10 @@ function IcpSingleValueGroup({
   );
 }
 
-// ── D) Match quality - DRAGGABLE threshold slider + live qualified count
+// ── D) ICP score - DRAGGABLE threshold slider + live qualified count
 // A real range input styled to match, updating local state. Shows the live
-// "X of N leads qualify" computed from the score buckets as you drag.
+// "X of N leads qualify" computed from the score buckets as you drag. This is
+// the ICP fit threshold, consistent with the inbox "ICP fit" language.
 function AudienceThresholdCard({
   audience,
   value,
@@ -1104,16 +1247,13 @@ function AudienceThresholdCard({
   return (
     <section>
       <AudienceHeader
-        label="Match quality"
+        label="ICP score"
         sub="Only contact leads above your bar."
       />
       <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-threshold">
         <div className="flex items-baseline justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={15} strokeWidth={1.9} style={{ color: AI_ACCENT }} />
-            <div className="text-[11px] font-semibold tracking-[-0.005em] text-foreground/45">
-              Minimum match score
-            </div>
+          <div className="text-[11px] font-semibold tracking-[-0.005em] text-foreground/45">
+            Minimum ICP score
           </div>
           <span className="text-[15px] font-semibold tabular-nums text-foreground">
             {value}%
@@ -1145,7 +1285,7 @@ function AudienceThresholdCard({
             step={1}
             value={value}
             data-testid="threshold-range"
-            aria-label="Minimum match score"
+            aria-label="Minimum ICP score"
             onChange={(e) => onChange(parseInt(e.target.value, 10))}
             className="relative w-full h-[16px] cursor-pointer appearance-none bg-transparent m-0 opacity-0"
           />
@@ -1319,7 +1459,7 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
           {leads.map((lead, i) => (
             <div key={`${lead.name}-${i}`}>
               {i > 0 && (
-                <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                <div className="ml-[70px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
               )}
               {/* Each lead is the canonical person row (mirrors EngagerRow):
                   a tappable button with ReplaiyAvatar 44 + name + headline +
@@ -1329,7 +1469,7 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                 type="button"
                 onClick={openLead}
                 data-testid={`view-lead-${i}`}
-                className="w-full text-left rounded-[16px] px-2 py-3 flex items-start gap-3 hover-elevate active-elevate-2"
+                className="w-full text-left rounded-[16px] px-3.5 py-3 flex items-start gap-3 hover-elevate active-elevate-2"
               >
                 <ReplaiyAvatar name={lead.name} src={lead.avatar} size={44} className="shrink-0" />
                 <div className="min-w-0 flex-1">
@@ -1337,34 +1477,25 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                     <span className="min-w-0 text-[14px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
                       {lead.name}
                     </span>
-                    <span className="glass-pill inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/55 shrink-0">
-                      <span
-                        aria-hidden="true"
-                        className="inline-block h-[6px] w-[6px] rounded-full"
-                        style={{ background: AI_ACCENT, opacity: WARMTH_META[lead.warmth].tint }}
-                      />
+                    <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0">
                       {WARMTH_META[lead.warmth].label}
                     </span>
                   </div>
                   <div className="text-[12px] text-foreground/55 leading-snug truncate mt-0.5">
                     {lead.title} at {lead.company}
                   </div>
-                  {/* AI insight - what your AI noticed. Marked by the small
-                      persona mascot on a soft p.color-tinted circle (the
-                      AI-voice treatment), NOT a sparkle. */}
+                  {/* AI insight - what your AI noticed. Marked by the bare
+                      persona mascot (the AI voice), NEVER a hard background
+                      disc and never a sparkle. Same treatment as the inbox /
+                      Overview "Your AI" mascot: the mascot image alone. */}
                   <div className="mt-1.5 flex items-start gap-1.5">
-                    <span
+                    <img
+                      src={p.mascot}
+                      alt=""
                       aria-hidden
-                      className="relative shrink-0 mt-[1px] inline-flex items-center justify-center w-[16px] h-[16px] rounded-full"
-                      style={{ background: `${p.color}26` }}
-                    >
-                      <img
-                        src={p.mascot}
-                        alt=""
-                        draggable={false}
-                        className="w-[14px] h-[14px] object-contain select-none pointer-events-none"
-                      />
-                    </span>
+                      draggable={false}
+                      className="shrink-0 mt-[1px] w-[16px] h-[16px] object-contain select-none pointer-events-none"
+                    />
                     <span className="text-[12px] text-foreground/60 leading-snug">
                       {lead.insight}
                     </span>
