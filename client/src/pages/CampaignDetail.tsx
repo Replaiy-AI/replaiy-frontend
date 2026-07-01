@@ -81,6 +81,7 @@ import {
   type LeadSourceKind,
   type LeadWarmth,
   type IcpCriteria,
+  type SampleLead,
 } from '@/data/mockCampaigns';
 import { LANGUAGE_LABELS, activePersona, type LanguageCode } from '@/data/mockPersona';
 import { ReplaiyAvatar } from '@/components/Avatar';
@@ -1650,9 +1651,64 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
       const addWarmest = Math.round(net * 0.12);
       const addWarm = Math.round(net * 0.24);
       const addCold = net - addWarmest - addWarm;
+
+      // Build a few REAL sample leads from the parsed CSV rows using the
+      // current mapping, so the people the user just imported actually show up
+      // in "View leads" (not only as a bumped pool count). Each field reads its
+      // mapped CSV column (DONT_IMPORT means unmapped -> empty). Warmth is
+      // spread so the list reads realistically; matchScore is deterministic per
+      // index (no reshuffle on re-render); insight is a short enrichment line
+      // with no provider name. Avatar reuses the same field the existing
+      // sampleLeads use (a string src): empty string, so ReplaiyAvatar renders
+      // the name's initials fallback rather than inventing a new avatar system.
+      const cellFor = (row: string[], key: ReplaiyFieldKey): string => {
+        const colStr = mapping[key] ?? DONT_IMPORT;
+        if (colStr === DONT_IMPORT) return '';
+        return (row[Number(colStr)] ?? '').trim();
+      };
+      const linkedinSlug = (row: string[]): string => {
+        const raw = cellFor(row, 'linkedin');
+        if (!raw) return '';
+        const cleaned = raw.replace(/\/+$/, '');
+        const seg = cleaned.split('/').filter(Boolean).pop() ?? '';
+        return seg.replace(/[-_]+/g, ' ').trim();
+      };
+      const INSIGHTS = [
+        'Recently active on LinkedIn',
+        'Company matches your ICP',
+        "Posted about their team's priorities",
+        'New to a leadership role',
+        'Hiring on their team right now',
+      ];
+      const warmthFor = (i: number): LeadWarmth =>
+        i === 0 ? 'warmest' : i <= 2 ? 'warm' : 'cold';
+      const scoreFor = (i: number): number => {
+        // Deterministic, believable, higher for warmer. Derived from index so
+        // it never reshuffles across re-renders.
+        if (i === 0) return 90 + ((i * 7) % 7); // ~90-96 (warmest)
+        if (i <= 2) return 78 + ((i * 5) % 9); // ~78-86 (warm)
+        return 62 + ((i * 3) % 11); // ~62-72 (cold)
+      };
+      const importedLeads: SampleLead[] = rows.slice(0, 6).map((row, i) => {
+        const first = cellFor(row, 'firstName');
+        const last = cellFor(row, 'lastName');
+        const name = `${first} ${last}`.trim() || linkedinSlug(row) || 'Imported lead';
+        return {
+          name,
+          title: cellFor(row, 'jobTitle'),
+          company: cellFor(row, 'company'),
+          warmth: warmthFor(i),
+          matchScore: scoreFor(i),
+          insight: INSIGHTS[i % INSIGHTS.length],
+          avatar: '',
+        };
+      });
+
       updateCampaign(campaign.id, {
         audience: {
           ...aud,
+          // Show the freshly imported people first in "View leads".
+          sampleLeads: [...importedLeads, ...(aud.sampleLeads ?? [])],
           pool: {
             cold: aud.pool.cold + addCold,
             warm: aud.pool.warm + addWarm,
@@ -1715,22 +1771,24 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
     back();
   };
 
-  // Shared mascot + soft persona-colour radial glow, REUSING the CampaignAiHero
-  // pattern (radial-gradient glow + floating motion.img). `size` sets the box.
-  const mascotGlow = (size: number) => (
+  // Hero-scale mascot for the breathing full-screen enrichment moments,
+  // REUSING the CampaignAiHero / PersonaExperience recipe: a soft
+  // persona-colour radial glow + gentle idle breathing (mascot ~84-88px, glow
+  // blur 11, y:[0,-4,0]), reduced-motion safe. `size` sets the box.
+  const heroMascot = (size: number) => (
     <div
       className="relative shrink-0 flex items-center justify-center"
       style={{ width: size, height: size }}
     >
       <motion.span
         aria-hidden
-        className="absolute inset-[-3px] rounded-full"
+        className="absolute inset-[-6px] rounded-full"
         style={{
-          background: `radial-gradient(circle at 50% 50%, ${persona.color}, transparent 68%)`,
-          filter: 'blur(9px)',
+          background: `radial-gradient(circle at 50% 48%, ${persona.color}, transparent 68%)`,
+          filter: 'blur(11px)',
           opacity: 0.5,
         }}
-        animate={reduced ? undefined : { opacity: [0.42, 0.58, 0.42] }}
+        animate={reduced ? undefined : { opacity: [0.42, 0.6, 0.42] }}
         transition={
           reduced ? undefined : { duration: 3.4, repeat: Infinity, ease: 'easeInOut' }
         }
@@ -1742,7 +1800,7 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
         draggable={false}
         className="relative object-contain select-none pointer-events-none"
         style={{ width: size, height: size }}
-        animate={reduced ? undefined : { y: [0, -2.5, 0] }}
+        animate={reduced ? undefined : { y: [0, -4, 0] }}
         transition={
           reduced ? undefined : { duration: 3.6, repeat: Infinity, ease: 'easeInOut' }
         }
@@ -1964,129 +2022,148 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
   );
 
   // -- Enriching body (phase 'enriching') ----------------------------
-  // The live progress moment: mascot hero + glow, calm copy, and a 5-step
-  // vertical checklist driven by activeStep. Same centered card, same shell.
+  // A breathing full-screen MOMENT (not a boxed card): the hero mascot + soft
+  // persona glow, calm copy, and a calm centered 5-step checklist. Content is
+  // centered vertically + horizontally and fills the body, with generous air
+  // between the mascot, heading, subline, and the list.
   const stepLabels = [`Reading ${filename}`, ...ENRICH_STEPS];
   const enrichingBody = (
-    <div className="mx-auto w-full flex justify-center" style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}>
-      <div className="rp-card rounded-3xl px-6 py-8 sm:px-8 sm:py-9 w-full max-w-[520px] flex flex-col items-center text-center">
-        {mascotGlow(56)}
-        <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-foreground mt-4">
-          Enriching your leads
-        </h2>
-        <p className="text-[12.5px] text-foreground/55 leading-snug mt-1.5 max-w-[340px]">
-          Verifying every lead against LinkedIn so your outreach stays accurate.
-        </p>
+    <div
+      className="mx-auto w-full flex flex-col items-center justify-center text-center min-h-[70vh] px-6"
+      style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}
+    >
+      {heroMascot(88)}
+      <h2 className="text-xl font-semibold tracking-tight text-foreground mt-8">
+        Enriching your leads
+      </h2>
+      <p className="text-[13.5px] text-foreground/55 leading-[1.5] mt-3 max-w-[420px]">
+        Verifying every lead against LinkedIn so your outreach stays accurate.
+      </p>
 
-        {/* 5-step vertical checklist. States: done (Check on soft accent chip),
-            active (spinning Loader2 in AI_ACCENT), pending (hollow Circle). The
-            only subtle status ring is the 16px indicator; no hard borders. */}
-        <div className="w-full max-w-[360px] mt-6 flex flex-col gap-3.5 text-left">
-          {stepLabels.map((label, i) => {
-            const done = i < activeStep;
-            const active = i === activeStep;
-            return (
-              <div key={i} className="flex items-center gap-3">
-                <span className="relative flex items-center justify-center w-4 h-4 shrink-0">
-                  {done ? (
-                    <span
-                      className="flex items-center justify-center w-4 h-4 rounded-full"
-                      style={{ background: 'rgba(47,107,255,0.12)' }}
-                    >
-                      <Check size={11} strokeWidth={3} style={{ color: AI_ACCENT }} />
-                    </span>
-                  ) : active ? (
-                    <Loader2 size={15} strokeWidth={2.4} className="animate-spin" style={{ color: AI_ACCENT }} />
-                  ) : (
-                    <Circle size={14} strokeWidth={2} className="text-foreground/25" />
-                  )}
-                </span>
-                <span
-                  className={`text-[13px] leading-snug truncate ${
-                    done || active ? 'text-foreground/80' : 'text-foreground/40'
-                  }`}
-                >
-                  {label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+      {/* 5-step checklist as a calm centered column (no card, no borders).
+          States: done (Check on soft accent chip), active (spinning Loader2 in
+          AI_ACCENT), pending (hollow Circle). Left-aligned within the column so
+          the ticks line up; the only subtle ring is the 16px status chip. */}
+      <div className="w-full max-w-[340px] mt-10 flex flex-col text-left">
+        {stepLabels.map((label, i) => {
+          const done = i < activeStep;
+          const active = i === activeStep;
+          return (
+            <div key={i} className="flex items-center gap-3 py-2">
+              <span className="relative flex items-center justify-center w-4 h-4 shrink-0">
+                {done ? (
+                  <span
+                    className="flex items-center justify-center w-4 h-4 rounded-full"
+                    style={{ background: 'rgba(47,107,255,0.12)' }}
+                  >
+                    <Check size={11} strokeWidth={3} style={{ color: AI_ACCENT }} />
+                  </span>
+                ) : active ? (
+                  <Loader2 size={15} strokeWidth={2.4} className="animate-spin" style={{ color: AI_ACCENT }} />
+                ) : (
+                  <Circle size={14} strokeWidth={2} className="text-foreground/25" />
+                )}
+              </span>
+              <span
+                className={`text-[13px] leading-snug truncate ${
+                  done || active ? 'text-foreground/80' : 'text-foreground/40'
+                }`}
+              >
+                {label}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 
   // -- Result summary body (phase 'done') ----------------------------
-  // A calm success card: mascot + glow with a small AI_ACCENT check badge, the
-  // headline count, a compact stats strip, and two actions.
+  // A breathing full-screen success MOMENT (not a boxed card): the hero mascot
+  // + glow with a small AI_ACCENT check badge, the headline count, a clean
+  // centered stats BAND (no boxes), and two actions. The block rises in gently
+  // on mount (reduced-motion safe).
+  const doneStats = [
+    { label: 'Verified on LinkedIn', value: stats.verified },
+    { label: 'Enriched with signals', value: stats.verified },
+    { label: 'Duplicates skipped', value: stats.duplicates },
+    { label: 'Above your ICP bar', value: stats.aboveIcp },
+  ];
   const doneBody = (
-    <div className="mx-auto w-full flex justify-center" style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}>
-      <div className="rp-card rounded-3xl px-6 py-8 sm:px-8 sm:py-9 w-full max-w-[520px] flex flex-col items-center text-center">
-        <div className="relative">
-          {mascotGlow(44)}
-          {/* Small accent check badge on the mascot corner. */}
-          <span
-            aria-hidden
-            className="absolute -right-1 -bottom-1 flex items-center justify-center w-[18px] h-[18px] rounded-full"
-            style={{
-              background: AI_ACCENT,
-              boxShadow: 'inset 0 1px 0 0 rgba(255,255,255,0.22)',
-            }}
-          >
-            <Check size={11} strokeWidth={3.2} className="text-white" />
-          </span>
-        </div>
+    <motion.div
+      className="mx-auto w-full flex flex-col items-center justify-center text-center min-h-[70vh] px-6"
+      style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}
+      initial={reduced ? false : { opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={reduced ? undefined : APPLE_SPRING}
+    >
+      <div className="relative">
+        {heroMascot(84)}
+        {/* Small accent check badge on the mascot corner. */}
+        <span
+          aria-hidden
+          className="absolute right-0 bottom-0 flex items-center justify-center w-[22px] h-[22px] rounded-full"
+          style={{
+            background: AI_ACCENT,
+            boxShadow: 'inset 0 1px 0 0 rgba(255,255,255,0.22)',
+          }}
+        >
+          <Check size={13} strokeWidth={3.2} className="text-white" />
+        </span>
+      </div>
 
-        <h2 className="text-xl font-semibold tracking-[-0.01em] text-foreground tabular-nums mt-4">
-          {fmtNum(total)} leads imported
-        </h2>
+      <h2 className="text-xl font-semibold tracking-tight text-foreground tabular-nums mt-8">
+        {fmtNum(total)} leads imported
+      </h2>
 
-        {/* Compact stats strip: quiet label + emphasised value. No hard borders,
-            simple spacing. */}
-        <div className="w-full max-w-[360px] mt-5 grid grid-cols-2 gap-x-4 gap-y-3.5">
-          {[
-            { label: 'Verified on LinkedIn', value: stats.verified },
-            { label: 'Enriched with signals', value: stats.verified },
-            { label: 'Duplicates skipped', value: stats.duplicates },
-            { label: 'Above your ICP bar', value: stats.aboveIcp },
-          ].map((s, i) => (
-            <div key={i} className="flex flex-col items-start text-left">
-              <span className="text-[15px] font-semibold text-foreground tabular-nums leading-none">
+      {/* Clean centered stats band: value over label, no boxes. 2x2 on mobile,
+          a single row of 4 on desktop with thin hairline dividers between. */}
+      <div className="mt-8 grid grid-cols-2 gap-y-6 gap-x-10 sm:flex sm:items-center sm:gap-0">
+        {doneStats.map((s, i) => (
+          <div key={i} className="flex items-stretch">
+            {i > 0 && (
+              <span
+                aria-hidden
+                className="hidden sm:block w-px self-stretch bg-foreground/10 mx-7"
+              />
+            )}
+            <div className="flex flex-col items-center">
+              <span className="text-[18px] font-semibold text-foreground tabular-nums leading-none">
                 {fmtNum(s.value)}
               </span>
-              <span className="text-[11.5px] text-foreground/45 leading-snug mt-1">
+              <span className="text-[11.5px] text-foreground/45 leading-snug mt-1.5">
                 {s.label}
               </span>
             </div>
-          ))}
-        </div>
-
-        {/* Actions: primary solid-accent "View leads", quiet "Back to audience". */}
-        <div className="w-full max-w-[360px] mt-7 flex flex-col items-center gap-2.5">
-          <button
-            type="button"
-            data-testid="button-import-view-leads"
-            onClick={onViewLeads}
-            className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full text-[13px] font-semibold text-white hover-elevate active-elevate-2"
-            style={{
-              background: AI_ACCENT,
-              boxShadow:
-                '0 6px 18px 0 color-mix(in srgb, #2F6BFF 32%, transparent), inset 0 1px 0 0 rgba(255,255,255,0.22)',
-            }}
-          >
-            View leads
-          </button>
-          <button
-            type="button"
-            data-testid="button-import-back-audience"
-            onClick={onBackToAudience}
-            className="inline-flex items-center h-9 px-4 rounded-full text-[12.5px] font-medium text-foreground/55 hover-elevate active-elevate-2"
-          >
-            Back to audience
-          </button>
-        </div>
+          </div>
+        ))}
       </div>
-    </div>
+
+      {/* Actions: primary solid-accent "View leads", quiet "Back to audience". */}
+      <div className="w-full max-w-[340px] mt-10 flex flex-col items-center gap-3">
+        <button
+          type="button"
+          data-testid="button-import-view-leads"
+          onClick={onViewLeads}
+          className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full text-[13px] font-semibold text-white hover-elevate active-elevate-2"
+          style={{
+            background: AI_ACCENT,
+            boxShadow:
+              '0 6px 18px 0 color-mix(in srgb, #2F6BFF 32%, transparent), inset 0 1px 0 0 rgba(255,255,255,0.22)',
+          }}
+        >
+          View leads
+        </button>
+        <button
+          type="button"
+          data-testid="button-import-back-audience"
+          onClick={onBackToAudience}
+          className="inline-flex items-center h-9 px-4 rounded-full text-[12.5px] font-medium text-foreground/55 hover-elevate active-elevate-2"
+        >
+          Back to audience
+        </button>
+      </div>
+    </motion.div>
   );
 
   const body = !valid
