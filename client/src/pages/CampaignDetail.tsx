@@ -928,13 +928,8 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
                     <Icon size={16} strokeWidth={1.9} className="text-foreground/70" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[14px] font-medium text-foreground truncate">
-                        {meta.label}
-                      </span>
-                      <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0">
-                        {WARMTH_META[meta.warmth].label}
-                      </span>
+                    <div className="text-[14px] font-medium text-foreground truncate">
+                      {meta.label}
                     </div>
                     <div className="text-[12px] text-foreground/50 truncate">{meta.hint}</div>
                   </div>
