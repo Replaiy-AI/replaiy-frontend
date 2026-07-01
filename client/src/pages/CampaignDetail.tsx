@@ -64,6 +64,7 @@ import {
   Info,
   Loader2,
   Circle,
+  Search,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import {
@@ -1451,8 +1452,85 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
   // Live persona drives the small talking-mascot avatar that marks each AI
   // insight, exactly like the inbox AI-voice and the Overview "Your AI" card.
   // We never mark AI with a sparkle - the mascot IS our AI voice.
-  const { persona: livePersona, updateCampaign } = useReplaiy();
+  const { persona: livePersona, updateCampaign, campaigns } = useReplaiy();
   const p = activePersona(livePersona); // { color, mascot }
+
+  // ── Search ───────────────────────────────────────────────────────
+  // A calm, case-insensitive filter over name, title and company. Only
+  // shown when there is at least one lead to search. Rendering the
+  // FILTERED list must never break enrichment, so rows still resolve
+  // their REAL index into the original `leads` array (see realIdx below).
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const visibleLeads = q
+    ? leads.filter(
+        (l) =>
+          l.name.toLowerCase().includes(q) ||
+          l.title.toLowerCase().includes(q) ||
+          l.company.toLowerCase().includes(q),
+      )
+    : leads;
+
+  // ── Per-lead delete + restore ────────────────────────────────────
+  // Mirrors the import undo/restore: after removing a lead we hold it plus
+  // its original index for a few seconds so "Restore" can reinsert it at
+  // the same spot and re-increment the pool. Auto-dismisses via a cleaned
+  // up timer. We always read the LIVE audience from the store (like the
+  // import undo) so concurrent updates never clobber the delete.
+  const [removedLead, setRemovedLead] = useState<{ lead: SampleLead; index: number } | null>(
+    null,
+  );
+  const removeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (removeTimer.current) clearTimeout(removeTimer.current);
+    },
+    [],
+  );
+
+  const removeLead = (_lead: SampleLead, realIdx: number) => {
+    const aud = campaigns.find((c) => c.id === campaign.id)?.audience ?? campaign.audience;
+    if (!aud) return;
+    const sample = aud.sampleLeads ?? [];
+    const removed = sample[realIdx];
+    if (!removed) return;
+    const nextLeads = sample.filter((_, idx) => idx !== realIdx);
+    updateCampaign(campaign.id, {
+      audience: {
+        ...aud,
+        pool: {
+          ...aud.pool,
+          [removed.warmth]: Math.max(0, aud.pool[removed.warmth] - 1),
+        },
+        sampleLeads: nextLeads,
+      },
+    });
+    if (removeTimer.current) clearTimeout(removeTimer.current);
+    setRemovedLead({ lead: removed, index: realIdx });
+    removeTimer.current = setTimeout(() => setRemovedLead(null), 6000);
+  };
+
+  const restoreLead = () => {
+    if (!removedLead) return;
+    const { lead, index } = removedLead;
+    const aud = campaigns.find((c) => c.id === campaign.id)?.audience ?? campaign.audience;
+    if (!aud) return;
+    const sample = aud.sampleLeads ?? [];
+    const at = Math.max(0, Math.min(index, sample.length));
+    const nextLeads = [...sample.slice(0, at), lead, ...sample.slice(at)];
+    updateCampaign(campaign.id, {
+      audience: {
+        ...aud,
+        pool: {
+          ...aud.pool,
+          [lead.warmth]: aud.pool[lead.warmth] + 1,
+        },
+        sampleLeads: nextLeads,
+      },
+    });
+    if (removeTimer.current) clearTimeout(removeTimer.current);
+    setRemovedLead(null);
+  };
 
   // ── Progressive (background) enrichment ──────────────────────────
   // Freshly imported leads land instantly with identity known but marked
@@ -1635,31 +1713,94 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
         )}
       </AnimatePresence>
 
+      {/* Search: a calm glass field that filters the list by name, title or
+          company. Only shown when there is something to search. */}
+      {leads.length > 0 && (
+        <div className="px-1 mb-3">
+          <div className="flex items-center gap-2.5 rounded-2xl px-3.5 h-11 bg-foreground/[0.04] dark:bg-white/[0.05]">
+            <Search size={16} strokeWidth={1.9} className="text-foreground/40 shrink-0" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search leads by name, title or company"
+              data-testid="leads-search-input"
+              className="flex-1 min-w-0 bg-transparent outline-none text-[13.5px] text-foreground placeholder:text-foreground/40"
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                data-testid="leads-search-clear"
+                onClick={() => setQuery('')}
+                className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+              >
+                <X size={13} strokeWidth={2} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Transient "Lead removed. Restore?" note - mirrors the import undo
+          note, placed above the list so it stays visible after removal. */}
+      {removedLead && (
+        <motion.div
+          initial={reduced ? false : { opacity: 0, y: 2 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          data-testid="lead-removed-note"
+          className="mb-3 rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-2.5 flex items-center justify-between gap-2.5"
+        >
+          <span className="text-[12.5px] text-foreground/60 truncate">Lead removed. Restore?</span>
+          <button
+            type="button"
+            data-testid="lead-restore"
+            onClick={restoreLead}
+            className="shrink-0 text-[12px] font-medium hover:opacity-80 transition-opacity"
+            style={{ color: AI_ACCENT }}
+          >
+            Restore
+          </button>
+        </motion.div>
+      )}
+
       <div className="rp-card rounded-3xl px-3 py-1.5">
         {leads.length === 0 && (
           <p className="px-2 py-8 text-center text-[13px] text-foreground/45">
             No leads yet. Import a CSV or turn on a source to start building this audience.
           </p>
         )}
+        {leads.length > 0 && visibleLeads.length === 0 && (
+          <p className="px-2 py-8 text-center text-[13px] text-foreground/45">
+            No leads match "{query.trim()}".
+          </p>
+        )}
         <div className="flex flex-col">
-          {leads.map((lead, i) => {
+          {visibleLeads.map((lead, vi) => {
+            // Preserve the REAL index into the ORIGINAL leads array so
+            // background enrichment (skeletons, progress, done-flags) keeps
+            // working even while a filtered subset is rendered.
+            const realIdx = leads.indexOf(lead);
             // While still enriching, identity (avatar + name + title/company)
             // is known instantly; warmth, insight and score fill in live.
-            const enriching = isEnriching(lead, i);
+            const enriching = isEnriching(lead, realIdx);
             const revealTransition = reduced ? { duration: 0 } : { ...APPLE_SPRING };
             return (
-            <div key={`${lead.name}-${i}`}>
-              {i > 0 && (
+            <div key={`${lead.name}-${realIdx}`}>
+              {vi > 0 && (
                 <div className="ml-[70px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
               )}
               {/* Each lead is the canonical person row (mirrors EngagerRow):
                   a tappable button with ReplaiyAvatar 44 + name + headline +
                   trailing chevron. The AI insight beneath is marked by our
-                  small talking mascot, never a sparkle. */}
+                  small talking mascot, never a sparkle. A hover-revealed
+                  Trash sits as a SIBLING button (never nested) to remove the
+                  lead, matching the import undo affordance. */}
+              <div className="relative group">
               <button
                 type="button"
                 onClick={openLead}
-                data-testid={`view-lead-${i}`}
+                data-testid={`view-lead-${realIdx}`}
                 className="w-full text-left rounded-[16px] px-3.5 py-3 flex items-start gap-3 hover-elevate active-elevate-2"
               >
                 <ReplaiyAvatar name={lead.name} src={lead.avatar} size={44} className="shrink-0" />
@@ -1744,6 +1885,24 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                   />
                 </div>
               </button>
+              {/* Hover-revealed delete - a SIBLING button (never nested in the
+                  row button) positioned over the trailing area. Hidden while
+                  the row is still enriching so it only acts on settled rows. */}
+              {!enriching && (
+                <button
+                  type="button"
+                  aria-label="Remove lead"
+                  data-testid={`lead-remove-${realIdx}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeLead(lead, realIdx);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted bg-background opacity-0 group-hover:opacity-100 transition-opacity hover-elevate active-elevate-2"
+                >
+                  <Trash2 size={13} strokeWidth={1.8} />
+                </button>
+              )}
+              </div>
             </div>
             );
           })}
