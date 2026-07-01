@@ -65,6 +65,7 @@ import {
   Loader2,
   Circle,
   Search,
+  Building2,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import {
@@ -1073,6 +1074,109 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
 // Calm Persona/knowledge language: chips are always removable (hover-revealed)
 // and every group has an inline add-input, no Edit mode. "Start from a
 // template" is a quiet bottom affordance that fills the ICP via a popover.
+// One collapsible ICP category, styled as a SIBLING of the Sources card rows
+// (AudienceSourcesCard): same px-4 row rhythm, same leading-icon square, same
+// hairline divider treatment. The collapsed row shows a live summary of what is
+// set in the group; clicking expands (framer-motion, quick easeOut, no bounce)
+// to reveal the group's fields. Local open state only, no persistence.
+function IcpAccordionGroup({
+  icon: Icon,
+  label,
+  summary,
+  defaultOpen = false,
+  testId,
+  children,
+}: {
+  icon: typeof Send;
+  label: string;
+  summary: React.ReactNode;
+  defaultOpen?: boolean;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const reduceMotion = useReducedMotion();
+  return (
+    <div>
+      {/* Collapsed row: full-bleed clickable header. Mirrors the Sources row
+          layout (px-4 py-3.5, 9x9 soft icon square, gap-3) so the two cards
+          read as one family. */}
+      <button
+        type="button"
+        data-testid={testId}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="relative w-full px-4 py-3.5 flex items-center gap-3 text-left hover-elevate active-elevate-2"
+      >
+        <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+          <Icon size={16} strokeWidth={1.9} className="text-foreground/70" />
+        </div>
+        <div className="text-[14px] font-medium text-foreground shrink-0">{label}</div>
+        <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
+          {summary}
+        </div>
+        <ChevronDown
+          size={16}
+          strokeWidth={2}
+          className={`shrink-0 text-foreground/40 transition-transform duration-200 ${
+            open ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {/* Expanded body: the group's actual fields, animated open/closed. */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={{ duration: 0.16, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 pt-1 flex flex-col gap-5">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// The summary line for the collapsed Company row: neutral IcpChips for the set
+// company sizes, then types, then HQ locations. Capped so it stays on one line,
+// with a "+N" overflow chip when there are more. If nothing is set in the whole
+// group, a quiet muted "Any company" hint reads it as "no constraint".
+function CompanySummary({ icp }: { icp: IcpCriteria }) {
+  const parts = [...icp.companySize, ...icp.companyType, ...icp.hqLocations];
+  if (parts.length === 0) {
+    return <span className="text-[12.5px] text-foreground/40 truncate">Any company</span>;
+  }
+  const CAP = 4;
+  const shown = parts.slice(0, CAP);
+  const overflow = parts.length - shown.length;
+  return (
+    <div className="flex items-center gap-1.5 overflow-hidden">
+      {shown.map((v, i) => (
+        <IcpSummaryChip key={`${v}-${i}`} label={v} />
+      ))}
+      {overflow > 0 && <IcpSummaryChip label={`+${overflow}`} />}
+    </div>
+  );
+}
+
+// A compact, quiet chip for the collapsed-row SUMMARY of an accordion group.
+// Smaller than IcpChip (this is a summary, not an editable value) and, unlike
+// IcpChip's `muted` variant, it has NO minus prefix: these are the INCLUDED
+// criteria, so a minus (which means "exclude" everywhere else) would misread.
+function IcpSummaryChip({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center h-[22px] px-2.5 rounded-full text-[11.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/55 whitespace-nowrap">
+      {label}
+    </span>
+  );
+}
+
 function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
   const [icp, setIcp] = useState<IcpCriteria>(audience.icp);
 
@@ -1180,57 +1284,21 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
         sub="The profile we match leads against."
         trailing={templateAction}
       />
-      <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-icp">
-        {empty && (
-          <p className="text-[13px] text-foreground/45 leading-snug mb-5">
-            No ideal customer defined yet. Add criteria below or start from a
-            template to set who this reaches.
-          </p>
-        )}
-        <IcpSectionHeader title="Who they are" />
-        <div className="flex flex-col gap-5">
-          <IcpFixedMultiGroup
-            caption="Seniority"
-            options={SENIORITY_OPTIONS}
-            selected={icp.seniority}
-            onToggle={(v) => toggleFixed('seniority', v)}
-            testIdBase="icp-seniority"
-          />
-          <IcpFixedMultiGroup
-            caption="Function"
-            options={FUNCTION_OPTIONS}
-            selected={icp.functions}
-            onToggle={(v) => toggleFixed('functions', v)}
-            testIdBase="icp-function"
-          />
-          <IcpTitleGroup
-            values={icp.titles}
-            seniority={icp.seniority}
-            functions={icp.functions}
-            onRemove={removeAt}
-            onAdd={addTo}
-          />
-          <IcpEditableGroup
-            caption="Exclude titles"
-            field="excludedTitles"
-            values={icp.excludedTitles}
-            muted
-            onRemove={removeAt}
-            onAdd={addTo}
-          />
-          <IcpSingleSelectGroup
-            caption="Years in current role"
-            options={YEARS_OPTIONS}
-            selected={icp.yearsInRole}
-            onSelect={setYearsInRole}
-            testIdBase="icp-years"
-          />
-        </div>
-
-        <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-6" />
-
-        <IcpSectionHeader title="Where they work" />
-        <div className="flex flex-col gap-5">
+      {/* Padding-less accordion shell: rows go full-bleed and read as SIBLINGS
+          of the Sources card rows above (same rp-card rounded-3xl overflow-hidden
+          wrapper, same px-4 row rhythm, same hairline dividers between rows).
+          PROTOTYPE: only the Company group is wired up for now. The other groups
+          (Role & seniority, Industry & keywords, Person location) will be added
+          in a follow-up using the same IcpAccordionGroup pattern; their field
+          components stay defined in this file. */}
+      <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-icp">
+        <IcpAccordionGroup
+          icon={Building2}
+          label="Company"
+          testId="icp-group-company"
+          defaultOpen
+          summary={<CompanySummary icp={icp} />}
+        >
           <IcpFixedMultiGroup
             caption="Company size"
             options={COMPANY_SIZE_OPTIONS}
@@ -1238,30 +1306,12 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             onToggle={(v) => toggleFixed('companySize', v)}
             testIdBase="icp-companySize"
           />
-          <IcpSearchableGroup
-            caption="Industries"
-            field="industries"
-            values={icp.industries}
-            options={INDUSTRY_TAXONOMY}
-            placeholder="Search industries"
-            onRemove={removeAt}
-            onAdd={addTo}
-          />
           <IcpFixedMultiGroup
             caption="Company type"
             options={COMPANY_TYPE_OPTIONS}
             selected={icp.companyType}
             onToggle={(v) => toggleFixed('companyType', v)}
             testIdBase="icp-companyType"
-          />
-          <IcpSearchableGroup
-            caption="Person location"
-            field="locations"
-            values={icp.locations}
-            options={REGION_TAXONOMY}
-            placeholder="Search locations"
-            onRemove={removeAt}
-            onAdd={addTo}
           />
           <IcpSearchableGroup
             caption="Company HQ location"
@@ -1272,27 +1322,7 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             onRemove={removeAt}
             onAdd={addTo}
           />
-        </div>
-
-        <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-6" />
-
-        <div className="flex flex-col gap-5">
-          <IcpEditableGroup
-            caption="Keywords"
-            field="keywords"
-            values={icp.keywords}
-            onRemove={removeAt}
-            onAdd={addTo}
-          />
-          <IcpEditableGroup
-            caption="Exclusions"
-            field="exclusions"
-            values={icp.exclusions}
-            muted
-            onRemove={removeAt}
-            onAdd={addTo}
-          />
-        </div>
+        </IcpAccordionGroup>
       </div>
     </section>
   );
