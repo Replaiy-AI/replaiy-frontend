@@ -40,7 +40,6 @@ import {
   ArrowLeft,
   Linkedin,
   Globe,
-  UploadCloud,
   Loader2,
   AlertCircle,
   CheckCircle2,
@@ -73,6 +72,7 @@ import {
   type Workspace,
 } from '@/data/mockWorkspace';
 import { GlassTextarea } from '@/components/GlassTextarea';
+import FileDropzone from '@/components/FileDropzone';
 
 // ════════════════════════════════════════════════════════════════
 // Shared small primitives
@@ -1178,8 +1178,6 @@ function SourceAdders({
   onFiles: (files: FileList | File[]) => void;
   onUrl: (url: string) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
   const [urlOpen, setUrlOpen] = useState(false);
   const [urlVal, setUrlVal] = useState('');
 
@@ -1193,43 +1191,14 @@ function SourceAdders({
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div
-        data-testid={`knowledge-${scope}-dropzone`}
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          if (e.dataTransfer.files?.length) onFiles(e.dataTransfer.files);
-        }}
-        className={`cursor-pointer rounded-2xl border border-dashed px-4 py-5 flex flex-col items-center justify-center gap-1.5 text-center transition-colors ${
-          dragging
-            ? 'border-[#2F6BFF] bg-[#2F6BFF]/[0.06]'
-            : 'border-foreground/15 hover:border-foreground/30 bg-foreground/[0.02] dark:bg-white/[0.02]'
-        }`}
-      >
-        <UploadCloud size={20} strokeWidth={1.8} className="text-icon-muted" />
-        <div className="text-[13px] font-medium text-foreground/75">
-          Drop files here, or click to upload
-        </div>
-        <div className="text-[11.5px] text-foreground/40">PDF, DOC, TXT</div>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          accept=".pdf,.doc,.docx,.txt,.md"
-          className="hidden"
-          data-testid={`knowledge-${scope}-file-input`}
-          onChange={(e) => {
-            if (e.target.files?.length) onFiles(e.target.files);
-            e.target.value = '';
-          }}
-        />
-      </div>
+      <FileDropzone
+        testId={`knowledge-${scope}-dropzone`}
+        onFiles={onFiles}
+        multiple
+        accept=".pdf,.doc,.docx,.txt,.md"
+        primaryLabel="Drop files here, or click to upload"
+        secondaryLabel="PDF, DOC, TXT"
+      />
 
       {urlOpen ? (
         <div className="flex items-center gap-2">

@@ -91,6 +91,7 @@ import { GlassPopover } from '@/components/GlassPopover';
 import { conversionPct, replyRatePct } from '@/components/CampaignsList';
 import { SectionLabel } from '@/components/LeadContextPanel';
 import { ReplaiyLogo } from '@/components/Logo';
+import FileDropzone from '@/components/FileDropzone';
 import { APPLE_SPRING } from '@/lib/motion';
 
 // ── Overview derived helpers ────────────────────────────────────────
@@ -670,9 +671,7 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
   // URLs live, and a calm "N leads imported" confirmation. No backend.
   const [importDraft, setImportDraft] = useState(''); // pasted URLs
   const [importFile, setImportFile] = useState<{ name: string; rows: number } | null>(null);
-  const [dragOver, setDragOver] = useState(false);
   const [importedCount, setImportedCount] = useState<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const reduceMotion = useReducedMotion();
 
   // Count non-empty pasted URL lines live, for the "N URLs detected" hint.
@@ -712,7 +711,6 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
     setImportedCount(total);
     setImportDraft('');
     setImportFile(null);
-    setDragOver(false);
   };
   // Warmest first, then warm, then cold; import (cold) naturally lands last.
   const ordered = useMemo(
@@ -781,92 +779,42 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                 <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
                   {importedCount === null ? (
                     <div className="flex flex-col gap-2.5">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
+                      {/* Drop surface is the SHARED FileDropzone, identical to
+                          the knowledge upload. When a CSV is selected we show a
+                          calm confirmation below it (filename, N rows detected,
+                          and a clear affordance). */}
+                      <FileDropzone
+                        testId="source-import-dropzone"
                         accept=".csv,text/csv"
-                        hidden
-                        data-testid="source-import-file"
-                        onChange={(e) => {
-                          acceptFile(e.target.files?.[0]);
-                          e.target.value = '';
-                        }}
+                        onFiles={(files) => acceptFile(files[0])}
+                        primaryLabel="Drop a CSV here, or click to choose"
+                        secondaryLabel="One lead per row"
                       />
-                      <button
-                        type="button"
-                        data-testid="source-import-dropzone"
-                        onClick={() => fileInputRef.current?.click()}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setDragOver(true);
-                        }}
-                        onDragLeave={() => setDragOver(false)}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          setDragOver(false);
-                          acceptFile(e.dataTransfer.files?.[0]);
-                        }}
-                        className={`w-full text-left rounded-2xl border border-dashed px-3.5 py-3 flex items-center gap-3 transition-colors ${
-                          dragOver
-                            ? 'border-transparent bg-foreground/[0.04] dark:bg-white/[0.06]'
-                            : 'border-foreground/15 dark:border-white/15 bg-foreground/[0.04] dark:bg-white/[0.05] hover-elevate active-elevate-2'
-                        }`}
-                        style={dragOver ? { borderColor: AI_ACCENT } : undefined}
-                      >
-                        <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-                          {importFile ? (
-                            <FileText size={16} strokeWidth={1.9} className="text-foreground/70" />
-                          ) : (
-                            <Upload size={16} strokeWidth={1.9} className="text-foreground/70" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {importFile ? (
-                            <>
-                              <div className="text-[13px] font-medium text-foreground truncate">
-                                {importFile.name}
-                              </div>
-                              <div className="text-[12px] text-foreground/50">
-                                <span className="font-semibold text-foreground/70 tabular-nums">
-                                  {fmtNum(importFile.rows)}
-                                </span>{' '}
-                                rows detected
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="text-[13px] font-medium text-foreground">
-                                Drop a CSV here, or click to choose
-                              </div>
-                              <div className="text-[12px] text-foreground/50">
-                                One lead per row, with a header line
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        {importFile && (
-                          <span
-                            role="button"
-                            tabIndex={0}
+                      {importFile && (
+                        <div
+                          data-testid="source-import-file-selected"
+                          className="flex items-center gap-2.5 rounded-2xl bg-foreground/[0.02] dark:bg-white/[0.02] px-3.5 py-2.5"
+                        >
+                          <FileText size={16} strokeWidth={1.9} className="text-icon-muted shrink-0" />
+                          <div className="min-w-0 flex-1 truncate text-[12.5px] text-foreground/75">
+                            {importFile.name},{' '}
+                            <span className="tabular-nums font-medium text-foreground/70">
+                              {fmtNum(importFile.rows)}
+                            </span>{' '}
+                            rows detected
+                          </div>
+                          <button
+                            type="button"
                             data-testid="source-import-file-clear"
                             aria-label="Remove file"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setImportFile(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setImportFile(null);
-                              }
-                            }}
-                            className="shrink-0 h-[22px] w-[22px] rounded-full flex items-center justify-center text-foreground/40 hover-elevate active-elevate-2"
+                            onClick={() => setImportFile(null)}
+                            className="shrink-0 inline-flex items-center gap-1 text-[11.5px] text-foreground/40 hover:text-foreground/60 transition-colors"
                           >
-                            <X size={13} strokeWidth={2.4} />
-                          </span>
-                        )}
-                      </button>
+                            <X size={12} strokeWidth={2.4} />
+                            Remove
+                          </button>
+                        </div>
+                      )}
                       <div className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-3">
                         <div className="flex items-center gap-2 mb-2">
                           <Link2 size={14} strokeWidth={1.9} className="text-foreground/45 shrink-0" />

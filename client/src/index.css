@@ -584,17 +584,6 @@
   /* Child content boven backdrop-filter pseudo */
   .rp-card > * { position: relative; z-index: 1; }
 
-  /* perf: skip painting off-screen campaign-detail tab sections during scroll.
-     content-visibility:auto lets the browser skip layout/paint for sections
-     outside the viewport; contain-intrinsic-size gives them a placeholder
-     height so the scrollbar stays stable and the browser remembers real sizes
-     once measured (`auto`), avoiding scroll-position jumps and blank flashes.
-     Part of the 50ms -> 17.9ms (60fps) fix. */
-  [data-testid="campaign-detail-scroll"] section {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 240px;
-  }
-
   /* ═══════════════════════════════════════════════════════════════════
      Liquid Glass v2 (lg2) — the production multi-layer recipe.
 
