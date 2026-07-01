@@ -17,6 +17,11 @@
 //              a node or a render-prop receiving { open, toggle, close }.
 //   anchor   — 'bottom' opens DOWNWARD (mt-1.5, origin top); 'top' opens
 //              UPWARD (bottom-full mb-1.5, origin bottom). Default 'bottom'.
+//   autoFlip — when true, the direction is decided on each open from the
+//              trigger's viewport position: DOWNWARD by default, flipping to
+//              UPWARD only when there is not enough room below AND more room
+//              above. Overrides `anchor` while open. Default false (so the
+//              plain `anchor` behavior is unchanged for every existing caller).
 //   width    — Tailwind width class for the floating surface (e.g. 'w-60').
 //   surfaceClassName — extra classes appended to the glass surface.
 //   testId   — data-testid for the floating surface.
@@ -59,6 +64,7 @@ export function GlassPopover({
   trigger,
   children,
   anchor = 'bottom',
+  autoFlip = false,
   align = 'left',
   width = 'w-60',
   surfaceClassName = '',
@@ -69,6 +75,10 @@ export function GlassPopover({
   trigger: (props: GlassPopoverRenderProps) => ReactNode;
   children: ReactNode | ((props: GlassPopoverRenderProps) => ReactNode);
   anchor?: 'top' | 'bottom';
+  /** When true, resolve the open direction from the trigger's viewport
+   *  position on each open (down by default, flip up only when cramped
+   *  below). Overrides `anchor` while open; `anchor` stays the fallback. */
+  autoFlip?: boolean;
   /** Horizontal edge to align the floating surface to the trigger. */
   align?: 'left' | 'right';
   width?: string;
@@ -81,6 +91,9 @@ export function GlassPopover({
 }) {
   const [open, setOpen] = useState(false);
   const [dark, setDark] = useState(false);
+  // When autoFlip is on, the resolved open direction (measured on each open).
+  // Falls back to the `anchor` prop until the first measurement runs.
+  const [flipDir, setFlipDir] = useState<'top' | 'bottom'>(anchor);
   const ref = useRef<HTMLDivElement>(null);
 
   const setOpenState = (next: boolean) => {
@@ -98,6 +111,21 @@ export function GlassPopover({
     obs.observe(root, { attributes: true, attributeFilter: ['class'] });
     return () => obs.disconnect();
   }, []);
+
+  // With autoFlip, decide the direction from the trigger's viewport position on
+  // each open: open DOWNWARD by default, and flip to UPWARD only when there is
+  // not enough room below (bottom + estimated menu height would overflow the
+  // viewport) AND there is more room above than below. Recomputed every open.
+  useLayoutEffect(() => {
+    if (!autoFlip || !open || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const MENU_EST = 280;
+    const roomBelow = window.innerHeight - rect.bottom;
+    const roomAbove = rect.top;
+    const flipUp = rect.bottom + MENU_EST > window.innerHeight && roomAbove > roomBelow;
+    setFlipDir(flipUp ? 'top' : 'bottom');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, autoFlip]);
 
   // Close on outside click / Escape.
   useLayoutEffect(() => {
@@ -123,12 +151,14 @@ export function GlassPopover({
     close: () => setOpenState(false),
   };
 
-  // Position + motion direction follow the anchor; horizontal edge follows align.
-  const vClass = anchor === 'top' ? 'bottom-full mb-1.5' : 'mt-1.5';
+  // Position + motion direction follow the resolved direction (autoFlip) or the
+  // static anchor; horizontal edge follows align.
+  const dir = autoFlip ? flipDir : anchor;
+  const vClass = dir === 'top' ? 'bottom-full mb-1.5' : 'mt-1.5';
   const hClass = align === 'right' ? 'right-0' : 'left-0';
   const positionClasses = `${vClass} ${hClass}`;
-  const transformOrigin = `${anchor === 'top' ? 'bottom' : 'top'} ${align}`;
-  const y = anchor === 'top' ? 6 : -6;
+  const transformOrigin = `${dir === 'top' ? 'bottom' : 'top'} ${align}`;
+  const y = dir === 'top' ? 6 : -6;
 
   return (
     <div ref={ref} className={`relative inline-block ${className}`}>

@@ -60,6 +60,7 @@ import {
   Inbox,
   Bot,
   MessageCircle,
+  Info,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import {
@@ -99,11 +100,6 @@ import {
   getImportResult,
   clearImportResult,
 } from '@/state/importDraft';
-import {
-  getCustomFields,
-  addCustomField,
-  type CustomField,
-} from '@/state/customFields';
 import { APPLE_SPRING } from '@/lib/motion';
 
 // ── Overview derived helpers ────────────────────────────────────────
@@ -1484,7 +1480,7 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
 // (mock) import. It reads the parsed CSV from the importDraft module store.
 
 // The compact core Replaiy field set for LinkedIn outbound (matches the lead
-// shape). LinkedIn URL is marked as the most important / recommended field.
+// shape). LinkedIn URL is the required field: without it there is no import.
 type ReplaiyFieldKey =
   | 'linkedin'
   | 'firstName'
@@ -1497,14 +1493,14 @@ type ReplaiyFieldKey =
 const REPLAIY_FIELDS: {
   key: ReplaiyFieldKey;
   label: string;
-  recommended?: boolean;
+  required?: boolean;
   // Lowercased needles: a header maps here if it contains any of these.
   match: string[];
 }[] = [
   {
     key: 'linkedin',
     label: 'LinkedIn URL',
-    recommended: true,
+    required: true,
     match: ['linkedin', 'profile url', 'profile', 'li url'],
   },
   { key: 'firstName', label: 'First name', match: ['first', 'firstname', 'voornaam', 'given'] },
@@ -1522,27 +1518,6 @@ const REPLAIY_FIELDS: {
 // Sentinel value for the "Don't import" option (Radix Select values must be
 // non-empty strings, so we can't use '').
 const DONT_IMPORT = '__none__';
-
-// Sentinel value for the "Skip this column" option in the custom-field picker
-// (the don't-save choice for an unmapped CSV column).
-const SKIP_CUSTOM = '__skip__';
-
-// Fuzzy-map an unmapped CSV header to an existing custom field: pick the first
-// field whose normalized label (or one of its words) is contained in the header
-// or vice-versa. Same contains-based spirit as autoMap. Unmatched -> SKIP.
-function guessCustomField(header: string, fields: CustomField[]): string {
-  const h = header.trim().toLowerCase();
-  if (!h) return SKIP_CUSTOM;
-  for (const f of fields) {
-    const label = f.label.trim().toLowerCase();
-    if (!label) continue;
-    if (h.includes(label) || label.includes(h)) return f.id;
-    // Also try individual words of the label (e.g. "company size" -> "size").
-    const words = label.split(/\s+/).filter((w) => w.length >= 3);
-    if (words.some((w) => h.includes(w))) return f.id;
-  }
-  return SKIP_CUSTOM;
-}
 
 // Auto-map: for each Replaiy field, pick the first CSV header (by column index)
 // whose lowercased/trimmed name contains any of the field's needles. Each
@@ -1567,191 +1542,6 @@ function autoMap(headers: string[]): Record<ReplaiyFieldKey, string> {
   return out;
 }
 
-// One row in the Custom fields section: an unmapped CSV column on the left
-// (header + e.g. {sample}) and a fixed-width glass picker on the right that
-// maps it to a saved custom field, skips it, or creates a new field inline.
-// Reuses the SHARED GlassPopover (glass, no hard border), opens UPWARD.
-function CustomFieldRow({
-  colIndex,
-  header,
-  example,
-  value,
-  fields,
-  onSelect,
-  onCreate,
-}: {
-  colIndex: number;
-  header: string;
-  example: string | null;
-  value: string;
-  fields: CustomField[];
-  onSelect: (fieldIdOrSkip: string) => void;
-  onCreate: (label: string) => void;
-}) {
-  // Inline create-new form state, scoped to THIS row's popover.
-  const [creating, setCreating] = useState(false);
-  const [draftName, setDraftName] = useState('');
-
-  const selectedLabel =
-    value === SKIP_CUSTOM
-      ? 'Skip this column'
-      : fields.find((f) => f.id === value)?.label || 'Skip this column';
-
-  return (
-    <div
-      data-testid={`import-custom-row-${colIndex}`}
-      className="px-4 py-3.5 flex flex-col md:flex-row md:items-center gap-2 md:gap-4"
-    >
-      <div className="md:w-[200px] md:shrink-0 min-w-0">
-        <div className="text-[13.5px] font-medium text-foreground truncate">
-          {header.trim() || `Column ${colIndex + 1}`}
-        </div>
-        <div className="text-[11.5px] text-foreground/45 leading-snug mt-0.5 truncate">
-          {example ? `e.g. ${example}` : 'No sample'}
-        </div>
-      </div>
-      <div className="min-w-0">
-        <GlassPopover
-          anchor="top"
-          align="left"
-          width="w-64"
-          className="w-full md:w-[260px]"
-          testId={`import-custom-menu-${colIndex}`}
-          onOpenChange={(open) => {
-            if (!open) {
-              setCreating(false);
-              setDraftName('');
-            }
-          }}
-          trigger={({ open, toggle }) => (
-            <button
-              type="button"
-              data-testid={`import-custom-select-${colIndex}`}
-              aria-haspopup="listbox"
-              aria-expanded={open}
-              onClick={toggle}
-              className="glass-pill pill w-full inline-flex items-center justify-between gap-1.5 h-[36px] px-3 text-[13px] text-foreground/80 hover-elevate active-elevate-2"
-            >
-              <span className="truncate">{selectedLabel}</span>
-              <motion.span
-                animate={{ rotate: open ? 180 : 0 }}
-                transition={APPLE_SPRING}
-                className="inline-flex shrink-0"
-              >
-                <ChevronDown size={15} strokeWidth={2} className="text-foreground/40" />
-              </motion.span>
-            </button>
-          )}
-        >
-          {({ close }) => {
-            const submitNew = () => {
-              const name = draftName.trim();
-              if (!name) return; // empty is a no-op
-              onCreate(name);
-              setCreating(false);
-              setDraftName('');
-              close();
-            };
-            return (
-              <div className="max-h-64 overflow-y-auto no-scrollbar" role="listbox">
-                {(() => {
-                  const selected = value === SKIP_CUSTOM;
-                  return (
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      data-testid={`import-custom-option-${colIndex}-skip`}
-                      onClick={() => {
-                        onSelect(SKIP_CUSTOM);
-                        close();
-                      }}
-                      className={`w-full flex items-center justify-between gap-2 text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2 text-[13px] ${
-                        selected ? 'font-semibold text-foreground' : 'text-foreground/70'
-                      }`}
-                    >
-                      <span className="truncate">Skip this column</span>
-                      {selected && (
-                        <Check size={14} strokeWidth={2.6} className="shrink-0" style={{ color: AI_ACCENT }} />
-                      )}
-                    </button>
-                  );
-                })()}
-
-                {fields.map((f) => {
-                  const selected = value === f.id;
-                  return (
-                    <button
-                      key={f.id}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      data-testid={`import-custom-option-${colIndex}-${f.id}`}
-                      onClick={() => {
-                        onSelect(f.id);
-                        close();
-                      }}
-                      className={`w-full flex items-center justify-between gap-2 text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2 text-[13px] ${
-                        selected ? 'font-semibold text-foreground' : 'text-foreground/70'
-                      }`}
-                    >
-                      <span className="truncate">{f.label}</span>
-                      {selected && (
-                        <Check size={14} strokeWidth={2.6} className="shrink-0" style={{ color: AI_ACCENT }} />
-                      )}
-                    </button>
-                  );
-                })}
-
-                <div className="my-1 mx-2.5 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-                {creating ? (
-                  <div className="flex items-center gap-1.5 px-1.5 py-1">
-                    <input
-                      autoFocus
-                      value={draftName}
-                      onChange={(e) => setDraftName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          submitNew();
-                        }
-                      }}
-                      placeholder="Field name"
-                      data-testid={`import-custom-newname-${colIndex}`}
-                      className="glass-pill min-w-0 flex-1 h-9 px-3 rounded-xl text-[13px] text-foreground placeholder:text-foreground/40 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      data-testid={`import-custom-add-${colIndex}`}
-                      onClick={submitNew}
-                      className="shrink-0 inline-flex items-center h-9 px-3 rounded-xl text-[13px] font-semibold text-white hover-elevate active-elevate-2"
-                      style={{ background: AI_ACCENT }}
-                    >
-                      Add
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    data-testid={`import-custom-create-${colIndex}`}
-                    onClick={() => setCreating(true)}
-                    className="w-full flex items-center gap-2 text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2 text-[13px] font-medium"
-                    style={{ color: AI_ACCENT }}
-                  >
-                    <Plus size={14} strokeWidth={2.2} className="shrink-0" />
-                    <span className="truncate">Create new field</span>
-                  </button>
-                )}
-              </div>
-            );
-          }}
-        </GlassPopover>
-      </div>
-    </div>
-  );
-}
-
-
 function CampaignImportView({ campaign }: { campaign: Campaign }) {
   const [, navigate] = useLocation();
   const back = () => navigate('/campaigns/' + campaign.id);
@@ -1772,29 +1562,6 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
   const [mapping, setMapping] = useState<Record<ReplaiyFieldKey, string>>(() =>
     valid ? autoMap(headers) : ({} as Record<ReplaiyFieldKey, string>),
   );
-
-  // The workspace custom-field library. Read once on mount; the create-new
-  // flow appends to it and we bump this local copy so the new field appears in
-  // every picker without needing to react to the module store globally.
-  const [libFields, setLibFields] = useState<CustomField[]>(() => getCustomFields());
-
-  // Per-column custom mapping, keyed by CSV column index -> a CustomField id
-  // or SKIP_CUSTOM. Initialized once on mount by fuzzy-matching each header
-  // that autoMap did NOT claim against the library labels; unmatched -> skip.
-  const [customMap, setCustomMap] = useState<Record<number, string>>(() => {
-    if (!valid) return {};
-    const initialMapping = autoMap(headers);
-    const claimed = new Set(
-      Object.values(initialMapping).filter((v) => v !== DONT_IMPORT),
-    );
-    const seed = getCustomFields();
-    const out: Record<number, string> = {};
-    headers.forEach((h, i) => {
-      if (claimed.has(String(i))) return;
-      out[i] = guessCustomField(h, seed);
-    });
-    return out;
-  });
 
   // Mobile chrome - back arrow (left), same pattern as the leads view.
   useMobileTopChromeSlot(
@@ -1824,13 +1591,9 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
     return null;
   };
 
-  // Which CSV columns are mapped to a core Replaiy field. Everything else is an
-  // unmapped column, offered in the Custom fields section. Derived from the
-  // LIVE mapping so it stays correct as the user maps/unmaps core fields.
-  const mappedCols = new Set(Object.values(mapping).filter((v) => v !== DONT_IMPORT));
-  const unmappedCols = headers
-    .map((_, i) => i)
-    .filter((i) => !mappedCols.has(String(i)));
+  // LinkedIn URL is required: the import is blocked until it is mapped to a
+  // real CSV column (not "Don't import").
+  const linkedinMapped = (mapping.linkedin ?? DONT_IMPORT) !== DONT_IMPORT;
 
   const onImport = () => {
     setImportResult(campaign.id, total);
@@ -1885,25 +1648,19 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
       </div>
 
       {/* Trust note: CSV values are a starting point, LinkedIn is the source of
-          truth. Calm, no hard accent fill. */}
-      <div
+          truth. Quiet inline line (same style as the Audience compliance /
+          sending notes), NOT a card, so it reads as a soft hint. */}
+      <p
         data-testid="import-verify-note"
-        className="rp-card rounded-2xl px-4 py-3 mb-4 flex items-start gap-2.5"
+        className="px-2 mb-4 flex items-start gap-1.5 text-[11.5px] text-foreground/45 leading-snug"
       >
-        <ShieldCheck
-          size={16}
-          strokeWidth={1.9}
-          className="shrink-0 mt-[1px]"
-          style={{ color: AI_ACCENT }}
-        />
-        <p className="text-[12.5px] text-foreground/65 leading-snug">
-          Replaiy verifies names, roles and companies against each LinkedIn profile, so your
-          messages stay accurate.
-        </p>
-      </div>
+        <ShieldCheck size={13} strokeWidth={1.9} className="shrink-0 mt-[2px] text-foreground/35" />
+        Replaiy verifies names, roles and companies against each LinkedIn profile, so your
+        messages stay accurate.
+      </p>
 
       {/* The mapping rows: one per Replaiy field. Each has the field name (+ a
-          "recommended" hint on LinkedIn URL), a glass column picker
+          "required" hint on LinkedIn URL), a glass column picker
           (GlassPopover) to pick the CSV column (or "Don't import"), and an
           inline "e.g. {value}" preview from the mapped column so a wrong column
           is easy to spot. One calm rp-card, rows separated by hairlines, no
@@ -1927,12 +1684,12 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
                     <span className="text-[13.5px] font-medium text-foreground">
                       {field.label}
                     </span>
-                    {field.recommended && (
+                    {field.required && (
                       <span
                         className="inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium"
                         style={{ color: AI_ACCENT, background: 'rgba(47,107,255,0.10)' }}
                       >
-                        recommended
+                        required
                       </span>
                     )}
                   </div>
@@ -1941,20 +1698,23 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
                     {example ? `e.g. ${example}` : 'Not mapped'}
                   </div>
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 md:flex-1">
                   {/* Column picker: the SHARED GlassPopover (glass, no hard
                       border), same pattern as the language picker. Trigger is a
                       full-width glass pill showing the current mapping or
                       "Don't import"; the menu lists "Don't import" first, then
                       every CSV header, with an accent Check on the selected one.
-                      Fixed width so every pill lines up in a clean vertical
-                      column (full-width on mobile, 260px on desktop). Opens
-                      UPWARD (anchor="top") so it never overlaps rows beneath. */}
+                      The picker STRETCHES to fill the row so every pill lines up
+                      on BOTH the left and right edges (full-width on mobile and
+                      desktop). Uses autoFlip so it opens DOWNWARD when there is
+                      room and flips UPWARD only near the bottom of the screen;
+                      anchor="bottom" is the safe fallback for the top row. */}
                   <GlassPopover
-                    anchor="top"
+                    anchor="bottom"
+                    autoFlip
                     align="left"
                     width="w-64"
-                    className="w-full md:w-[260px]"
+                    className="w-full"
                     testId={`import-map-menu-${field.key}`}
                     trigger={({ open, toggle }) => (
                       <button
@@ -2020,55 +1780,27 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
         })}
       </div>
 
-      {/* Custom fields: every CSV column we did NOT recognize as a core field.
-          Map each one to a saved custom field (reusable across imports), or
-          skip it. Same visual language as the core mapping card: rp-card,
-          hairline dividers, glass pickers, no hard borders. */}
-      <div className="mt-5">
-        <SectionLabel>Custom fields</SectionLabel>
-        <p className="px-2 -mt-1.5 mb-2.5 text-[12px] text-foreground/45 leading-snug">
-          Columns we didn't recognize. Map each one to a saved field, or skip it.
-        </p>
-        {unmappedCols.length > 0 ? (
-          <div className="rp-card rounded-3xl">
-            {unmappedCols.map((col, i) => (
-              <div key={col}>
-                {i > 0 && (
-                  <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-                )}
-                <CustomFieldRow
-                  colIndex={col}
-                  header={headers[col] ?? ''}
-                  example={exampleFor(String(col))}
-                  value={customMap[col] ?? SKIP_CUSTOM}
-                  fields={libFields}
-                  onSelect={(v) => setCustomMap((prev) => ({ ...prev, [col]: v }))}
-                  onCreate={(label) => {
-                    const created = addCustomField(label);
-                    setLibFields(getCustomFields());
-                    setCustomMap((prev) => ({ ...prev, [col]: created.id }));
-                  }}
-                />
-              </div>
-            ))}
+      {/* Bottom action: the primary Import button on the right. The round back
+          button top-left is the single back affordance (consistent with the
+          leads view), so there is no redundant text "Back" here. When LinkedIn
+          URL is not yet mapped the button is disabled and a calm inline hint on
+          the left explains why. Import uses the app's solid-accent action style
+          (solid blue, white text, glow). */}
+      <div className="mt-6 flex items-center justify-between">
+        {!linkedinMapped ? (
+          <div className="flex items-center gap-1.5 text-[12px] text-foreground/50">
+            <Info size={14} strokeWidth={1.9} className="shrink-0 text-foreground/40" />
+            <span>Map LinkedIn URL to continue.</span>
           </div>
         ) : (
-          <p className="px-2 text-[11.5px] text-foreground/45 leading-snug">
-            All columns are mapped.
-          </p>
+          <span />
         )}
-      </div>
-
-      {/* Bottom action: the primary Import button only. The round back button
-          top-left is the single back affordance (consistent with the leads
-          view), so there is no redundant text "Back" here. Import uses the
-          app's solid-accent action style (solid blue, white text, glow). */}
-      <div className="mt-6 flex items-center justify-end">
         <button
           type="button"
           data-testid="button-import-commit"
           onClick={onImport}
-          className="inline-flex items-center justify-center h-11 px-5 rounded-full text-[13px] font-semibold text-white hover-elevate active-elevate-2"
+          disabled={!linkedinMapped}
+          className="inline-flex items-center justify-center h-11 px-5 rounded-full text-[13px] font-semibold text-white hover-elevate active-elevate-2 disabled:opacity-40 disabled:pointer-events-none"
           style={{
             background: AI_ACCENT,
             boxShadow:
