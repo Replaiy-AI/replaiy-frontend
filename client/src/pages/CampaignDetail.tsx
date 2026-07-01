@@ -681,14 +681,20 @@ function AudiencePoolCard({
 }
 
 
-// ── B) Sources - toggle rows in ONE card, warmest first ─────────────
+// ── B) Sources - discovery toggle rows AND imported CSV files in ONE section ─
+// Conceptually an imported CSV IS a source of leads, so it lives under the same
+// "Sources" header as the discovery rows, mirroring Personal knowledge
+// (MijnAi.tsx ~1107-1201): mixed source types in one section with a permanent
+// dropzone below. Discovery sources are toggleable rows; imported files are
+// first-class rows (no toggle) with a hover-revealed Undo. All import state and
+// logic lives here.
 function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudience; campaignId: string }) {
   // Representational: local toggle state, no backend write this round.
   const [sources, setSources] = useState(() => audience.sources);
 
   // Warmest first, then warm, then cold. Manual import is no longer a toggle
-  // source row (it is an action, handled in the Imports section below), so we
-  // exclude the 'import' kind entirely from the rendered list.
+  // source row (it is an imported file, rendered below), so we exclude the
+  // 'import' kind entirely from the rendered discovery list.
   const ordered = useMemo(
     () =>
       [...sources]
@@ -706,72 +712,6 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
       prev.map((s) => (s.kind === kind ? { ...s, enabled: on } : s)),
     );
 
-  return (
-    <section>
-      <AudienceHeader label="Sources" sub="Where leads come from, warmest first." />
-      <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-sources">
-        {ordered.map((src, i) => {
-          const meta = LEAD_SOURCE_META[src.kind];
-          const Icon = SOURCE_ICONS[src.kind];
-          return (
-            <div key={src.kind}>
-              {i > 0 && (
-                <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-              )}
-              <div
-                data-testid={`source-row-${src.kind}`}
-                className="px-4 py-3.5 flex items-center gap-3"
-              >
-                <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-                  <Icon size={16} strokeWidth={1.9} className="text-foreground/70" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[14px] font-medium text-foreground truncate">
-                      {meta.label}
-                    </span>
-                    <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0">
-                      {WARMTH_META[meta.warmth].label}
-                    </span>
-                  </div>
-                  <div className="text-[12px] text-foreground/50 truncate">{meta.hint}</div>
-                </div>
-                {src.enabled && src.found > 0 && (
-                  <span className="text-[11.5px] tabular-nums text-foreground/40 shrink-0">
-                    {fmtNum(src.found)} found
-                  </span>
-                )}
-                <GlassToggle
-                  on={src.enabled}
-                  onChange={(v) => toggle(src.kind, v)}
-                  testId={`source-toggle-${src.kind}`}
-                  ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-
-// ── B2) Imports - imported CSV batches, mirroring the knowledge Sources list ─
-// A proper Audience section (not a sub-item of the Manual-import toggle). Each
-// imported batch renders as a first-class row using the EXACT Personal-knowledge
-// Sources markup (MijnAi.tsx ~1108-1146): one rp-card, hairline dividers, a
-// glass-pill icon square aligned to the same left column as the source rows,
-// title + hint, a quiet right meta, and a hover-revealed Trash (the Undo
-// affordance). The add affordance is a permanent CSV dropzone below the list,
-// always available, not a floating text link. All batch state/logic lives here.
-function AudienceImportsCard({
-  audience,
-  campaignId,
-}: {
-  audience: CampaignAudience;
-  campaignId: string;
-}) {
   const reduceMotion = useReducedMotion();
   const [, navigate] = useLocation();
   // getImportBatches is read on render from the module store, so a mutation
@@ -898,10 +838,55 @@ function AudienceImportsCard({
 
   return (
     <section>
-      <AudienceHeader label="Imports" sub="CSV files you import into this audience." />
-      <div className="flex flex-col gap-2.5">
-        {/* Transient "Import undone. Restore?" note - a calm row ABOVE the list
-            so it still shows after undoing the LAST batch (empty list). */}
+      <AudienceHeader label="Sources" sub="Where leads come from." />
+      <div className="flex flex-col gap-3">
+        {/* Discovery sources: toggleable rows, warmest first. */}
+        <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-sources">
+          {ordered.map((src, i) => {
+            const meta = LEAD_SOURCE_META[src.kind];
+            const Icon = SOURCE_ICONS[src.kind];
+            return (
+              <div key={src.kind}>
+                {i > 0 && (
+                  <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                )}
+                <div
+                  data-testid={`source-row-${src.kind}`}
+                  className="px-4 py-3.5 flex items-center gap-3"
+                >
+                  <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+                    <Icon size={16} strokeWidth={1.9} className="text-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[14px] font-medium text-foreground truncate">
+                        {meta.label}
+                      </span>
+                      <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0">
+                        {WARMTH_META[meta.warmth].label}
+                      </span>
+                    </div>
+                    <div className="text-[12px] text-foreground/50 truncate">{meta.hint}</div>
+                  </div>
+                  {src.enabled && src.found > 0 && (
+                    <span className="text-[11.5px] tabular-nums text-foreground/40 shrink-0">
+                      {fmtNum(src.found)} found
+                    </span>
+                  )}
+                  <GlassToggle
+                    on={src.enabled}
+                    onChange={(v) => toggle(src.kind, v)}
+                    testId={`source-toggle-${src.kind}`}
+                    ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Transient "Import undone. Restore?" note - a calm row ABOVE the
+            imported-files card so it still shows after undoing the LAST batch. */}
         {undone && (
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 2 }}
@@ -924,8 +909,16 @@ function AudienceImportsCard({
             </button>
           </motion.div>
         )}
-        {/* Batch list: the EXACT Personal-knowledge Sources row markup
-            (MijnAi.tsx ~1108-1146) so imports read as first-class sources. */}
+
+        {/* Quiet subheader above the imported files, only when there is at
+            least one imported batch. */}
+        {batches.length > 0 && (
+          <div className="px-2 pt-1 text-[12px] font-medium text-foreground/45">Imported files</div>
+        )}
+
+        {/* Imported CSV files: first-class source rows (no toggle), using the
+            EXACT Personal-knowledge Sources row markup (MijnAi.tsx ~1108-1146).
+            Only rendered when there is at least one imported batch. */}
         {batches.length > 0 && (
           <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-imports">
             {batches.map((batch, i) => (
@@ -966,6 +959,7 @@ function AudienceImportsCard({
             ))}
           </div>
         )}
+
         {/* Permanent upload surface: the SHARED FileDropzone, always available
             (mirroring the knowledge Sources adder). Dropping a CSV parses it,
             stashes the draft, and opens the column-mapping screen. It stays
@@ -2692,7 +2686,6 @@ function AudienceSection({ campaign }: { campaign: Campaign }) {
         onViewLeads={() => navigate('/campaigns/' + campaign.id + '/leads')}
       />
       <AudienceSourcesCard audience={audience} campaignId={campaign.id} />
-      <AudienceImportsCard audience={audience} campaignId={campaign.id} />
       <AudienceIcpCard audience={audience} />
       <AudienceThresholdCard audience={audience} value={threshold} onChange={setThreshold} />
       <AudienceSuppressCard audience={audience} />
