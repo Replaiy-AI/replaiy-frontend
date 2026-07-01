@@ -92,13 +92,6 @@ import { SectionLabel } from '@/components/LeadContextPanel';
 import { ReplaiyLogo } from '@/components/Logo';
 import FileDropzone from '@/components/FileDropzone';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   setImportDraft,
   getImportDraft,
   clearImportDraft,
@@ -1564,7 +1557,7 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
   const filename = valid ? draft!.filename : '';
 
   // The current field -> CSV-column mapping. Auto-mapped on load; the user can
-  // override each row via the shadcn Select.
+  // override each row via the glass column picker (GlassPopover).
   const [mapping, setMapping] = useState<Record<ReplaiyFieldKey, string>>(() =>
     valid ? autoMap(headers) : ({} as Record<ReplaiyFieldKey, string>),
   );
@@ -1673,11 +1666,13 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
       </div>
 
       {/* The mapping rows: one per Replaiy field. Each has the field name (+ a
-          "recommended" hint on LinkedIn URL), a shadcn Select to pick the CSV
-          column (or "Don't import"), and an inline "e.g. {value}" preview from
-          the mapped column so a wrong column is easy to spot. Stacks cleanly
-          on mobile (field label above, select below); side by side on md+. */}
-      <div className="rp-card rounded-3xl overflow-hidden">
+          "recommended" hint on LinkedIn URL), a glass column picker
+          (GlassPopover) to pick the CSV column (or "Don't import"), and an
+          inline "e.g. {value}" preview from the mapped column so a wrong column
+          is easy to spot. One calm rp-card, rows separated by hairlines, no
+          hard borders. Stacks cleanly on mobile (field label + preview above,
+          full-width picker below); side by side on md+. */}
+      <div className="rp-card rounded-3xl">
         {REPLAIY_FIELDS.map((field, i) => {
           const value = mapping[field.key] ?? DONT_IMPORT;
           const example = exampleFor(value);
@@ -1710,27 +1705,73 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
                   </div>
                 </div>
                 <div className="md:flex-1 min-w-0">
-                  <Select
-                    value={value}
-                    onValueChange={(v) =>
-                      setMapping((prev) => ({ ...prev, [field.key]: v }))
-                    }
+                  {/* Column picker: the SHARED GlassPopover (glass, no hard
+                      border), same pattern as the language picker. Trigger is a
+                      full-width glass pill showing the current mapping or
+                      "Don't import"; the menu lists "Don't import" first, then
+                      every CSV header, with an accent Check on the selected one. */}
+                  <GlassPopover
+                    anchor="bottom"
+                    align="left"
+                    width="w-64"
+                    testId={`import-map-menu-${field.key}`}
+                    trigger={({ open, toggle }) => (
+                      <button
+                        type="button"
+                        data-testid={`import-map-select-${field.key}`}
+                        aria-haspopup="listbox"
+                        aria-expanded={open}
+                        onClick={toggle}
+                        className="glass-pill pill w-full inline-flex items-center justify-between gap-1.5 h-[36px] px-3 text-[13px] text-foreground/80 hover-elevate active-elevate-2"
+                      >
+                        <span className="truncate">
+                          {value === DONT_IMPORT
+                            ? "Don't import"
+                            : headers[Number(value)]?.trim() || `Column ${Number(value) + 1}`}
+                        </span>
+                        <motion.span
+                          animate={{ rotate: open ? 180 : 0 }}
+                          transition={APPLE_SPRING}
+                          className="inline-flex shrink-0"
+                        >
+                          <ChevronDown size={15} strokeWidth={2} className="text-foreground/40" />
+                        </motion.span>
+                      </button>
+                    )}
                   >
-                    <SelectTrigger
-                      data-testid={`import-map-select-${field.key}`}
-                      className="h-9 rounded-xl"
-                    >
-                      <SelectValue placeholder="Don't import" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={DONT_IMPORT}>Don't import</SelectItem>
-                      {headers.map((h, ci) => (
-                        <SelectItem key={ci} value={String(ci)}>
-                          {h.trim() || `Column ${ci + 1}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {({ close }) => (
+                      <div className="max-h-64 overflow-y-auto no-scrollbar" role="listbox">
+                        {[DONT_IMPORT, ...headers.map((_, ci) => String(ci))].map((opt) => {
+                          const selected = opt === value;
+                          const optLabel =
+                            opt === DONT_IMPORT
+                              ? "Don't import"
+                              : headers[Number(opt)]?.trim() || `Column ${Number(opt) + 1}`;
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              role="option"
+                              aria-selected={selected}
+                              data-testid={`import-map-option-${field.key}-${opt}`}
+                              onClick={() => {
+                                setMapping((prev) => ({ ...prev, [field.key]: opt }));
+                                close();
+                              }}
+                              className={`w-full flex items-center justify-between gap-2 text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2 text-[13px] ${
+                                selected ? 'font-semibold text-foreground' : 'text-foreground/70'
+                              }`}
+                            >
+                              <span className="truncate">{optLabel}</span>
+                              {selected && (
+                                <Check size={14} strokeWidth={2.6} className="shrink-0" style={{ color: AI_ACCENT }} />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </GlassPopover>
                 </div>
               </div>
             </div>
@@ -1745,22 +1786,21 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
           : 'Other columns are saved as custom fields.'}
       </p>
 
-      {/* Bottom actions: primary Import (blue) + quiet back. */}
-      <div className="mt-6 flex items-center justify-between gap-3">
-        <button
-          type="button"
-          data-testid="button-import-cancel"
-          onClick={back}
-          className="inline-flex items-center h-[38px] px-4 rounded-full text-[13px] font-medium text-foreground/50 hover:text-foreground/75 transition-colors"
-        >
-          Back
-        </button>
+      {/* Bottom action: the primary Import button only. The round back button
+          top-left is the single back affordance (consistent with the leads
+          view), so there is no redundant text "Back" here. Import uses the
+          app's solid-accent action style (solid blue, white text, glow). */}
+      <div className="mt-6 flex items-center justify-end">
         <button
           type="button"
           data-testid="button-import-commit"
           onClick={onImport}
-          className="inline-flex items-center h-[38px] px-5 rounded-full text-[13px] font-semibold text-white hover-elevate active-elevate-2"
-          style={{ background: AI_ACCENT }}
+          className="inline-flex items-center justify-center h-11 px-5 rounded-full text-[13px] font-semibold text-white hover-elevate active-elevate-2"
+          style={{
+            background: AI_ACCENT,
+            boxShadow:
+              '0 6px 18px 0 color-mix(in srgb, #2F6BFF 32%, transparent), inset 0 1px 0 0 rgba(255,255,255,0.22)',
+          }}
         >
           Import {fmtNum(total)} leads
         </button>
