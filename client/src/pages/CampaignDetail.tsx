@@ -48,6 +48,7 @@ import {
   Linkedin,
   Upload,
   FileText,
+  FileSpreadsheet,
   ShieldCheck,
   ChevronDown,
   ChevronRight,
@@ -89,6 +90,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { GlassToggle } from '@/components/GlassToggle';
+import FileDropzone from '@/components/FileDropzone';
 import { GlassCircleButton } from '@/components/GlassCircleButton';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import { GlassPopover } from '@/components/GlassPopover';
@@ -691,11 +693,6 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
   // Representational: local toggle state, no backend write this round.
   const [sources, setSources] = useState(() => audience.sources);
 
-  // File-input ref (the import action row triggers it) + drag-over state so the
-  // import row can highlight while a CSV is dragged over it.
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-
   // Warmest first, then warm, then cold. Manual import is no longer a toggle
   // source row (it is an imported file, rendered below), so we exclude the
   // 'import' kind entirely from the rendered discovery list.
@@ -916,69 +913,26 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
               </div>
             );
           })}
+        </div>
 
-          {/* 2) Import action row: same row shell as a discovery row (px-4
-              py-3.5, 9x9 icon square, title + subtext) but NO toggle. The whole
-              row is clickable and opens the file picker; a CSV can also be
-              dropped onto it. Divider above it since it follows discovery rows.
-              Always visible - this is how you add leads. */}
-          <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-          <button
-            type="button"
-            data-testid="source-import-row"
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              acceptFile(e.dataTransfer.files?.[0]);
-            }}
-            className={`w-full text-left px-4 py-3.5 flex items-center gap-3 hover-elevate active-elevate-2 ${dragging ? 'bg-foreground/[0.04] dark:bg-white/[0.05]' : ''}`}
-          >
-            <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-              <Upload size={16} strokeWidth={1.9} className="text-foreground/70" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[14px] font-medium text-foreground truncate">
-                Import your own leads
-              </div>
-              <div className="text-[12px] text-foreground/50 truncate">
-                Upload a CSV, one lead per row
-              </div>
-            </div>
-          </button>
-          {/* Hidden file input the import row triggers. */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            data-testid="source-import-input"
-            onChange={(e) => {
-              acceptFile(e.target.files?.[0]);
-              e.currentTarget.value = '';
-            }}
-          />
-
-          {/* 3) Imported CSV files: first-class source rows (no toggle) in the
-              SAME card, each with a divider above. FileText icon, filename,
-              counts, date, hover-revealed Undo. */}
-          {batches.map((batch) => (
+        {/* Imported CSV files: quiet rows BETWEEN the sources card and the
+            upload block. They are the result of importing (not a source), so
+            they read as a small "what you uploaded" list. Small CSV icon,
+            filename, counts, date, and a hover-revealed Undo. */}
+        {batches.length > 0 && (
+          <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-imports">
+            {batches.map((batch, i) => (
               <div key={batch.id}>
-                <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                {i > 0 && (
+                  <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                )}
                 <div
                   data-testid={`import-batch-${batch.id}`}
-                  className="group px-4 py-3.5 flex items-center gap-3 hover-elevate active-elevate-2"
+                  className="group px-4 py-3 flex items-center gap-3 hover-elevate active-elevate-2"
                 >
-                  <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
-                    <FileText size={16} strokeWidth={1.9} className="text-foreground/70" />
-                  </div>
+                  <FileSpreadsheet size={18} strokeWidth={1.8} className="text-foreground/50 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[14px] font-medium text-foreground truncate">
+                    <div className="text-[13.5px] font-medium text-foreground truncate">
                       {batch.filename}
                     </div>
                     <div className="text-[12px] text-foreground/50 truncate">
@@ -1000,8 +954,21 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
                   </button>
                 </div>
               </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {/* Separate dashed upload block, exactly like the Personal-knowledge
+            dropzone (shared FileDropzone). Always visible so you can add a CSV
+            at any time. Dropping/choosing a CSV opens the column-mapping
+            screen. */}
+        <FileDropzone
+          testId="source-import-dropzone"
+          accept=".csv,text/csv"
+          onFiles={(files) => acceptFile(files[0])}
+          primaryLabel="Drop a CSV here, or click to choose"
+          secondaryLabel="One lead per row"
+        />
       </div>
     </section>
   );
