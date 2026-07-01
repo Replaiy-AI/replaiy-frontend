@@ -61,6 +61,8 @@ import {
   Bot,
   MessageCircle,
   Info,
+  Loader2,
+  Circle,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import {
@@ -1542,9 +1544,23 @@ function autoMap(headers: string[]): Record<ReplaiyFieldKey, string> {
   return out;
 }
 
+// Enrichment step labels for the progress moment. Step 1's label is built at
+// render time from the filename; the rest are static.
+const ENRICH_STEPS: string[] = [
+  'Verifying profiles on LinkedIn',
+  'Enriching with company data and signals',
+  'Scoring against your ICP',
+  'Removing duplicates',
+];
+
 function CampaignImportView({ campaign }: { campaign: Campaign }) {
   const [, navigate] = useLocation();
   const back = () => navigate('/campaigns/' + campaign.id);
+
+  // Persona for the mascot + soft radial glow, read EXACTLY like CampaignAiHero.
+  const { persona: livePersona, updateCampaign } = useReplaiy();
+  const persona = activePersona(livePersona); // { color, mascot }
+  const reduced = useReducedMotion() === true;
 
   // Read the parsed CSV once from the module store. If the user hit the URL
   // directly (or opened a different campaign's import), the draft is empty or
@@ -1595,11 +1611,144 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
   // real CSV column (not "Don't import").
   const linkedinMapped = (mapping.linkedin ?? DONT_IMPORT) !== DONT_IMPORT;
 
-  const onImport = () => {
+  // -- Import enrichment phase state machine -------------------------
+  // 'mapping' shows the column mapping screen (the default). Clicking Import
+  // moves to 'enriching' (a live progress moment, no navigation yet); when the
+  // last enrichment step completes we move to 'done' (the result summary).
+  const [phase, setPhase] = useState<'mapping' | 'enriching' | 'done'>('mapping');
+  // Which enrichment step is currently active (0-based). Steps before it are
+  // done, the one at this index is spinning, steps after are pending. When it
+  // reaches STEP_COUNT every step is done and we flip to 'done'.
+  const STEP_COUNT = 5;
+  const [activeStep, setActiveStep] = useState(0);
+
+  // Believable, stable import stats derived once from the total. Duplicates is
+  // a small slice; verified/enriched are the net kept; net is what lands in the
+  // pool; aboveIcp is a scannable quality signal.
+  const stats = useMemo(() => {
+    const duplicates = Math.max(0, Math.round(total * 0.03));
+    const verified = total - duplicates;
+    const net = total - duplicates;
+    const aboveIcp = Math.round(total * 0.61);
+    return { duplicates, verified, net, aboveIcp };
+  }, [total]);
+
+  // Apply the result + pool bump EXACTLY ONCE, even across re-renders or React
+  // strict-mode double invokes. Guarded by a ref.
+  const appliedRef = useRef(false);
+  const applyResult = () => {
+    if (appliedRef.current) return;
+    appliedRef.current = true;
+    // Audience "N leads imported" line matches the summary headline (total).
     setImportResult(campaign.id, total);
+    // Land the net imported leads in the campaign pool, distributed across
+    // warmth tiers: most cold, some warm, a few warmest. Preserve the rest of
+    // the audience object.
+    const aud = campaign.audience;
+    if (aud) {
+      const net = stats.net;
+      const addWarmest = Math.round(net * 0.12);
+      const addWarm = Math.round(net * 0.24);
+      const addCold = net - addWarmest - addWarm;
+      updateCampaign(campaign.id, {
+        audience: {
+          ...aud,
+          pool: {
+            cold: aud.pool.cold + addCold,
+            warm: aud.pool.warm + addWarm,
+            warmest: aud.pool.warmest + addWarmest,
+          },
+        },
+      });
+    }
+  };
+
+  // Drive the enrichment steps once we enter 'enriching'. Chained setTimeouts
+  // advance activeStep ~600-750ms per step (~3.2-3.8s total). When reduced
+  // motion is set, go near-instant. Cleaned up on unmount; guarded so the
+  // result is applied exactly once even if the effect is torn down mid-run.
+  useEffect(() => {
+    if (phase !== 'enriching') return;
+    let mounted = true;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const finish = () => {
+      if (!mounted) return;
+      applyResult();
+      setPhase('done');
+    };
+
+    if (reduced) {
+      setActiveStep(STEP_COUNT);
+      timers.push(setTimeout(finish, 400));
+    } else {
+      const perStep = 680; // ms each step spends active
+      for (let i = 1; i <= STEP_COUNT; i++) {
+        timers.push(
+          setTimeout(() => {
+            if (mounted) setActiveStep(i);
+          }, perStep * i),
+        );
+      }
+      timers.push(setTimeout(finish, perStep * STEP_COUNT + 120));
+    }
+
+    return () => {
+      mounted = false;
+      timers.forEach(clearTimeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, reduced]);
+
+  const onImport = () => {
+    setActiveStep(0);
+    setPhase('enriching');
+  };
+
+  // Both summary actions clear the draft, then navigate.
+  const onViewLeads = () => {
+    clearImportDraft();
+    navigate('/campaigns/' + campaign.id + '/leads');
+  };
+  const onBackToAudience = () => {
     clearImportDraft();
     back();
   };
+
+  // Shared mascot + soft persona-colour radial glow, REUSING the CampaignAiHero
+  // pattern (radial-gradient glow + floating motion.img). `size` sets the box.
+  const mascotGlow = (size: number) => (
+    <div
+      className="relative shrink-0 flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
+      <motion.span
+        aria-hidden
+        className="absolute inset-[-3px] rounded-full"
+        style={{
+          background: `radial-gradient(circle at 50% 50%, ${persona.color}, transparent 68%)`,
+          filter: 'blur(9px)',
+          opacity: 0.5,
+        }}
+        animate={reduced ? undefined : { opacity: [0.42, 0.58, 0.42] }}
+        transition={
+          reduced ? undefined : { duration: 3.4, repeat: Infinity, ease: 'easeInOut' }
+        }
+      />
+      <motion.img
+        src={persona.mascot}
+        alt=""
+        aria-hidden
+        draggable={false}
+        className="relative object-contain select-none pointer-events-none"
+        style={{ width: size, height: size }}
+        animate={reduced ? undefined : { y: [0, -2.5, 0] }}
+        transition={
+          reduced ? undefined : { duration: 3.6, repeat: Infinity, ease: 'easeInOut' }
+        }
+      />
+    </div>
+  );
 
   // -- Empty state (no valid draft) ----------------------------------
   const emptyBody = (
@@ -1814,7 +1963,139 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
     </div>
   );
 
-  const body = valid ? mappingBody : emptyBody;
+  // -- Enriching body (phase 'enriching') ----------------------------
+  // The live progress moment: mascot hero + glow, calm copy, and a 5-step
+  // vertical checklist driven by activeStep. Same centered card, same shell.
+  const stepLabels = [`Reading ${filename}`, ...ENRICH_STEPS];
+  const enrichingBody = (
+    <div className="mx-auto w-full flex justify-center" style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}>
+      <div className="rp-card rounded-3xl px-6 py-8 sm:px-8 sm:py-9 w-full max-w-[520px] flex flex-col items-center text-center">
+        {mascotGlow(56)}
+        <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-foreground mt-4">
+          Enriching your leads
+        </h2>
+        <p className="text-[12.5px] text-foreground/55 leading-snug mt-1.5 max-w-[340px]">
+          Verifying every lead against LinkedIn so your outreach stays accurate.
+        </p>
+
+        {/* 5-step vertical checklist. States: done (Check on soft accent chip),
+            active (spinning Loader2 in AI_ACCENT), pending (hollow Circle). The
+            only subtle status ring is the 16px indicator; no hard borders. */}
+        <div className="w-full max-w-[360px] mt-6 flex flex-col gap-3.5 text-left">
+          {stepLabels.map((label, i) => {
+            const done = i < activeStep;
+            const active = i === activeStep;
+            return (
+              <div key={i} className="flex items-center gap-3">
+                <span className="relative flex items-center justify-center w-4 h-4 shrink-0">
+                  {done ? (
+                    <span
+                      className="flex items-center justify-center w-4 h-4 rounded-full"
+                      style={{ background: 'rgba(47,107,255,0.12)' }}
+                    >
+                      <Check size={11} strokeWidth={3} style={{ color: AI_ACCENT }} />
+                    </span>
+                  ) : active ? (
+                    <Loader2 size={15} strokeWidth={2.4} className="animate-spin" style={{ color: AI_ACCENT }} />
+                  ) : (
+                    <Circle size={14} strokeWidth={2} className="text-foreground/25" />
+                  )}
+                </span>
+                <span
+                  className={`text-[13px] leading-snug truncate ${
+                    done || active ? 'text-foreground/80' : 'text-foreground/40'
+                  }`}
+                >
+                  {label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  // -- Result summary body (phase 'done') ----------------------------
+  // A calm success card: mascot + glow with a small AI_ACCENT check badge, the
+  // headline count, a compact stats strip, and two actions.
+  const doneBody = (
+    <div className="mx-auto w-full flex justify-center" style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}>
+      <div className="rp-card rounded-3xl px-6 py-8 sm:px-8 sm:py-9 w-full max-w-[520px] flex flex-col items-center text-center">
+        <div className="relative">
+          {mascotGlow(44)}
+          {/* Small accent check badge on the mascot corner. */}
+          <span
+            aria-hidden
+            className="absolute -right-1 -bottom-1 flex items-center justify-center w-[18px] h-[18px] rounded-full"
+            style={{
+              background: AI_ACCENT,
+              boxShadow: 'inset 0 1px 0 0 rgba(255,255,255,0.22)',
+            }}
+          >
+            <Check size={11} strokeWidth={3.2} className="text-white" />
+          </span>
+        </div>
+
+        <h2 className="text-xl font-semibold tracking-[-0.01em] text-foreground tabular-nums mt-4">
+          {fmtNum(total)} leads imported
+        </h2>
+
+        {/* Compact stats strip: quiet label + emphasised value. No hard borders,
+            simple spacing. */}
+        <div className="w-full max-w-[360px] mt-5 grid grid-cols-2 gap-x-4 gap-y-3.5">
+          {[
+            { label: 'Verified on LinkedIn', value: stats.verified },
+            { label: 'Enriched with signals', value: stats.verified },
+            { label: 'Duplicates skipped', value: stats.duplicates },
+            { label: 'Above your ICP bar', value: stats.aboveIcp },
+          ].map((s, i) => (
+            <div key={i} className="flex flex-col items-start text-left">
+              <span className="text-[15px] font-semibold text-foreground tabular-nums leading-none">
+                {fmtNum(s.value)}
+              </span>
+              <span className="text-[11.5px] text-foreground/45 leading-snug mt-1">
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Actions: primary solid-accent "View leads", quiet "Back to audience". */}
+        <div className="w-full max-w-[360px] mt-7 flex flex-col items-center gap-2.5">
+          <button
+            type="button"
+            data-testid="button-import-view-leads"
+            onClick={onViewLeads}
+            className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full text-[13px] font-semibold text-white hover-elevate active-elevate-2"
+            style={{
+              background: AI_ACCENT,
+              boxShadow:
+                '0 6px 18px 0 color-mix(in srgb, #2F6BFF 32%, transparent), inset 0 1px 0 0 rgba(255,255,255,0.22)',
+            }}
+          >
+            View leads
+          </button>
+          <button
+            type="button"
+            data-testid="button-import-back-audience"
+            onClick={onBackToAudience}
+            className="inline-flex items-center h-9 px-4 rounded-full text-[12.5px] font-medium text-foreground/55 hover-elevate active-elevate-2"
+          >
+            Back to audience
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const body = !valid
+    ? emptyBody
+    : phase === 'enriching'
+      ? enrichingBody
+      : phase === 'done'
+        ? doneBody
+        : mappingBody;
 
   return (
     <div className="flex flex-col h-full min-h-0 relative">
