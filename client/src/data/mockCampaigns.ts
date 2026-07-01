@@ -19,11 +19,11 @@ export type CampaignStatus = 'draft' | 'active' | 'paused' | 'archived';
 
 // ── Audience model ───────────────────────────────────────────────────
 // An ICP definition + lead discovery scoped to THIS campaign. Each campaign
-// can target a different audience. Leads come from four discovery sources,
+// can target a different audience. Leads come from five discovery sources,
 // ordered cold -> warmest, plus a per-campaign match threshold and
 // auto-suppress (exclusion) intelligence. The pool breakdown and score
 // buckets make audience QUALITY visible, not just quantity.
-export type LeadSourceKind = 'salesnav' | 'signal' | 'engagement' | 'import';
+export type LeadSourceKind = 'connection' | 'engagement' | 'signal' | 'network' | 'salesnav' | 'import';
 export type LeadWarmth = 'cold' | 'warm' | 'warmest';
 
 // The profile we match leads against. Read-only display for now.
@@ -94,20 +94,30 @@ export const LEAD_SOURCE_META: Record<
   LeadSourceKind,
   { label: string; hint: string; warmth: LeadWarmth }
 > = {
-  salesnav: {
-    label: 'Sales Navigator',
-    hint: 'Matches fresh cold prospects to your ICP, sourced around the clock',
-    warmth: 'cold',
-  },
-  signal: {
-    label: 'Buying signals',
-    hint: 'Watches for job changes, hiring and growth signals as they happen',
-    warmth: 'warm',
+  connection: {
+    label: 'Warm through your team',
+    hint: "Leads already connected to a teammate. When several teammates know the same company, warmth goes up.",
+    warmth: 'warmest',
   },
   engagement: {
-    label: 'Post engagement',
-    hint: 'Scans everyone who comments on or likes posts that match your ICP',
+    label: 'Active around your topics',
+    hint: 'Finds the people posting, liking, reacting and commenting on ICP-relevant posts, and follows replies deep into the thread.',
     warmth: 'warmest',
+  },
+  signal: {
+    label: 'Showing buying signals',
+    hint: 'Watches for job changes, hiring and growth signals as they happen.',
+    warmth: 'warm',
+  },
+  network: {
+    label: 'In your network',
+    hint: 'Surfaces people you are already connected to who match your ICP.',
+    warmth: 'warm',
+  },
+  salesnav: {
+    label: 'Matched to your ICP',
+    hint: 'Continuously searches for fresh prospects that fit your ICP, so cold reach never runs dry.',
+    warmth: 'cold',
   },
   import: {
     label: 'Manual import',

@@ -45,7 +45,6 @@ import {
   Users2,
   Radar,
   Activity,
-  Linkedin,
   Upload,
   FileText,
   FileSpreadsheet,
@@ -61,6 +60,7 @@ import {
   Inbox,
   Bot,
   MessageCircle,
+  Share2,
   Info,
   Loader2,
   Circle,
@@ -434,15 +434,28 @@ const CAMPAIGN_TAB_SEGMENTS: { key: CampaignTab; label: string; width: number }[
 
 // Lucide glyph per discovery source.
 const SOURCE_ICONS: Record<LeadSourceKind, typeof Send> = {
-  salesnav: Radar,
+  connection: Users,
+  engagement: MessageCircle,
   signal: Activity,
-  engagement: Linkedin,
+  network: Share2,
+  salesnav: Radar,
   import: Upload,
 };
 
 // Warmth order for the whole section: warmest first (the source-priority
 // story). Used to sort the source rows and the pool pills.
 const WARMTH_ORDER: LeadWarmth[] = ['warmest', 'warm', 'cold'];
+
+// Tie-break when two sources share the same warmth (connection and engagement
+// are both 'warmest'): connection is the warmest intro, so it sorts first.
+const SOURCE_PRIORITY: Record<LeadSourceKind, number> = {
+  connection: 0,
+  engagement: 1,
+  signal: 2,
+  network: 3,
+  salesnav: 4,
+  import: 99,
+};
 
 const fmtNum = (n: number) => n.toLocaleString('en-US');
 
@@ -692,22 +705,44 @@ function AudiencePoolCard({
 // first-class rows (no toggle) with a hover-revealed Undo. All import state and
 // logic lives here.
 function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudience; campaignId: string }) {
-  // Representational: local toggle state, no backend write this round.
-  const [sources, setSources] = useState(() => audience.sources);
+  // Representational: local toggle state, no backend write this round. Start
+  // from audience.sources (historically engagement/signal/salesnav/import) and
+  // seed the newer discovery kinds so their toggles persist like the others:
+  // 'network' shows for everyone, and 'connection' is seeded only for team
+  // workspaces (more than one member); solo workspaces never get it.
+  const [sources, setSources] = useState(() => {
+    const seeded = [...audience.sources];
+    if (!seeded.some((s) => s.kind === 'network')) {
+      seeded.push({ kind: 'network' as const, enabled: true, found: 0 });
+    }
+    if (
+      WORKSPACE_MEMBERS.length > 1 &&
+      !seeded.some((s) => s.kind === 'connection')
+    ) {
+      seeded.push({ kind: 'connection' as const, enabled: true, found: 0 });
+    }
+    return seeded;
+  });
 
   // Warmest first, then warm, then cold. Manual import is no longer a toggle
   // source row (it is an imported file, rendered below), so we exclude the
-  // 'import' kind entirely from the rendered discovery list.
+  // 'import' kind entirely from the rendered discovery list. 'connection' is a
+  // team-only source, so it is filtered out for solo workspaces. Ties in warmth
+  // are broken by SOURCE_PRIORITY (connection sorts above engagement).
+  const isTeam = WORKSPACE_MEMBERS.length > 1;
   const ordered = useMemo(
     () =>
       [...sources]
         .filter((s) => s.kind !== 'import')
-        .sort(
-          (a, b) =>
+        .filter((s) => s.kind !== 'connection' || isTeam)
+        .sort((a, b) => {
+          const warmthDiff =
             WARMTH_ORDER.indexOf(LEAD_SOURCE_META[a.kind].warmth) -
-            WARMTH_ORDER.indexOf(LEAD_SOURCE_META[b.kind].warmth),
-        ),
-    [sources],
+            WARMTH_ORDER.indexOf(LEAD_SOURCE_META[b.kind].warmth);
+          if (warmthDiff !== 0) return warmthDiff;
+          return SOURCE_PRIORITY[a.kind] - SOURCE_PRIORITY[b.kind];
+        }),
+    [sources, isTeam],
   );
 
   const toggle = (kind: LeadSourceKind, on: boolean) =>
@@ -1287,9 +1322,6 @@ function AudienceThresholdCard({
   value: number;
   onChange: (v: number) => void;
 }) {
-  const poolTotal = audience.pool.cold + audience.pool.warm + audience.pool.warmest;
-  const qualify = qualifiedCount(audience.scoreBuckets, value);
-
   return (
     <section>
       <AudienceHeader
@@ -1339,16 +1371,10 @@ function AudienceThresholdCard({
           </span>
         </div>
 
-        {/* Live qualified count - recomputes as you drag. */}
-        <div className="mt-3.5 flex items-center gap-1.5" data-testid="threshold-qualified">
-          <span className="text-[13px] font-semibold text-foreground tabular-nums">
-            {fmtNum(qualify)}
-          </span>
-          <span className="text-[13px] text-foreground/55">
-            of {fmtNum(poolTotal)} leads qualify
-          </span>
-        </div>
-        <p className="mt-2 text-[12.5px] text-foreground/50 leading-snug">
+        {/* No fixed qualifying count here: leads stream in continuously, so a
+            static "X of N" would be misleading. The threshold meaning is
+            explained in words instead. */}
+        <p className="mt-3.5 text-[12.5px] text-foreground/50 leading-snug">
           Leads below {value}% are still sourced and enriched, but never
           contacted. Source broad, reach out to the best fits only.
         </p>
