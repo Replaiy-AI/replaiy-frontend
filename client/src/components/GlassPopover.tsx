@@ -62,6 +62,7 @@ export function GlassPopover({
   align = 'left',
   width = 'w-60',
   surfaceClassName = '',
+  className = '',
   testId,
   onOpenChange,
 }: {
@@ -72,6 +73,9 @@ export function GlassPopover({
   align?: 'left' | 'right';
   width?: string;
   surfaceClassName?: string;
+  /** Extra classes for the OUTER wrapper div. Lets callers make the wrapper
+   *  full-width (the default `inline-block` shrink-wraps to the trigger). */
+  className?: string;
   testId?: string;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -127,7 +131,7 @@ export function GlassPopover({
   const y = anchor === 'top' ? 6 : -6;
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <div ref={ref} className={`relative inline-block ${className}`}>
       {trigger(renderProps)}
       <AnimatePresence>
         {open && (
