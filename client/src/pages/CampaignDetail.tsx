@@ -1234,8 +1234,12 @@ function LocationSummary({ icp }: { icp: IcpCriteria }) {
 // IcpChip's `muted` variant, it has NO minus prefix: these are the INCLUDED
 // criteria, so a minus (which means "exclude" everywhere else) would misread.
 function IcpSummaryChip({ label }: { label: string }) {
+  // Read-only summary on a COLLAPSED row: deliberately quieter than an editable
+  // field chip (which is a solid pill at h-28, text-foreground/80). This uses a
+  // fainter fill + lighter text + smaller height so a glance clearly reads it as
+  // a summary, not something you edit here.
   return (
-    <span className="inline-flex items-center h-[22px] px-2.5 rounded-full text-[11.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/55 whitespace-nowrap">
+    <span className="inline-flex items-center h-[20px] px-2 rounded-md text-[11px] font-medium bg-foreground/[0.03] dark:bg-white/[0.04] text-foreground/45 whitespace-nowrap">
       {label}
     </span>
   );
@@ -1352,10 +1356,12 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
 
   return (
     <section>
+      {/* Templates are for STARTING an ICP. Once a campaign has one, the
+          action is noise, so it only shows while the ICP is still empty. */}
       <AudienceHeader
         label="Ideal customer"
         sub="The profile we match leads against."
-        trailing={templateAction}
+        trailing={empty ? templateAction : undefined}
       />
       {/* Padding-less accordion shell: rows go full-bleed and read as SIBLINGS
           of the Sources card rows above (same rp-card rounded-3xl overflow-hidden
