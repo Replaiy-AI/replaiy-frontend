@@ -683,53 +683,21 @@ function AudiencePoolCard({
 
 // ── B) Sources - toggle rows in ONE card, warmest first ─────────────
 function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudience; campaignId: string }) {
-  const [, navigate] = useLocation();
   // Representational: local toggle state, no backend write this round.
   const [sources, setSources] = useState(() => audience.sources);
 
-  // Accept a selected/dropped CSV: parse it client-side (real headers + first
-  // ~5 data rows), stash the parsed draft in the module store, and navigate to
-  // the column-mapping screen. Pragmatic CSV split: first non-empty line is the
-  // header row, comma-separated; no CSV library. The mapping screen owns the
-  // Import action now, so we no longer show an inline preview here.
-  const acceptFile = (file: File | null | undefined) => {
-    if (!file) return;
-    const go = (headers: string[], rows: string[][], total: number) => {
-      setImportDraft({ campaignId, filename: file.name, headers, rows, total });
-      navigate('/campaigns/' + campaignId + '/import');
-    };
-    const fallback = Math.max(12, Math.min(5000, Math.round(file.size / 64) || 128));
-    const split = (line: string) => line.split(',').map((c) => c.trim());
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-      if (lines.length === 0) {
-        go(['Column 1'], [], fallback);
-        return;
-      }
-      const headers = split(lines[0]);
-      const dataLines = lines.slice(1);
-      const rows = dataLines.slice(0, 5).map(split);
-      const total = dataLines.length > 0 ? dataLines.length : fallback;
-      go(headers, rows, total);
-    };
-    reader.onerror = () => go(['Column 1'], [], fallback);
-    try {
-      reader.readAsText(file);
-    } catch {
-      go(['Column 1'], [], fallback);
-    }
-  };
-
-  // Warmest first, then warm, then cold; import (cold) naturally lands last.
+  // Warmest first, then warm, then cold. Manual import is no longer a toggle
+  // source row (it is an action, handled in the Imports section below), so we
+  // exclude the 'import' kind entirely from the rendered list.
   const ordered = useMemo(
     () =>
-      [...sources].sort(
-        (a, b) =>
-          WARMTH_ORDER.indexOf(LEAD_SOURCE_META[a.kind].warmth) -
-          WARMTH_ORDER.indexOf(LEAD_SOURCE_META[b.kind].warmth),
-      ),
+      [...sources]
+        .filter((s) => s.kind !== 'import')
+        .sort(
+          (a, b) =>
+            WARMTH_ORDER.indexOf(LEAD_SOURCE_META[a.kind].warmth) -
+            WARMTH_ORDER.indexOf(LEAD_SOURCE_META[b.kind].warmth),
+        ),
     [sources],
   );
 
@@ -780,25 +748,6 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
                   ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
                 />
               </div>
-              {/* Manual import, when on, shows the SHARED FileDropzone.
-                  Dropping a CSV parses it, stashes the draft, and navigates to
-                  the column-mapping screen (which owns the Import action). The
-                  imported batches themselves live in the dedicated Imports
-                  section below, mirroring the knowledge Sources list. */}
-              {src.kind === 'import' && src.enabled && (
-                <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
-                  {/* Drop surface is the SHARED FileDropzone, identical to the
-                      knowledge upload. Dropping a CSV opens the column-mapping
-                      screen (no silent auto-import). */}
-                  <FileDropzone
-                    testId="source-import-dropzone"
-                    accept=".csv,text/csv"
-                    onFiles={(files) => acceptFile(files[0])}
-                    primaryLabel="Drop a CSV here, or click to choose"
-                    secondaryLabel="One lead per row"
-                  />
-                </div>
-              )}
             </div>
           );
         })}
@@ -814,8 +763,8 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
 // Sources markup (MijnAi.tsx ~1108-1146): one rp-card, hairline dividers, a
 // glass-pill icon square aligned to the same left column as the source rows,
 // title + hint, a quiet right meta, and a hover-revealed Trash (the Undo
-// affordance). The add affordance is the Manual-import dropzone above, not a
-// floating text link. All batch state/logic lives here.
+// affordance). The add affordance is a permanent CSV dropzone below the list,
+// always available, not a floating text link. All batch state/logic lives here.
 function AudienceImportsCard({
   audience,
   campaignId,
@@ -824,9 +773,45 @@ function AudienceImportsCard({
   campaignId: string;
 }) {
   const reduceMotion = useReducedMotion();
+  const [, navigate] = useLocation();
   // getImportBatches is read on render from the module store, so a mutation
   // needs an explicit re-render. `bump` forces that.
   const [, bump] = useState(0);
+
+  // Accept a selected/dropped CSV: parse it client-side (real headers + first
+  // ~5 data rows), stash the parsed draft in the module store, and navigate to
+  // the column-mapping screen. Pragmatic CSV split: first non-empty line is the
+  // header row, comma-separated; no CSV library. The mapping screen owns the
+  // Import action.
+  const acceptFile = (file: File | null | undefined) => {
+    if (!file) return;
+    const go = (headers: string[], rows: string[][], total: number) => {
+      setImportDraft({ campaignId, filename: file.name, headers, rows, total });
+      navigate('/campaigns/' + campaignId + '/import');
+    };
+    const fallback = Math.max(12, Math.min(5000, Math.round(file.size / 64) || 128));
+    const split = (line: string) => line.split(',').map((c) => c.trim());
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length === 0) {
+        go(['Column 1'], [], fallback);
+        return;
+      }
+      const headers = split(lines[0]);
+      const dataLines = lines.slice(1);
+      const rows = dataLines.slice(0, 5).map(split);
+      const total = dataLines.length > 0 ? dataLines.length : fallback;
+      go(headers, rows, total);
+    };
+    reader.onerror = () => go(['Column 1'], [], fallback);
+    try {
+      reader.readAsText(file);
+    } catch {
+      go(['Column 1'], [], fallback);
+    }
+  };
 
   // Live campaign audience + updater, used to reverse (undo) or re-apply
   // (restore) a batch's pool delta and its leads. We read the live audience
@@ -911,14 +896,9 @@ function AudienceImportsCard({
     return sameDay ? 'today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
-  // Render nothing when there is no imported batch AND no pending undo. When an
-  // undo just removed the last batch, keep the section alive so the Restore note
-  // still shows.
-  if (batches.length === 0 && !undone) return null;
-
   return (
     <section>
-      <AudienceHeader label="Imports" sub="CSV files you imported into this audience." />
+      <AudienceHeader label="Imports" sub="CSV files you import into this audience." />
       <div className="flex flex-col gap-2.5">
         {/* Transient "Import undone. Restore?" note - a calm row ABOVE the list
             so it still shows after undoing the LAST batch (empty list). */}
@@ -986,6 +966,18 @@ function AudienceImportsCard({
             ))}
           </div>
         )}
+        {/* Permanent upload surface: the SHARED FileDropzone, always available
+            (mirroring the knowledge Sources adder). Dropping a CSV parses it,
+            stashes the draft, and opens the column-mapping screen. It stays
+            visible with zero imports and after every import, so a second CSV can
+            always be added. */}
+        <FileDropzone
+          testId="source-import-dropzone"
+          accept=".csv,text/csv"
+          onFiles={(files) => acceptFile(files[0])}
+          primaryLabel="Drop a CSV here, or click to choose"
+          secondaryLabel="One lead per row"
+        />
       </div>
     </section>
   );
