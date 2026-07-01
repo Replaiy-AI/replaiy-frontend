@@ -104,6 +104,13 @@ import {
   getImportResult,
   clearImportResult,
 } from '@/state/importDraft';
+import {
+  getImportBatches,
+  addImportBatch,
+  removeImportBatch,
+  restoreImportBatch,
+  type ImportBatch,
+} from '@/state/importBatches';
 import { matchImportTemplate, saveImportTemplate } from '@/state/importTemplates';
 import { APPLE_SPRING } from '@/lib/motion';
 
@@ -694,8 +701,93 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
       : audience.sources,
   );
   const reduceMotion = useReducedMotion();
-  // Force a re-render after clearing the module-store result on "Import more".
+  // Force a re-render after clearing the module-store result on "Import more",
+  // and after any batch add/remove/restore (getImportBatches is read on render
+  // from the module store, so a mutation needs an explicit re-render).
   const [, bump] = useState(0);
+
+  // Live campaign audience + updater, used to reverse (undo) or re-apply
+  // (restore) a batch's pool delta and its leads. We read the live audience
+  // from the store so undo/restore stay correct across successive actions.
+  const { campaigns, updateCampaign } = useReplaiy();
+  const liveAudience =
+    campaigns.find((c) => c.id === campaignId)?.audience ?? audience;
+
+  // Recorded import batches for this campaign, most recent first.
+  const batches = getImportBatches(campaignId);
+
+  // Transient "undo" affordance: after undoing a batch we hold the removed
+  // batch AND its removed leads for a few seconds so "Restore" can put both
+  // back exactly. Auto-dismisses via a cleaned-up timer.
+  const [undone, setUndone] = useState<{ batch: ImportBatch; leads: SampleLead[] } | null>(
+    null,
+  );
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+    },
+    [],
+  );
+
+  // Undo a whole batch: remove it from the store, subtract its exact pool delta
+  // (clamped at >= 0) and drop its leads from sampleLeads (by batchId). Keep the
+  // removed batch + leads so Restore can reverse it.
+  const undoBatch = (batch: ImportBatch) => {
+    const aud = liveAudience;
+    const removedLeads = (aud.sampleLeads ?? []).filter((l) => l.batchId === batch.id);
+    removeImportBatch(batch.id);
+    updateCampaign(campaignId, {
+      audience: {
+        ...aud,
+        pool: {
+          cold: Math.max(0, aud.pool.cold - batch.poolDelta.cold),
+          warm: Math.max(0, aud.pool.warm - batch.poolDelta.warm),
+          warmest: Math.max(0, aud.pool.warmest - batch.poolDelta.warmest),
+        },
+        sampleLeads: (aud.sampleLeads ?? []).filter((l) => l.batchId !== batch.id),
+      },
+    });
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndone({ batch, leads: removedLeads });
+    undoTimer.current = setTimeout(() => setUndone(null), 6000);
+    bump((n) => n + 1);
+  };
+
+  // Restore a just-undone batch: re-add it to the store, add its leads back to
+  // sampleLeads and add its pool delta back.
+  const restoreBatch = () => {
+    if (!undone) return;
+    const { batch, leads } = undone;
+    const aud = liveAudience;
+    restoreImportBatch(batch);
+    updateCampaign(campaignId, {
+      audience: {
+        ...aud,
+        pool: {
+          cold: aud.pool.cold + batch.poolDelta.cold,
+          warm: aud.pool.warm + batch.poolDelta.warm,
+          warmest: aud.pool.warmest + batch.poolDelta.warmest,
+        },
+        sampleLeads: [...leads, ...(aud.sampleLeads ?? [])],
+      },
+    });
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndone(null);
+    bump((n) => n + 1);
+  };
+
+  // A short, calm date for a batch: "today" when imported today, else a short
+  // locale date.
+  const batchDate = (ts: number): string => {
+    const d = new Date(ts);
+    const now = new Date();
+    const sameDay =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
+    return sameDay ? 'today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
 
   // Accept a selected/dropped CSV: parse it client-side (real headers + first
   // ~5 data rows), stash the parsed draft in the module store, and navigate to
@@ -732,11 +824,15 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
     }
   };
 
-  // "Import more" clears the stored result (and any leftover draft) and resets
-  // the confirmation back to the dropzone.
+  // "Import more" reopens the dropzone: it clears the stored result (and any
+  // leftover draft) so the mapping flow starts clean. Batches persist in their
+  // own module store, so they are NOT cleared here. When batches exist we also
+  // flip a local flag so the dropzone shows again over the batch list.
+  const [importMoreOpen, setImportMoreOpen] = useState(false);
   const importMore = () => {
     clearImportResult();
     clearImportDraft();
+    setImportMoreOpen(true);
     bump((n) => n + 1);
   };
   // Warmest first, then warm, then cold; import (cold) naturally lands last.
@@ -803,8 +899,33 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
                   a successful import it becomes the calm "N leads imported"
                   confirmation with "Import more". */}
               {src.kind === 'import' && src.enabled && (
-                <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
-                  {importedCount === null ? (
+                <div className="px-4 pb-3.5 -mt-1 pl-[76px] flex flex-col gap-2">
+                  {/* Transient "Import undone. Restore?" note. Rendered ABOVE
+                      both branches so it still shows after undoing the LAST
+                      batch (when the list is empty and the dropzone returns). */}
+                  {undone && (
+                    <motion.div
+                      initial={reduceMotion ? false : { opacity: 0, y: 2 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      data-testid="import-undo-note"
+                      className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-2.5 flex items-center justify-between gap-2.5"
+                    >
+                      <span className="text-[12.5px] text-foreground/60 truncate">
+                        Import undone. Restore?
+                      </span>
+                      <button
+                        type="button"
+                        data-testid="import-batch-restore"
+                        onClick={restoreBatch}
+                        className="shrink-0 text-[12px] font-medium hover:opacity-80 transition-opacity"
+                        style={{ color: AI_ACCENT }}
+                      >
+                        Restore
+                      </button>
+                    </motion.div>
+                  )}
+                  {batches.length === 0 || importMoreOpen ? (
                     <div className="flex flex-col gap-2.5">
                       {/* Drop surface is the SHARED FileDropzone, identical to
                           the knowledge upload. Dropping a CSV opens the
@@ -818,36 +939,50 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
                       />
                     </div>
                   ) : (
-                    <div className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-3">
-                      <motion.div
-                        initial={reduceMotion ? false : { opacity: 0, y: 2 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.18, ease: 'easeOut' }}
-                        className="flex items-center justify-between gap-2.5"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Check
-                            size={15}
-                            strokeWidth={2.4}
-                            className="shrink-0"
-                            style={{ color: AI_ACCENT }}
-                          />
-                          <span className="text-[12.5px] text-foreground/70 truncate">
-                            <span className="font-semibold text-foreground/85 tabular-nums">
-                              {fmtNum(importedCount)}
-                            </span>{' '}
-                            leads imported
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          data-testid="source-import-more"
-                          onClick={importMore}
-                          className="shrink-0 text-[12px] font-medium text-foreground/50 hover:text-foreground/75 transition-colors"
+                    // Batch overview: one calm soft row per import (most recent
+                    // first), a whole-batch Undo per row, and an "Import more"
+                    // affordance below.
+                    <div className="flex flex-col gap-2">
+                      {batches.map((batch) => (
+                        <div
+                          key={batch.id}
+                          data-testid={`import-batch-${batch.id}`}
+                          className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-3 flex items-start justify-between gap-2.5"
                         >
-                          Import more
-                        </button>
-                      </motion.div>
+                          <div className="flex items-start gap-2 min-w-0">
+                            <FileText
+                              size={14}
+                              strokeWidth={1.9}
+                              className="text-icon-muted shrink-0 mt-[2px]"
+                            />
+                            <div className="min-w-0">
+                              <div className="text-[12.5px] font-medium text-foreground/80 truncate">
+                                {batch.filename}
+                              </div>
+                              <div className="text-[11.5px] text-foreground/45">
+                                {fmtNum(batch.net)} leads, {fmtNum(batch.qualified)} qualified,{' '}
+                                {fmtNum(batch.duplicates)} duplicates, {batchDate(batch.importedAt)}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            data-testid={`import-batch-undo-${batch.id}`}
+                            onClick={() => undoBatch(batch)}
+                            className="shrink-0 text-[12px] font-medium text-foreground/50 hover:text-foreground/75 transition-colors"
+                          >
+                            Undo
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        data-testid="source-import-more"
+                        onClick={importMore}
+                        className="self-start text-[12px] font-medium text-foreground/50 hover:text-foreground/75 transition-colors"
+                      >
+                        Import more
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1896,6 +2031,11 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
       const addWarm = Math.round(net * 0.24);
       const addCold = net - addWarmest - addWarm;
 
+      // Stable id for this import batch, generated once here so every lead built
+      // below is tagged with it and the recorded batch (below) can be undone as
+      // one unit.
+      const batchId = 'batch_' + Date.now().toString(36);
+
       // Build a few REAL sample leads from the parsed CSV rows using the
       // current mapping, so the people the user just imported actually show up
       // in "View leads" (not only as a bumped pool count). Each field reads its
@@ -1948,6 +2088,8 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
           // Land immediately with identity known; enrichment runs in the
           // background and fills the rest live in the leads view.
           enriching: true,
+          // Tag with this batch so undo can remove exactly this batch's leads.
+          batchId,
         };
       });
 
@@ -1962,6 +2104,21 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
             warmest: aud.pool.warmest + addWarmest,
           },
         },
+      });
+
+      // Record this import as a batch so the Manual-import source can list it
+      // and offer a whole-batch undo. poolDelta is the exact amount added, so
+      // undo can subtract it precisely.
+      addImportBatch({
+        id: batchId,
+        campaignId: campaign.id,
+        filename,
+        importedAt: Date.now(),
+        total,
+        net: stats.net,
+        duplicates: stats.duplicates,
+        qualified: stats.aboveIcp,
+        poolDelta: { cold: addCold, warm: addWarm, warmest: addWarmest },
       });
     }
 

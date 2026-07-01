@@ -84,6 +84,8 @@ export interface SampleLead {
   avatar: string;
   // true while background enrichment is still running for this lead; undefined/false = fully enriched
   enriching?: boolean;
+  // set on leads that came from a specific import batch, so undo can remove exactly that batch's leads
+  batchId?: string;
 }
 
 // Label + hint + warmth per discovery source. Warmth drives the UI order
