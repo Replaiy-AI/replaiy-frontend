@@ -913,6 +913,29 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
               </div>
             );
           })}
+
+          {/* Import your own leads: a fourth row in the SAME card, styled like
+              the discovery rows (soft icon square, title + subtext) but with NO
+              toggle. It is the in-card label for the upload block below - the
+              actual uploading happens in the dashed FileDropzone. Divider above
+              it since it follows the discovery rows. */}
+          <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+          <div
+            data-testid="source-row-import"
+            className="px-4 py-3.5 flex items-center gap-3"
+          >
+            <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+              <Upload size={16} strokeWidth={1.9} className="text-foreground/70" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] font-medium text-foreground truncate">
+                Import your own leads
+              </div>
+              <div className="text-[12px] text-foreground/50 truncate">
+                Upload a CSV, one lead per row
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Imported CSV files: quiet rows BETWEEN the sources card and the
