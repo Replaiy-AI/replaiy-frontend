@@ -936,6 +936,19 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
               </div>
             </div>
           </div>
+
+          {/* Upload block INSIDE the card, inset directly under the Import row,
+              so it reads as part of Sources (not a separate floating block).
+              Shared FileDropzone (same treatment as knowledge). */}
+          <div className="px-4 pb-4 pt-1">
+            <FileDropzone
+              testId="source-import-dropzone"
+              accept=".csv,text/csv"
+              onFiles={(files) => acceptFile(files[0])}
+              primaryLabel="Drop a CSV here, or click to choose"
+              secondaryLabel="One lead per row"
+            />
+          </div>
         </div>
 
         {/* Imported CSV files: quiet rows BETWEEN the sources card and the
@@ -981,17 +994,6 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
           </div>
         )}
 
-        {/* Separate dashed upload block, exactly like the Personal-knowledge
-            dropzone (shared FileDropzone). Always visible so you can add a CSV
-            at any time. Dropping/choosing a CSV opens the column-mapping
-            screen. */}
-        <FileDropzone
-          testId="source-import-dropzone"
-          accept=".csv,text/csv"
-          onFiles={(files) => acceptFile(files[0])}
-          primaryLabel="Drop a CSV here, or click to choose"
-          secondaryLabel="One lead per row"
-        />
       </div>
     </section>
   );
