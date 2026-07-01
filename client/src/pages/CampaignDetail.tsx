@@ -75,6 +75,11 @@ import {
   FLOW_KINDS_WITH_TEXT,
   LEAD_SOURCE_META,
   WARMTH_META,
+  SENIORITY_OPTIONS,
+  FUNCTION_OPTIONS,
+  COMPANY_SIZE_OPTIONS,
+  COMPANY_TYPE_OPTIONS,
+  YEARS_OPTIONS,
   type Campaign,
   type CampaignAudience,
   type CampaignGoalType,
@@ -341,11 +346,18 @@ const ICP_TEMPLATES: { id: string; name: string; sub: string; icp: IcpCriteria }
     sub: 'Early-stage software leaders',
     icp: {
       titles: ['Founder', 'CEO', 'Co-founder'],
-      industries: ['SaaS', 'Fintech'],
-      companySize: '1-50',
-      locations: ['Netherlands', 'Europe'],
-      seniority: ['Founder', 'C-level'],
+      excludedTitles: ['Interim', 'Advisor'],
+      seniority: ['Owner / Partner', 'C-Suite'],
+      functions: ['Entrepreneurship', 'Engineering'],
+      companySize: ['1-10', '11-50'],
+      industries: ['Software Development', 'Financial Services'],
+      locations: ['Netherlands', 'Germany'],
+      hqLocations: [],
+      companyType: ['Privately held'],
+      yearsInRole: 'Under 1 year',
+      keywords: ['seed', 'Series A'],
       exclusions: ['Current customers', 'Competitors'],
+      signals: { changedJobs: true, activeOnLinkedin: true, mentionedInNews: false },
     },
   },
   {
@@ -354,11 +366,18 @@ const ICP_TEMPLATES: { id: string; name: string; sub: string; icp: IcpCriteria }
     sub: 'Revenue and sales operations',
     icp: {
       titles: ['Head of RevOps', 'VP Revenue', 'Sales Operations Manager'],
-      industries: ['SaaS', 'B2B Services'],
-      companySize: '51-500',
-      locations: ['Netherlands', 'Belgium', 'DACH'],
-      seniority: ['Head', 'VP', 'Manager'],
+      excludedTitles: ['Intern', 'Consultant'],
+      seniority: ['C-Suite', 'Vice President', 'Director'],
+      functions: ['Sales', 'Operations'],
+      companySize: ['51-200', '201-500'],
+      industries: ['Software Development', 'Business Consulting and Services'],
+      locations: ['Netherlands', 'Belgium'],
+      hqLocations: [],
+      companyType: ['Privately held'],
+      yearsInRole: '1 to 2 years',
+      keywords: ['revenue operations'],
       exclusions: ['Current customers'],
+      signals: { changedJobs: true, activeOnLinkedin: false, mentionedInNews: false },
     },
   },
   {
@@ -367,11 +386,18 @@ const ICP_TEMPLATES: { id: string; name: string; sub: string; icp: IcpCriteria }
     sub: 'Owners and partnership leads',
     icp: {
       titles: ['Agency Owner', 'Head of Partnerships'],
-      industries: ['Marketing Agencies'],
-      companySize: '11-200',
+      excludedTitles: ['Freelancer'],
+      seniority: ['Owner / Partner', 'Director'],
+      functions: ['Business Development', 'Marketing'],
+      companySize: ['11-50', '51-200'],
+      industries: ['Advertising Services', 'Marketing Services'],
       locations: ['Netherlands'],
-      seniority: ['Owner', 'Head'],
+      hqLocations: ['Netherlands'],
+      companyType: ['Privately held', 'Partnership'],
+      yearsInRole: '3 to 5 years',
+      keywords: ['partner program'],
       exclusions: ['Current partners'],
+      signals: { changedJobs: false, activeOnLinkedin: true, mentionedInNews: false },
     },
   },
 ];
@@ -1042,16 +1068,34 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
 function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
   const [icp, setIcp] = useState<IcpCriteria>(audience.icp);
 
+  // The ICP is "empty" only when every free-chip list is empty, every fixed
+  // multi-select is empty, years is unset, and no signal is on.
   const empty =
     icp.titles.length === 0 &&
-    icp.industries.length === 0 &&
-    !icp.companySize &&
-    icp.locations.length === 0 &&
+    icp.excludedTitles.length === 0 &&
     icp.seniority.length === 0 &&
-    icp.exclusions.length === 0;
+    icp.functions.length === 0 &&
+    icp.companySize.length === 0 &&
+    icp.industries.length === 0 &&
+    icp.locations.length === 0 &&
+    icp.hqLocations.length === 0 &&
+    icp.companyType.length === 0 &&
+    icp.yearsInRole === '' &&
+    icp.keywords.length === 0 &&
+    icp.exclusions.length === 0 &&
+    !icp.signals.changedJobs &&
+    !icp.signals.activeOnLinkedin &&
+    !icp.signals.mentionedInNews;
 
-  // Add / remove helpers for the array fields, on local state only.
-  type ArrayKey = 'titles' | 'industries' | 'locations' | 'seniority' | 'exclusions';
+  // Free-chip array fields (add/remove), on local state only.
+  type ArrayKey =
+    | 'titles'
+    | 'excludedTitles'
+    | 'industries'
+    | 'locations'
+    | 'hqLocations'
+    | 'keywords'
+    | 'exclusions';
   const removeAt = (key: ArrayKey, value: string) =>
     setIcp((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }));
   const addTo = (key: ArrayKey, value: string) => {
@@ -1059,9 +1103,27 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
     if (!v) return;
     setIcp((prev) => (prev[key].includes(v) ? prev : { ...prev, [key]: [...prev[key], v] }));
   };
-  // Company size is a single value; edit it inline with the same chip rhythm.
-  const setCompanySize = (v: string) =>
-    setIcp((prev) => ({ ...prev, companySize: v.trim() }));
+
+  // Fixed multi-select enums (seniority / functions / companySize / companyType):
+  // toggle a value in or out of the array.
+  type FixedKey = 'seniority' | 'functions' | 'companySize' | 'companyType';
+  const toggleFixed = (key: FixedKey, value: string) =>
+    setIcp((prev) => ({
+      ...prev,
+      [key]: prev[key].includes(value)
+        ? prev[key].filter((v) => v !== value)
+        : [...prev[key], value],
+    }));
+
+  // Years in current role is a single bucket: clicking the selected one clears
+  // it; clicking another replaces it.
+  const setYearsInRole = (v: string) =>
+    setIcp((prev) => ({ ...prev, yearsInRole: prev.yearsInRole === v ? '' : v }));
+
+  // The three boolean intent signals.
+  type SignalKey = 'changedJobs' | 'activeOnLinkedin' | 'mentionedInNews';
+  const setSignal = (key: SignalKey, value: boolean) =>
+    setIcp((prev) => ({ ...prev, signals: { ...prev.signals, [key]: value } }));
 
   // A small quiet "Start from a template" action lives in the header trailing
   // slot (top-right, aligned) instead of floating loosely at the card bottom.
@@ -1123,13 +1185,57 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             template to set who this reaches.
           </p>
         )}
+        <IcpSectionHeader title="Who they are" />
         <div className="flex flex-col gap-5">
           <IcpEditableGroup
             caption="Titles"
             field="titles"
             values={icp.titles}
+            hint="Matched loosely, so close variants like 'Head of Growth', 'Growth Lead' and 'VP Growth' all count."
             onRemove={removeAt}
             onAdd={addTo}
+          />
+          <IcpEditableGroup
+            caption="Exclude titles"
+            field="excludedTitles"
+            values={icp.excludedTitles}
+            muted
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          <IcpFixedMultiGroup
+            caption="Seniority"
+            options={SENIORITY_OPTIONS}
+            selected={icp.seniority}
+            onToggle={(v) => toggleFixed('seniority', v)}
+            testIdBase="icp-seniority"
+          />
+          <IcpFixedMultiGroup
+            caption="Function"
+            options={FUNCTION_OPTIONS}
+            selected={icp.functions}
+            onToggle={(v) => toggleFixed('functions', v)}
+            testIdBase="icp-function"
+          />
+          <IcpSingleSelectGroup
+            caption="Years in current role"
+            options={YEARS_OPTIONS}
+            selected={icp.yearsInRole}
+            onSelect={setYearsInRole}
+            testIdBase="icp-years"
+          />
+        </div>
+
+        <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-6" />
+
+        <IcpSectionHeader title="Where they work" />
+        <div className="flex flex-col gap-5">
+          <IcpFixedMultiGroup
+            caption="Company size"
+            options={COMPANY_SIZE_OPTIONS}
+            selected={icp.companySize}
+            onToggle={(v) => toggleFixed('companySize', v)}
+            testIdBase="icp-companySize"
           />
           <IcpEditableGroup
             caption="Industries"
@@ -1138,27 +1244,66 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             onRemove={removeAt}
             onAdd={addTo}
           />
-          <IcpSingleValueGroup
-            caption="Company size"
-            value={icp.companySize}
-            placeholder="Add"
-            onChange={setCompanySize}
+          <IcpFixedMultiGroup
+            caption="Company type"
+            options={COMPANY_TYPE_OPTIONS}
+            selected={icp.companyType}
+            onToggle={(v) => toggleFixed('companyType', v)}
+            testIdBase="icp-companyType"
           />
           <IcpEditableGroup
-            caption="Locations"
+            caption="Person location"
             field="locations"
             values={icp.locations}
             onRemove={removeAt}
             onAdd={addTo}
           />
           <IcpEditableGroup
-            caption="Seniority"
-            field="seniority"
-            values={icp.seniority}
+            caption="Company HQ location"
+            field="hqLocations"
+            values={icp.hqLocations}
             onRemove={removeAt}
             onAdd={addTo}
           />
-          <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07]" />
+        </div>
+
+        <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-6" />
+
+        <IcpSectionHeader
+          title="Signals"
+          sub="Optional. Narrow to people showing timing signals."
+        />
+        <div className="flex flex-col">
+          <IcpSignalToggle
+            label="Changed jobs in the last 90 days"
+            signalKey="changedJobs"
+            on={icp.signals.changedJobs}
+            onChange={setSignal}
+          />
+          <IcpSignalToggle
+            label="Active on LinkedIn recently"
+            signalKey="activeOnLinkedin"
+            on={icp.signals.activeOnLinkedin}
+            onChange={setSignal}
+          />
+          <IcpSignalToggle
+            label="Mentioned in news recently"
+            signalKey="mentionedInNews"
+            on={icp.signals.mentionedInNews}
+            onChange={setSignal}
+          />
+        </div>
+
+        <div className="h-px bg-foreground/[0.07] dark:bg-white/[0.07] my-6" />
+
+        <div className="flex flex-col gap-5">
+          <IcpEditableGroup
+            caption="Keywords"
+            field="keywords"
+            values={icp.keywords}
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
           <IcpEditableGroup
             caption="Exclusions"
             field="exclusions"
@@ -1173,22 +1318,164 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
   );
 }
 
+// A small section header inside the ICP card. Slightly stronger than SubLabel
+// (which labels a single field group): it introduces a whole cluster. An
+// optional muted sub sits under it (used by the Signals section).
+function IcpSectionHeader({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div className="mb-4">
+      <div className="text-[12.5px] font-semibold tracking-[-0.01em] text-foreground/80">
+        {title}
+      </div>
+      {sub && (
+        <div className="text-[11.5px] text-foreground/45 leading-snug mt-0.5">{sub}</div>
+      )}
+    </div>
+  );
+}
+
+// A fixed multi-select chip-toggle group (seniority, function, company size,
+// company type). Each option is a toggle; selected = the single blue accent
+// fill + white text, the only blue selected-state in the ICP editor.
+function IcpFixedMultiGroup({
+  caption,
+  options,
+  selected,
+  onToggle,
+  testIdBase,
+}: {
+  caption: string;
+  options: string[];
+  selected: string[];
+  onToggle: (v: string) => void;
+  testIdBase: string;
+}) {
+  return (
+    <div>
+      <SubLabel>{caption}</SubLabel>
+      <div className="flex flex-wrap items-center gap-2">
+        {options.map((opt) => {
+          const on = selected.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              data-testid={`${testIdBase}-${opt}`}
+              aria-pressed={on}
+              onClick={() => onToggle(opt)}
+              className={`h-[28px] px-3 rounded-full text-[12.5px] font-medium transition-colors ${
+                on
+                  ? 'text-white'
+                  : 'bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/70 hover-elevate active-elevate-2'
+              }`}
+              style={on ? { backgroundColor: AI_ACCENT } : undefined}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// A single-select chip-toggle group (years in current role). Same visual as
+// IcpFixedMultiGroup but only one option can be selected: clicking the selected
+// one clears it; clicking another replaces it. Empty is allowed.
+function IcpSingleSelectGroup({
+  caption,
+  options,
+  selected,
+  onSelect,
+  testIdBase,
+}: {
+  caption: string;
+  options: string[];
+  selected: string;
+  onSelect: (v: string) => void;
+  testIdBase: string;
+}) {
+  return (
+    <div>
+      <SubLabel>{caption}</SubLabel>
+      <div className="flex flex-wrap items-center gap-2">
+        {options.map((opt) => {
+          const on = selected === opt;
+          return (
+            <button
+              key={opt}
+              type="button"
+              data-testid={`${testIdBase}-${opt}`}
+              aria-pressed={on}
+              onClick={() => onSelect(opt)}
+              className={`h-[28px] px-3 rounded-full text-[12.5px] font-medium transition-colors ${
+                on
+                  ? 'text-white'
+                  : 'bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/70 hover-elevate active-elevate-2'
+              }`}
+              style={on ? { backgroundColor: AI_ACCENT } : undefined}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// One boolean intent signal: a calm label + the shared GlassToggle in a row.
+// Quiet by design — signals are optional, they narrow, not define.
+function IcpSignalToggle({
+  label,
+  signalKey,
+  on,
+  onChange,
+}: {
+  label: string;
+  signalKey: 'changedJobs' | 'activeOnLinkedin' | 'mentionedInNews';
+  on: boolean;
+  onChange: (key: 'changedJobs' | 'activeOnLinkedin' | 'mentionedInNews', v: boolean) => void;
+}) {
+  return (
+    <div className="px-0 py-2 flex items-center justify-between gap-3">
+      <div className="text-[13px] text-foreground/80">{label}</div>
+      <GlassToggle
+        on={on}
+        onChange={(v) => onChange(signalKey, v)}
+        testId={`icp-signal-${signalKey}`}
+        ariaLabel={`${on ? 'Disable' : 'Enable'} ${label}`}
+      />
+    </div>
+  );
+}
+
 // One always-editable ICP group: caption + chips + an inline add-input. Each
 // chip has a hover-revealed remove control (the calm knowledge pattern); the
 // add-input is always present so there is no Edit mode. Sits directly in the
-// parent card (no inner box) so there is no block-in-block.
+// parent card (no inner box) so there is no block-in-block. An optional `hint`
+// renders as a muted line under the chips (e.g. the Titles fuzzy-match note).
 function IcpEditableGroup({
   caption,
   field,
   values,
   muted = false,
+  hint,
   onRemove,
   onAdd,
 }: {
   caption: string;
-  field: 'titles' | 'industries' | 'locations' | 'seniority' | 'exclusions';
+  field:
+    | 'titles'
+    | 'excludedTitles'
+    | 'industries'
+    | 'locations'
+    | 'hqLocations'
+    | 'keywords'
+    | 'exclusions';
   values: string[];
   muted?: boolean;
+  hint?: string;
   onRemove: (key: typeof field, value: string) => void;
   onAdd: (key: typeof field, value: string) => void;
 }) {
@@ -1241,65 +1528,9 @@ function IcpEditableGroup({
           className="h-[28px] w-[110px] bg-foreground/[0.04] dark:bg-white/[0.05] rounded-full px-3 outline-none text-[12.5px] text-foreground placeholder:text-foreground/40"
         />
       </div>
-    </div>
-  );
-}
-
-// A single-value ICP group (e.g. Company size). Mirrors IcpEditableGroup's
-// caption + chip + inline add-input rhythm exactly so every ICP row aligns: a
-// removable chip when set, or a chip-shaped add-input when empty. Editing in
-// place, no Edit mode, flat (non-blur) backgrounds.
-function IcpSingleValueGroup({
-  caption,
-  value,
-  placeholder = 'Add',
-  onChange,
-}: {
-  caption: string;
-  value: string;
-  placeholder?: string;
-  onChange: (value: string) => void;
-}) {
-  const [draft, setDraft] = useState('');
-  return (
-    <div>
-      <SubLabel>{caption}</SubLabel>
-      <div className="flex flex-wrap items-center gap-2">
-        {value ? (
-          <span className="group inline-flex items-center gap-1 h-[28px] pl-3 pr-1.5 rounded-full text-[12.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/80">
-            {value}
-            <button
-              type="button"
-              data-testid="icp-remove-companySize"
-              onClick={() => onChange('')}
-              aria-label={`Remove ${value}`}
-              className="opacity-0 group-hover:opacity-100 transition-opacity h-[18px] w-[18px] rounded-full flex items-center justify-center text-foreground/40 hover-elevate active-elevate-2"
-            >
-              <X size={11} strokeWidth={2.4} />
-            </button>
-          </span>
-        ) : (
-          <input
-            data-testid="icp-add-companySize"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && draft.trim()) {
-                onChange(draft);
-                setDraft('');
-              }
-            }}
-            onBlur={() => {
-              if (draft.trim()) {
-                onChange(draft);
-                setDraft('');
-              }
-            }}
-            placeholder={placeholder}
-            className="h-[28px] w-[110px] bg-foreground/[0.04] dark:bg-white/[0.05] rounded-full px-3 outline-none text-[12.5px] text-foreground placeholder:text-foreground/40"
-          />
-        )}
-      </div>
+      {hint && (
+        <div className="text-[11.5px] text-foreground/45 leading-snug mt-2">{hint}</div>
+      )}
     </div>
   );
 }

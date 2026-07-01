@@ -26,15 +26,117 @@ export type CampaignStatus = 'draft' | 'active' | 'paused' | 'archived';
 export type LeadSourceKind = 'connection' | 'engagement' | 'signal' | 'network' | 'salesnav' | 'import';
 export type LeadWarmth = 'cold' | 'warm' | 'warmest';
 
-// The profile we match leads against. Read-only display for now.
+// The profile we match leads against. This IS the free-form `criteria` jsonb
+// payload the backend persists on `icp_profiles` — there is no rigid backend
+// schema, so this shape defines it. Every field maps 1:1 to a single Unipile
+// `api=sales_navigator, category=people` search parameter, so the later API
+// layer serializes it directly (see icp_filter_research.md):
+//   titles         -> role.include
+//   excludedTitles -> role.exclude
+//   seniority      -> seniority.include (SENIORITY_OPTIONS)
+//   functions      -> function.include (FUNCTION_OPTIONS)
+//   companySize    -> company_headcount (COMPANY_SIZE_OPTIONS)
+//   industries     -> industry.include
+//   locations      -> location.include (person geography)
+//   hqLocations    -> company_location.include (company HQ)
+//   companyType    -> company_type (COMPANY_TYPE_OPTIONS)
+//   yearsInRole    -> tenure_at_role (YEARS_OPTIONS)
+//   keywords       -> keywords
+//   exclusions     -> generic suppression (Replaiy-side)
+//   signals        -> changed_jobs / posted_on_linkedin / mentionned_in_news
 export interface IcpCriteria {
-  titles: string[]; // e.g. ['Head of Sales','VP Sales','Founder']
-  industries: string[]; // e.g. ['SaaS','Fintech']
-  companySize: string; // e.g. '11-200'
-  locations: string[]; // e.g. ['Netherlands','DACH']
-  seniority: string[]; // e.g. ['Head','VP','C-level']
-  exclusions: string[]; // e.g. ['Current customers','Competitors']
+  titles: string[]; // free chips, fuzzy (role.include)
+  excludedTitles: string[]; // free chips (role.exclude)
+  seniority: string[]; // fixed enum (SENIORITY_OPTIONS)
+  functions: string[]; // fixed enum (FUNCTION_OPTIONS)
+  companySize: string[]; // fixed ranges (COMPANY_SIZE_OPTIONS)
+  industries: string[]; // searchable chips
+  locations: string[]; // person geography chips
+  hqLocations: string[]; // company HQ chips
+  companyType: string[]; // fixed enum (COMPANY_TYPE_OPTIONS)
+  yearsInRole: string; // single bucket (YEARS_OPTIONS) or ''
+  keywords: string[]; // free chips
+  exclusions: string[]; // generic exclusions
+  signals: {
+    changedJobs: boolean; // changed_jobs (last 90 days)
+    activeOnLinkedin: boolean; // posted_on_linkedin (recently)
+    mentionedInNews: boolean; // mentionned_in_news (recently)
+  };
 }
+
+// Fixed option sets for the ICP editor. Values are the exact UI labels; the
+// API layer maps each to its Unipile enum. Keep these stable — they define the
+// multi-select chip groups (and the single-select years bucket).
+export const SENIORITY_OPTIONS = [
+  'Owner / Partner',
+  'C-Suite',
+  'Vice President',
+  'Director',
+  'Experienced Manager',
+  'Entry Manager',
+  'Senior',
+  'Strategic',
+  'Entry',
+  'In Training',
+];
+
+export const FUNCTION_OPTIONS = [
+  'Accounting',
+  'Administrative',
+  'Arts and Design',
+  'Business Development',
+  'Community and Social Services',
+  'Consulting',
+  'Customer Success and Support',
+  'Education',
+  'Engineering',
+  'Entrepreneurship',
+  'Finance',
+  'Healthcare Services',
+  'Human Resources',
+  'Information Technology',
+  'Legal',
+  'Marketing',
+  'Media and Communication',
+  'Military and Protective Services',
+  'Operations',
+  'Product Management',
+  'Program and Project Management',
+  'Purchasing',
+  'Quality Assurance',
+  'Real Estate',
+  'Research',
+  'Sales',
+];
+
+export const COMPANY_SIZE_OPTIONS = [
+  '1-10',
+  '11-50',
+  '51-200',
+  '201-500',
+  '501-1000',
+  '1001-5000',
+  '5001-10000',
+  '10000+',
+];
+
+export const COMPANY_TYPE_OPTIONS = [
+  'Public',
+  'Privately held',
+  'Non-profit',
+  'Educational',
+  'Partnership',
+  'Self-employed',
+  'Government',
+];
+
+export const YEARS_OPTIONS = [
+  'Under 1 year',
+  '1 to 2 years',
+  '3 to 5 years',
+  '6 to 10 years',
+  'Over 10 years',
+];
 
 // One discovery source. `found` is the live count it currently contributes
 // to the pool; `enabled` is whether the campaign uses it.
@@ -345,11 +447,18 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     audience: {
       icp: {
         titles: ['Founder', 'CEO', 'VP Sales'],
-        industries: ['SaaS', 'Fintech'],
-        companySize: '11-200',
-        locations: ['Netherlands', 'DACH'],
-        seniority: ['Founder', 'C-level', 'VP'],
+        excludedTitles: ['Interim', 'Advisor'],
+        seniority: ['Owner / Partner', 'C-Suite', 'Vice President'],
+        functions: ['Entrepreneurship', 'Sales'],
+        companySize: ['11-50', '51-200'],
+        industries: ['Software Development', 'Financial Services'],
+        locations: ['Netherlands', 'Germany'],
+        hqLocations: [],
+        companyType: ['Privately held'],
+        yearsInRole: '1 to 2 years',
+        keywords: ['Series B', 'outbound'],
         exclusions: ['Current customers', 'Competitors'],
+        signals: { changedJobs: true, activeOnLinkedin: true, mentionedInNews: false },
       },
       sources: [
         { kind: 'engagement', enabled: true, found: 80 },
@@ -451,11 +560,18 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     audience: {
       icp: {
         titles: ['Head of RevOps', 'Sales Operations Manager', 'VP Revenue'],
-        industries: ['SaaS', 'B2B Services'],
-        companySize: '51-500',
+        excludedTitles: ['Intern', 'Consultant'],
+        seniority: ['Vice President', 'Director', 'Experienced Manager'],
+        functions: ['Sales', 'Operations'],
+        companySize: ['51-200', '201-500'],
+        industries: ['Software Development', 'Business Consulting and Services'],
         locations: ['Netherlands', 'Belgium'],
-        seniority: ['Head', 'VP', 'Manager'],
+        hqLocations: ['Netherlands'],
+        companyType: ['Privately held', 'Public'],
+        yearsInRole: '3 to 5 years',
+        keywords: ['revenue operations'],
         exclusions: ['Current customers'],
+        signals: { changedJobs: false, activeOnLinkedin: true, mentionedInNews: false },
       },
       sources: [
         { kind: 'engagement', enabled: true, found: 40 },
@@ -562,11 +678,18 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     audience: {
       icp: {
         titles: ['Marketing Manager', 'Growth Lead', 'Founder'],
-        industries: ['SaaS', 'E-commerce', 'Agencies'],
-        companySize: '1-50',
-        locations: ['Netherlands', 'Europe'],
-        seniority: ['Manager', 'Lead', 'Founder'],
+        excludedTitles: ['Student'],
+        seniority: ['Experienced Manager', 'Entry Manager', 'Owner / Partner'],
+        functions: ['Marketing', 'Business Development'],
+        companySize: ['1-10', '11-50'],
+        industries: ['Software Development', 'Retail'],
+        locations: ['Netherlands', 'France'],
+        hqLocations: [],
+        companyType: ['Privately held'],
+        yearsInRole: 'Under 1 year',
+        keywords: ['growth', 'newsletter'],
         exclusions: ['Current customers', 'Unsubscribed'],
+        signals: { changedJobs: false, activeOnLinkedin: false, mentionedInNews: false },
       },
       sources: [
         { kind: 'engagement', enabled: true, found: 260 },
@@ -618,11 +741,18 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     audience: {
       icp: {
         titles: ['Head of Partnerships', 'Agency Owner'],
-        industries: ['Marketing Agencies'],
-        companySize: '11-200',
+        excludedTitles: ['Freelancer'],
+        seniority: ['Owner / Partner', 'Director'],
+        functions: ['Business Development', 'Marketing'],
+        companySize: ['11-50', '51-200'],
+        industries: ['Advertising Services', 'Marketing Services'],
         locations: ['Netherlands'],
-        seniority: ['Head', 'Owner'],
+        hqLocations: ['Netherlands'],
+        companyType: ['Privately held', 'Partnership'],
+        yearsInRole: '6 to 10 years',
+        keywords: ['partner program'],
         exclusions: ['Current partners'],
+        signals: { changedJobs: false, activeOnLinkedin: true, mentionedInNews: true },
       },
       sources: [
         { kind: 'engagement', enabled: false, found: 0 },
@@ -709,11 +839,18 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     audience: {
       icp: {
         titles: [],
-        industries: [],
-        companySize: '',
-        locations: [],
+        excludedTitles: [],
         seniority: [],
+        functions: [],
+        companySize: [],
+        industries: [],
+        locations: [],
+        hqLocations: [],
+        companyType: [],
+        yearsInRole: '',
+        keywords: [],
         exclusions: [],
+        signals: { changedJobs: false, activeOnLinkedin: false, mentionedInNews: false },
       },
       sources: [
         { kind: 'engagement', enabled: false, found: 0 },
