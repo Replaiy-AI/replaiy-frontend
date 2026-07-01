@@ -972,10 +972,10 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
                 <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
                 <div
                   data-testid={`import-batch-${batch.id}`}
-                  className="group px-4 py-3 flex items-center gap-3 hover-elevate active-elevate-2"
+                  className="group px-4 py-3.5 flex items-center gap-3 hover-elevate active-elevate-2"
                 >
-                  <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
-                    <FileText size={16} strokeWidth={1.8} />
+                  <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+                    <FileText size={16} strokeWidth={1.9} className="text-foreground/70" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[14px] font-medium text-foreground truncate">
