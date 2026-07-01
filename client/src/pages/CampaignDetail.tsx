@@ -2033,8 +2033,8 @@ const SUPPRESS_ROWS: {
   },
   {
     key: 'inActiveConversation',
-    label: 'Already in conversation',
-    hint: "Others can still connect or like, but won't start a competing chat.",
+    label: 'Teammate already talking',
+    hint: "Don't start a second conversation when a teammate is already talking to them.",
   },
 ];
 
