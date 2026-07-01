@@ -96,27 +96,27 @@ export const LEAD_SOURCE_META: Record<
 > = {
   connection: {
     label: 'Warm through your team',
-    hint: "Leads already connected to a teammate. When several teammates know the same company, warmth goes up.",
+    hint: 'The warmest way in: someone on your team already knows them.',
     warmth: 'warmest',
   },
   engagement: {
     label: 'Active around your topics',
-    hint: 'Finds the people posting, liking, reacting and commenting on ICP-relevant posts, and follows replies deep into the thread.',
+    hint: 'Reaches the people already talking about what you sell.',
     warmth: 'warmest',
   },
   signal: {
     label: 'Showing buying signals',
-    hint: 'Watches for job changes, hiring and growth signals as they happen.',
+    hint: "Catches prospects right when they're ready to move.",
     warmth: 'warm',
   },
   network: {
     label: 'In your network',
-    hint: 'Surfaces people you are already connected to who match your ICP.',
+    hint: 'Warm leads hiding in the connections you already have.',
     warmth: 'warm',
   },
   salesnav: {
     label: 'Matched to your ICP',
-    hint: 'Continuously searches for fresh prospects that fit your ICP, so cold reach never runs dry.',
+    hint: 'A steady stream of fresh prospects that fit.',
     warmth: 'cold',
   },
   import: {
