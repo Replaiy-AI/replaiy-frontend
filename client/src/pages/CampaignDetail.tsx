@@ -97,6 +97,10 @@ import { LANGUAGE_LABELS, activePersona, type LanguageCode } from '@/data/mockPe
 import {
   INDUSTRY_TAXONOMY,
   REGION_TAXONOMY,
+  TITLE_SUGGESTIONS,
+  genericTitlesForFunction,
+  SENIORITY_TO_BUCKET,
+  type SeniorityBucket,
 } from '@/data/icpTaxonomy';
 import { ReplaiyAvatar } from '@/components/Avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -1308,6 +1312,44 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
   const setYearsInRole = (v: string) =>
     setIcp((prev) => ({ ...prev, yearsInRole: prev.yearsInRole === v ? '' : v }));
 
+  // Title suggestions shown INSIDE the Titles picker, computed from the selected
+  // functions + seniority (mirrors the old IcpTitleGroup logic). If no function
+  // is chosen there is no context to suggest from, so it stays empty and the
+  // picker is just a free-type field. The picker scrolls, so we do NOT cap.
+  const titleSuggestions = (() => {
+    if (icp.functions.length === 0) return [];
+    // Active seniority buckets from the selected seniority values; if none are
+    // selected, consider all three so suggestions still cover the range.
+    const bucketSet = new Set<SeniorityBucket>();
+    for (const s of icp.seniority) {
+      const b = SENIORITY_TO_BUCKET[s];
+      if (b) bucketSet.add(b);
+    }
+    const buckets: SeniorityBucket[] =
+      bucketSet.size > 0 ? Array.from(bucketSet) : ['exec', 'lead', 'ic'];
+    // Order functions so curated-mapped ones (present in TITLE_SUGGESTIONS) come
+    // first, so specific titles rank above generated fallbacks.
+    const orderedFns = [...icp.functions].sort((a, b) => {
+      const aCurated = TITLE_SUGGESTIONS[a] ? 0 : 1;
+      const bCurated = TITLE_SUGGESTIONS[b] ? 0 : 1;
+      return aCurated - bCurated;
+    });
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const fn of orderedFns) {
+      for (const bucket of buckets) {
+        const titles = TITLE_SUGGESTIONS[fn]?.[bucket] ?? genericTitlesForFunction(fn, bucket);
+        for (const t of titles) {
+          if (seen.has(t)) continue;
+          if (icp.titles.includes(t)) continue;
+          seen.add(t);
+          out.push(t);
+        }
+      }
+    }
+    return out;
+  })();
+
   // A small quiet "Start from a template" action lives in the header trailing
   // slot (top-right, aligned) instead of floating loosely at the card bottom.
   // It is a template picker, not an edit-mode toggle, so a header action reads
@@ -1398,10 +1440,13 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             onAdd={(_, v) => addEnum('functions', v)}
             onRemove={(_, v) => removeEnum('functions', v)}
           />
-          <IcpEditableGroup
+          <IcpSearchableGroup
             caption="Titles"
             field="titles"
             values={icp.titles}
+            fixed={false}
+            placeholder="Search or type a title"
+            options={titleSuggestions}
             hint="Matched loosely, so close variants like 'Head of Growth', 'Growth Lead' and 'VP Growth' all count."
             onRemove={removeAt}
             onAdd={addTo}
@@ -1722,7 +1767,7 @@ function IcpEditableGroup({
 // precise key type (industries/locations/hqLocations via addTo/removeAt, or
 // seniority/functions via the enum helpers) without a union-contravariance
 // mismatch.
-type IcpSearchField = 'industries' | 'locations' | 'hqLocations' | 'seniority' | 'functions';
+type IcpSearchField = 'industries' | 'locations' | 'hqLocations' | 'seniority' | 'functions' | 'titles';
 function IcpSearchableGroup<F extends IcpSearchField>({
   caption,
   field,
@@ -1732,6 +1777,7 @@ function IcpSearchableGroup<F extends IcpSearchField>({
   onAdd,
   placeholder,
   fixed = false,
+  hint,
 }: {
   caption: string;
   field: F;
@@ -1743,6 +1789,9 @@ function IcpSearchableGroup<F extends IcpSearchField>({
   // When true (seniority / functions), values are a closed enum: you can only
   // pick an exact option from the list, never free-add an invented value.
   fixed?: boolean;
+  // Optional muted helper line rendered below the chips row, matching
+  // IcpEditableGroup's hint. Only Titles uses it today.
+  hint?: string;
 }) {
   const [query, setQuery] = useState('');
 
@@ -1756,6 +1805,16 @@ function IcpSearchableGroup<F extends IcpSearchField>({
       return words.every((w) => low.includes(w));
     });
   })();
+
+  // Non-fixed fields (Titles) can free-add any typed value. When the query is a
+  // non-empty string that matches no existing option exactly, we surface an
+  // Add "<query>" row at the top of the list, so clicking it (not just Enter)
+  // adds the custom value. Fixed lists never show this.
+  const trimmedQuery = query.trim();
+  const showCustomAdd =
+    !fixed &&
+    trimmedQuery.length > 0 &&
+    !options.some((o) => o.toLowerCase() === trimmedQuery.toLowerCase());
 
   return (
     <div>
@@ -1830,8 +1889,24 @@ function IcpSearchableGroup<F extends IcpSearchField>({
                 className="h-[34px] w-full bg-foreground/[0.04] dark:bg-white/[0.06] rounded-xl px-3 mb-1.5 outline-none text-[13px] text-foreground placeholder:text-foreground/40"
               />
               <div className="max-h-64 overflow-y-auto no-scrollbar" role="listbox">
+                {showCustomAdd && (
+                  <button
+                    type="button"
+                    role="option"
+                    data-testid={`icp-add-custom-${field}`}
+                    onClick={() => {
+                      onAdd(field, trimmedQuery);
+                      setQuery('');
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover-elevate active-elevate-2 text-[13px] text-foreground/70"
+                  >
+                    Add "{trimmedQuery}"
+                  </button>
+                )}
                 {filtered.length === 0 ? (
-                  <div className="px-2.5 py-2 text-[13px] text-foreground/45">No matches</div>
+                  !showCustomAdd && (
+                    <div className="px-2.5 py-2 text-[13px] text-foreground/45">No matches</div>
+                  )
                 ) : (
                   filtered.map((opt) => (
                     <button
@@ -1854,6 +1929,9 @@ function IcpSearchableGroup<F extends IcpSearchField>({
           )}
         </GlassPopover>
       </div>
+      {hint && (
+        <div className="text-[11.5px] text-foreground/45 leading-snug mt-2">{hint}</div>
+      )}
     </div>
   );
 }
