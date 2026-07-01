@@ -939,47 +939,56 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
                       />
                     </div>
                   ) : (
-                    // Batch overview: one calm soft row per import (most recent
-                    // first), a whole-batch Undo per row, and an "Import more"
-                    // affordance below.
-                    <div className="flex flex-col gap-2">
-                      {batches.map((batch) => (
-                        <div
-                          key={batch.id}
-                          data-testid={`import-batch-${batch.id}`}
-                          className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-3 flex items-start justify-between gap-2.5"
-                        >
-                          <div className="flex items-start gap-2 min-w-0">
-                            <FileText
-                              size={14}
-                              strokeWidth={1.9}
-                              className="text-icon-muted shrink-0 mt-[2px]"
-                            />
-                            <div className="min-w-0">
-                              <div className="text-[12.5px] font-medium text-foreground/80 truncate">
-                                {batch.filename}
+                    // Batch overview: mirrors the Personal-knowledge Sources row
+                    // EXACTLY (MijnAi.tsx ~1108-1146) so imports read as first
+                    // class sources, not a bespoke block: one rp-card, rows split
+                    // by hairline dividers, a glass-pill icon square, title + hint,
+                    // a quiet right meta, and a hover Undo (the remove affordance).
+                    <div className="flex flex-col gap-2.5">
+                      <div className="rp-card rounded-3xl overflow-hidden">
+                        {batches.map((batch, i) => (
+                          <div key={batch.id}>
+                            {i > 0 && (
+                              <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                            )}
+                            <div
+                              data-testid={`import-batch-${batch.id}`}
+                              className="group px-4 py-3 flex items-center gap-3 hover-elevate active-elevate-2"
+                            >
+                              <div className="h-9 w-9 shrink-0 rounded-xl glass-pill flex items-center justify-center text-icon">
+                                <FileText size={16} strokeWidth={1.8} />
                               </div>
-                              <div className="text-[11.5px] text-foreground/45">
-                                {fmtNum(batch.net)} leads, {fmtNum(batch.qualified)} qualified,{' '}
-                                {fmtNum(batch.duplicates)} duplicates, {batchDate(batch.importedAt)}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[14px] font-medium text-foreground truncate">
+                                  {batch.filename}
+                                </div>
+                                <div className="text-[12px] text-foreground/50 truncate">
+                                  {fmtNum(batch.net)} leads, {fmtNum(batch.qualified)} qualified,{' '}
+                                  {fmtNum(batch.duplicates)} duplicates
+                                </div>
                               </div>
+                              <span className="text-[11.5px] text-foreground/40 shrink-0">
+                                {batchDate(batch.importedAt)}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label="Undo import"
+                                data-testid={`import-batch-undo-${batch.id}`}
+                                onClick={() => undoBatch(batch)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+                              >
+                                <Trash2 size={13} strokeWidth={1.8} />
+                              </button>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            data-testid={`import-batch-undo-${batch.id}`}
-                            onClick={() => undoBatch(batch)}
-                            className="shrink-0 text-[12px] font-medium text-foreground/50 hover:text-foreground/75 transition-colors"
-                          >
-                            Undo
-                          </button>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                       <button
                         type="button"
                         data-testid="source-import-more"
                         onClick={importMore}
-                        className="self-start text-[12px] font-medium text-foreground/50 hover:text-foreground/75 transition-colors"
+                        className="self-start text-[12px] font-medium hover:opacity-80 transition-opacity"
+                        style={{ color: AI_ACCENT }}
                       >
                         Import more
                       </button>
