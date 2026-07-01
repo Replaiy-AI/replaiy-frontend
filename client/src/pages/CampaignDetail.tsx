@@ -85,6 +85,7 @@ import {
 } from '@/data/mockCampaigns';
 import { LANGUAGE_LABELS, activePersona, type LanguageCode } from '@/data/mockPersona';
 import { ReplaiyAvatar } from '@/components/Avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { GlassToggle } from '@/components/GlassToggle';
@@ -1308,12 +1309,124 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
   const [, navigate] = useLocation();
   const leads = campaign.audience?.sampleLeads ?? [];
   const back = () => navigate('/campaigns/' + campaign.id);
+  const reduced = useReducedMotion();
 
   // Live persona drives the small talking-mascot avatar that marks each AI
   // insight, exactly like the inbox AI-voice and the Overview "Your AI" card.
   // We never mark AI with a sparkle - the mascot IS our AI voice.
-  const { persona: livePersona } = useReplaiy();
+  const { persona: livePersona, updateCampaign } = useReplaiy();
   const p = activePersona(livePersona); // { color, mascot }
+
+  // ── Progressive (background) enrichment ──────────────────────────
+  // Freshly imported leads land instantly with identity known but marked
+  // enriching:true. Here we reveal each one live and drive a progress bar,
+  // mirroring Clay/Apollo/HeyReach. This is a VIEW-LOCAL concern: we do NOT
+  // mutate the store on every tick (that would thrash re-renders). We track
+  // which visible enriching rows are still pending in local state and a
+  // numeric enrichedCount that climbs toward the full batch total, then clear
+  // the store flags ONCE on completion so re-entry shows them settled.
+  const enrichingIdx = useMemo(
+    () =>
+      leads.reduce<number[]>((acc, l, i) => {
+        if (l.enriching === true) acc.push(i);
+        return acc;
+      }, []),
+    [leads],
+  );
+  // The progress-bar denominator: the batch total from the import result if
+  // it belongs to this campaign (may be 485 while only 6 rows are visible),
+  // else the count of enriching visible leads.
+  const importResult = getImportResult();
+  const batchTotal =
+    importResult && importResult.campaignId === campaign.id && importResult.enrichingTotal
+      ? importResult.enrichingTotal
+      : enrichingIdx.length;
+  const hasEnriching = enrichingIdx.length > 0;
+
+  // Local reveal state: indices (into `leads`) that have finished enriching,
+  // and enrichedCount climbing 0 -> batchTotal for the bar.
+  const [doneIdx, setDoneIdx] = useState<Set<number>>(() => new Set());
+  const [enrichedCount, setEnrichedCount] = useState(0);
+  const clearedRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasEnriching) return;
+    // Reset local reveal each time we (re)enter with enriching leads.
+    setDoneIdx(new Set());
+    setEnrichedCount(0);
+    clearedRef.current = false;
+
+    let mounted = true;
+    const pending = [...enrichingIdx];
+    // 485 can't finish in 3s: pace the bar over ~8-12s of ongoing background
+    // work. Reduced motion finishes in ~1s but still shows the bar briefly.
+    const tick = reduced ? 260 : 620;
+    const stepChunk = Math.max(1, Math.ceil(batchTotal / (reduced ? 4 : 16)));
+
+    const complete = () => {
+      if (!mounted) return;
+      setEnrichedCount(batchTotal);
+      // Settle the store ONCE so leaving and returning shows enriched rows.
+      if (!clearedRef.current) {
+        clearedRef.current = true;
+        const aud = campaign.audience;
+        if (aud && (aud.sampleLeads ?? []).some((l) => l.enriching)) {
+          updateCampaign(campaign.id, {
+            audience: {
+              ...aud,
+              sampleLeads: (aud.sampleLeads ?? []).map((l) =>
+                l.enriching ? { ...l, enriching: false } : l,
+              ),
+            },
+          });
+        }
+      }
+    };
+
+    const id = setInterval(() => {
+      if (!mounted) return;
+      // (a) reveal the next visible enriching row.
+      const next = pending.shift();
+      if (next !== undefined) {
+        setDoneIdx((prev) => {
+          const nextSet = new Set(prev);
+          nextSet.add(next);
+          return nextSet;
+        });
+      }
+      // (b) advance the counter toward batchTotal by a realistic chunk.
+      setEnrichedCount((c) => {
+        const advanced = Math.min(batchTotal, c + stepChunk);
+        return advanced;
+      });
+      // Stop once both the visible rows and the counter are done.
+      if (pending.length === 0) {
+        setEnrichedCount((c) => {
+          if (c >= batchTotal) {
+            clearInterval(id);
+            complete();
+            return batchTotal;
+          }
+          return c;
+        });
+      }
+    }, tick);
+
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaign.id, hasEnriching, batchTotal, reduced]);
+
+  // A visible lead is still enriching for display if the store marked it
+  // enriching AND our local reveal hasn't flipped it done yet.
+  const isEnriching = (lead: SampleLead, i: number): boolean =>
+    lead.enriching === true && !doneIdx.has(i);
+
+  // The progress row shows while the batch is still enriching (counter < total).
+  const enrichedDone = Math.min(enrichedCount, batchTotal);
+  const showProgress = hasEnriching && enrichedDone < batchTotal;
 
   // Opening a lead's full profile from this routed full-screen view would need
   // significant plumbing (the profile-open context lives in the inbox/feed
@@ -1350,6 +1463,37 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
           A sample, each enriched with recent activity and buying signals.
         </p>
       </div>
+
+      {/* Live enrichment progress: calm counter + thin bar that advances as
+          background enrichment fills in. Fades out on completion. */}
+      <AnimatePresence initial={false}>
+        {showProgress && (
+          <motion.div
+            className="px-1 mb-4"
+            initial={reduced ? false : { opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, height: 0 }}
+            transition={reduced ? { duration: 0 } : { duration: 0.28, ease: 'easeInOut' }}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[12.5px] text-foreground/60 tabular-nums">
+                Enriching {fmtNum(enrichedDone)} of {fmtNum(batchTotal)} leads
+              </span>
+            </div>
+            <div className="h-1 rounded-full bg-foreground/[0.08] overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${batchTotal > 0 ? (enrichedDone / batchTotal) * 100 : 0}%`,
+                  background: 'linear-gradient(90deg, #1B3FA8 0%, #2F6BFF 100%)',
+                  transition: reduced ? 'none' : 'width 0.5s ease',
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="rp-card rounded-3xl px-3 py-1.5">
         {leads.length === 0 && (
           <p className="px-2 py-8 text-center text-[13px] text-foreground/45">
@@ -1357,7 +1501,12 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
           </p>
         )}
         <div className="flex flex-col">
-          {leads.map((lead, i) => (
+          {leads.map((lead, i) => {
+            // While still enriching, identity (avatar + name + title/company)
+            // is known instantly; warmth, insight and score fill in live.
+            const enriching = isEnriching(lead, i);
+            const revealTransition = reduced ? { duration: 0 } : { ...APPLE_SPRING };
+            return (
             <div key={`${lead.name}-${i}`}>
               {i > 0 && (
                 <div className="ml-[70px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
@@ -1378,9 +1527,22 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                     <span className="min-w-0 text-[14px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
                       {lead.name}
                     </span>
-                    <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0">
-                      {WARMTH_META[lead.warmth].label}
-                    </span>
+                    {enriching ? (
+                      // Muted "Enriching" pill keeps the row height stable while
+                      // the real warmth label is still being resolved.
+                      <span className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/40 shrink-0">
+                        Enriching
+                      </span>
+                    ) : (
+                      <motion.span
+                        initial={reduced ? false : { opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={revealTransition}
+                        className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0"
+                      >
+                        {WARMTH_META[lead.warmth].label}
+                      </motion.span>
+                    )}
                   </div>
                   <div className="text-[12px] text-foreground/55 leading-snug truncate mt-0.5">
                     {lead.title} at {lead.company}
@@ -1389,23 +1551,43 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                       persona mascot (the AI voice), NEVER a hard background
                       disc and never a sparkle. Same treatment as the inbox /
                       Overview "Your AI" mascot: the mascot image alone. */}
-                  <div className="mt-1.5 flex items-start gap-1.5">
-                    <img
-                      src={p.mascot}
-                      alt=""
-                      aria-hidden
-                      draggable={false}
-                      className="shrink-0 mt-[1px] w-[16px] h-[16px] object-contain select-none pointer-events-none"
-                    />
-                    <span className="text-[12px] text-foreground/60 leading-snug">
-                      {lead.insight}
-                    </span>
-                  </div>
+                  {enriching ? (
+                    <div className="mt-1.5 flex items-center">
+                      <Skeleton className="h-[12px] w-40 rounded" />
+                    </div>
+                  ) : (
+                    <motion.div
+                      initial={reduced ? false : { opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={revealTransition}
+                      className="mt-1.5 flex items-start gap-1.5"
+                    >
+                      <img
+                        src={p.mascot}
+                        alt=""
+                        aria-hidden
+                        draggable={false}
+                        className="shrink-0 mt-[1px] w-[16px] h-[16px] object-contain select-none pointer-events-none"
+                      />
+                      <span className="text-[12px] text-foreground/60 leading-snug">
+                        {lead.insight}
+                      </span>
+                    </motion.div>
+                  )}
                 </div>
                 <div className="shrink-0 flex items-center gap-2 mt-0.5">
-                  <span className="text-[12px] font-semibold tabular-nums text-foreground/70">
-                    {lead.matchScore}%
-                  </span>
+                  {enriching ? (
+                    <Skeleton className="h-[14px] w-9 rounded-full" />
+                  ) : (
+                    <motion.span
+                      initial={reduced ? false : { opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={revealTransition}
+                      className="text-[12px] font-semibold tabular-nums text-foreground/70"
+                    >
+                      {lead.matchScore}%
+                    </motion.span>
+                  )}
                   {/* Trailing chevron - the "open this lead" affordance. */}
                   <ChevronRight
                     size={16}
@@ -1416,7 +1598,8 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                 </div>
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1641,7 +1824,9 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
     if (appliedRef.current) return;
     appliedRef.current = true;
     // Audience "N leads imported" line matches the summary headline (total).
-    setImportResult(campaign.id, total);
+    // The third arg is the enrichment batch total: the leads view uses it as the
+    // progress-bar denominator ("Enriching {done} of {total} leads").
+    setImportResult(campaign.id, total, total);
     // Land the net imported leads in the campaign pool, distributed across
     // warmth tiers: most cold, some warm, a few warmest. Preserve the rest of
     // the audience object.
@@ -1701,6 +1886,9 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
           matchScore: scoreFor(i),
           insight: INSIGHTS[i % INSIGHTS.length],
           avatar: '',
+          // Land immediately with identity known; enrichment runs in the
+          // background and fills the rest live in the leads view.
+          enriching: true,
         };
       });
 
@@ -2083,11 +2271,12 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
   // + glow with a small AI_ACCENT check badge, the headline count, a clean
   // centered stats BAND (no boxes), and two actions. The block rises in gently
   // on mount (reduced-motion safe).
+  // Honest kickoff stats: enrichment has STARTED, not finished. No numbers that
+  // imply completion (no "Verified on LinkedIn" / "Above your ICP bar").
   const doneStats = [
-    { label: 'Verified on LinkedIn', value: stats.verified },
-    { label: 'Enriched with signals', value: stats.verified },
+    { label: 'In your pool', value: stats.net },
+    { label: 'Being enriched', value: total },
     { label: 'Duplicates skipped', value: stats.duplicates },
-    { label: 'Above your ICP bar', value: stats.aboveIcp },
   ];
   const doneBody = (
     <motion.div
@@ -2116,8 +2305,14 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
         {fmtNum(total)} leads imported
       </h2>
 
-      {/* Clean centered stats band: value over label, no boxes. 2x2 on mobile,
-          a single row of 4 on desktop with thin hairline dividers between. */}
+      {/* Honest subline: enrichment runs in the background, this is a kickoff. */}
+      <p className="mt-3 text-[13px] leading-relaxed text-foreground/55 max-w-[440px]">
+        We are enriching them in the background, verifying each one on LinkedIn
+        and pulling signals. You can keep working while this runs.
+      </p>
+
+      {/* Clean centered stats band: value over label, no boxes. Stacked on
+          mobile, a single row on desktop with thin hairline dividers between. */}
       <div className="mt-8 grid grid-cols-2 gap-y-6 gap-x-10 sm:flex sm:items-center sm:gap-0">
         {doneStats.map((s, i) => (
           <div key={i} className="flex items-stretch">

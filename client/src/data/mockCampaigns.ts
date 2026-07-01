@@ -82,6 +82,8 @@ export interface SampleLead {
   matchScore: number;
   insight: string;
   avatar: string;
+  // true while background enrichment is still running for this lead; undefined/false = fully enriched
+  enriching?: boolean;
 }
 
 // Label + hint + warmth per discovery source. Warmth drives the UI order

@@ -23,6 +23,7 @@ export type ImportDraft = {
 export type ImportResult = {
   campaignId: string;
   count: number;
+  enrichingTotal?: number;
 } | null;
 
 let importDraft: ImportDraft = null;
@@ -40,8 +41,12 @@ export function clearImportDraft(): void {
   importDraft = null;
 }
 
-export function setImportResult(campaignId: string, count: number): void {
-  importResult = { campaignId, count };
+export function setImportResult(
+  campaignId: string,
+  count: number,
+  enrichingTotal?: number,
+): void {
+  importResult = { campaignId, count, enrichingTotal };
 }
 
 export function getImportResult(): ImportResult {
