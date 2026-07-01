@@ -66,6 +66,8 @@ import {
   Circle,
   Search,
   Building2,
+  Briefcase,
+  MapPin,
 } from 'lucide-react';
 import { useReplaiy } from '@/state/ReplaiyContext';
 import {
@@ -711,10 +713,9 @@ function AudiencePoolCard({
           })}
         </div>
 
-        {/* Quiet "View leads" affordance - opens a preview of sample leads. */}
+        {/* Quiet "View leads" affordance - opens the full leads list. */}
         {hasLeads && (
-          <div className="mt-5 flex items-center justify-between gap-3">
-            <span className="text-[11.5px] text-foreground/45">A sample of who is in your pool</span>
+          <div className="mt-5 flex items-center justify-end">
             <button
               type="button"
               data-testid="button-view-leads"
@@ -1165,6 +1166,73 @@ function CompanySummary({ icp }: { icp: IcpCriteria }) {
   );
 }
 
+// The summary line for the collapsed Role row: neutral IcpChips for the set
+// seniority, then functions, then titles. Capped so it stays on one line, with
+// a "+N" overflow chip when there are more. Excludes excludedTitles and years
+// so the summary stays to the positive, high-signal criteria. If nothing is
+// set, a quiet muted "Anyone" hint reads it as "no constraint".
+function RoleSummary({ icp }: { icp: IcpCriteria }) {
+  const parts = [...icp.seniority, ...icp.functions, ...icp.titles];
+  if (parts.length === 0) {
+    return <span className="text-[12.5px] text-foreground/40 truncate">Anyone</span>;
+  }
+  const CAP = 4;
+  const shown = parts.slice(0, CAP);
+  const overflow = parts.length - shown.length;
+  return (
+    <div className="flex items-center gap-1.5 overflow-hidden">
+      {shown.map((v, i) => (
+        <IcpSummaryChip key={`${v}-${i}`} label={v} />
+      ))}
+      {overflow > 0 && <IcpSummaryChip label={`+${overflow}`} />}
+    </div>
+  );
+}
+
+// The summary line for the collapsed Industry row: neutral IcpChips for the set
+// industries, then keywords. Capped so it stays on one line, with a "+N"
+// overflow chip when there are more. If nothing is set, a quiet muted
+// "Any industry" hint reads it as "no constraint".
+function IndustrySummary({ icp }: { icp: IcpCriteria }) {
+  const parts = [...icp.industries, ...icp.keywords];
+  if (parts.length === 0) {
+    return <span className="text-[12.5px] text-foreground/40 truncate">Any industry</span>;
+  }
+  const CAP = 4;
+  const shown = parts.slice(0, CAP);
+  const overflow = parts.length - shown.length;
+  return (
+    <div className="flex items-center gap-1.5 overflow-hidden">
+      {shown.map((v, i) => (
+        <IcpSummaryChip key={`${v}-${i}`} label={v} />
+      ))}
+      {overflow > 0 && <IcpSummaryChip label={`+${overflow}`} />}
+    </div>
+  );
+}
+
+// The summary line for the collapsed Location row: neutral IcpChips for the set
+// person locations. Capped so it stays on one line, with a "+N" overflow chip
+// when there are more. If nothing is set, a quiet muted "Anywhere" hint reads
+// it as "no constraint".
+function LocationSummary({ icp }: { icp: IcpCriteria }) {
+  const parts = [...icp.locations];
+  if (parts.length === 0) {
+    return <span className="text-[12.5px] text-foreground/40 truncate">Anywhere</span>;
+  }
+  const CAP = 4;
+  const shown = parts.slice(0, CAP);
+  const overflow = parts.length - shown.length;
+  return (
+    <div className="flex items-center gap-1.5 overflow-hidden">
+      {shown.map((v, i) => (
+        <IcpSummaryChip key={`${v}-${i}`} label={v} />
+      ))}
+      {overflow > 0 && <IcpSummaryChip label={`+${overflow}`} />}
+    </div>
+  );
+}
+
 // A compact, quiet chip for the collapsed-row SUMMARY of an accordion group.
 // Smaller than IcpChip (this is a summary, not an editable value) and, unlike
 // IcpChip's `muted` variant, it has NO minus prefix: these are the INCLUDED
@@ -1287,16 +1355,66 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
       {/* Padding-less accordion shell: rows go full-bleed and read as SIBLINGS
           of the Sources card rows above (same rp-card rounded-3xl overflow-hidden
           wrapper, same px-4 row rhythm, same hairline dividers between rows).
-          PROTOTYPE: only the Company group is wired up for now. The other groups
-          (Role & seniority, Industry & keywords, Person location) will be added
-          in a follow-up using the same IcpAccordionGroup pattern; their field
-          components stay defined in this file. */}
+          Four groups top-to-bottom: Role and seniority (open by default),
+          Company, Industry and keywords, Location. Each pair of adjacent group
+          rows is separated by the same ml-[60px] inset hairline the Sources card
+          uses, so the icon column stays clean and both cards read as one family. */}
       <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-icp">
+        {/* 1) Role and seniority: who they are. Open by default. */}
+        <IcpAccordionGroup
+          icon={Users}
+          label="Role and seniority"
+          testId="icp-group-role"
+          defaultOpen
+          summary={<RoleSummary icp={icp} />}
+        >
+          <IcpFixedMultiGroup
+            caption="Seniority"
+            options={SENIORITY_OPTIONS}
+            selected={icp.seniority}
+            onToggle={(v) => toggleFixed('seniority', v)}
+            testIdBase="icp-seniority"
+          />
+          <IcpFixedMultiGroup
+            caption="Function"
+            options={FUNCTION_OPTIONS}
+            selected={icp.functions}
+            onToggle={(v) => toggleFixed('functions', v)}
+            testIdBase="icp-function"
+          />
+          <IcpTitleGroup
+            values={icp.titles}
+            seniority={icp.seniority}
+            functions={icp.functions}
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          <IcpEditableGroup
+            caption="Exclude titles"
+            field="excludedTitles"
+            values={icp.excludedTitles}
+            muted
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          <IcpSingleSelectGroup
+            caption="Years in current role"
+            options={YEARS_OPTIONS}
+            selected={icp.yearsInRole}
+            onSelect={setYearsInRole}
+            testIdBase="icp-years"
+          />
+        </IcpAccordionGroup>
+
+        {/* Hairline between Role and Company, inset to align under the label
+            like the Sources card rows. */}
+        <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+
+        {/* 2) Company: the approved prototype group, now collapsed by default. */}
         <IcpAccordionGroup
           icon={Building2}
           label="Company"
           testId="icp-group-company"
-          defaultOpen
           summary={<CompanySummary icp={icp} />}
         >
           <IcpFixedMultiGroup
@@ -1317,6 +1435,63 @@ function AudienceIcpCard({ audience }: { audience: CampaignAudience }) {
             caption="Company HQ location"
             field="hqLocations"
             values={icp.hqLocations}
+            options={REGION_TAXONOMY}
+            placeholder="Search locations"
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+        </IcpAccordionGroup>
+
+        {/* Hairline between Company and Industry. */}
+        <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+
+        {/* 3) Industry and keywords. Collapsed by default. */}
+        <IcpAccordionGroup
+          icon={Briefcase}
+          label="Industry and keywords"
+          testId="icp-group-industry"
+          summary={<IndustrySummary icp={icp} />}
+        >
+          <IcpSearchableGroup
+            caption="Industries"
+            field="industries"
+            values={icp.industries}
+            options={INDUSTRY_TAXONOMY}
+            placeholder="Search industries"
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          <IcpEditableGroup
+            caption="Keywords"
+            field="keywords"
+            values={icp.keywords}
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+          <IcpEditableGroup
+            caption="Exclusions"
+            field="exclusions"
+            values={icp.exclusions}
+            muted
+            onRemove={removeAt}
+            onAdd={addTo}
+          />
+        </IcpAccordionGroup>
+
+        {/* Hairline between Industry and Location. */}
+        <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+
+        {/* 4) Location: person geo (company HQ stays in the Company group). */}
+        <IcpAccordionGroup
+          icon={MapPin}
+          label="Location"
+          testId="icp-group-location"
+          summary={<LocationSummary icp={icp} />}
+        >
+          <IcpSearchableGroup
+            caption="Person location"
+            field="locations"
+            values={icp.locations}
             options={REGION_TAXONOMY}
             placeholder="Search locations"
             onRemove={removeAt}
@@ -2286,26 +2461,10 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
               >
                 <ReplaiyAvatar name={lead.name} src={lead.avatar} size={44} className="shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center">
                     <span className="min-w-0 text-[14px] font-semibold tracking-[-0.005em] text-foreground leading-snug truncate">
                       {lead.name}
                     </span>
-                    {enriching ? (
-                      // A subtle skeleton on the warmth-pill's spot keeps the row
-                      // height + layout stable while warmth is resolved, WITHOUT
-                      // reusing a warmth-style label (the status lives on the
-                      // right instead, so it never looks like a warmth category).
-                      <Skeleton className="h-[18px] w-14 rounded-full shrink-0" />
-                    ) : (
-                      <motion.span
-                        initial={reduced ? false : { opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={revealTransition}
-                        className="glass-pill inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium text-foreground/45 shrink-0"
-                      >
-                        {WARMTH_META[lead.warmth].label}
-                      </motion.span>
-                    )}
                   </div>
                   <div className="text-[12px] text-foreground/55 leading-snug truncate mt-0.5">
                     {lead.title} at {lead.company}
@@ -3331,20 +3490,15 @@ function CampaignImportView({ campaign }: { campaign: Campaign }) {
 // ── The whole Audience section, in agreed order ─────────────────────
 // Threshold + view-leads live here so the pool health line, the slider, and
 // the preview all read from one source of truth (local state).
+// Audience tab is now PURE SETTINGS (who this campaign targets): sources, the
+// ICP editor, the match threshold and suppression. The pool + ICP-score-spread
+// (which is DATA about who is currently in the pool) moved to the Overview tab.
 function AudienceSection({ campaign }: { campaign: Campaign }) {
-  const [, navigate] = useLocation();
   const audience = campaign.audience;
   const [threshold, setThreshold] = useState(audience?.matchThreshold ?? 70);
   if (!audience) return null;
   return (
     <div className="flex flex-col gap-6 md:gap-7">
-      {/* v-leads-route — "View leads" now navigates to a full-screen route
-          (/campaigns/:id/leads) instead of opening an overlay sheet. */}
-      <AudiencePoolCard
-        audience={audience}
-        threshold={threshold}
-        onViewLeads={() => navigate('/campaigns/' + campaign.id + '/leads')}
-      />
       <AudienceSourcesCard audience={audience} campaignId={campaign.id} />
       <AudienceIcpCard audience={audience} />
       <AudienceThresholdCard audience={audience} value={threshold} onChange={setThreshold} />
@@ -4999,6 +5153,17 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
         {overviewHero}
         <CampaignAiHero campaign={campaign} />
         <OverviewKpiCards campaign={campaign} />
+        {/* The audience pool + ICP-score spread is DATA about who is currently
+            in the pool, so it lives on Overview (data), not Audience (settings).
+            Threshold reads the campaign's stored match bar; View leads opens the
+            full leads list. */}
+        {campaign.audience && (
+          <AudiencePoolCard
+            audience={campaign.audience}
+            threshold={campaign.audience.matchThreshold}
+            onViewLeads={() => navigate('/campaigns/' + campaign.id + '/leads')}
+          />
+        )}
         <FunnelCard campaign={campaign} />
         <GoalCard campaign={campaign} />
       </>
