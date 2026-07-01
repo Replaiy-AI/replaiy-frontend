@@ -107,7 +107,7 @@ export const LEAD_SOURCE_META: Record<
   },
   import: {
     label: 'Manual import',
-    hint: 'Upload a CSV or paste LinkedIn URLs',
+    hint: 'Upload a CSV of leads',
     warmth: 'cold',
   },
 };

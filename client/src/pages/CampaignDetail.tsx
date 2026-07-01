@@ -48,7 +48,6 @@ import {
   Linkedin,
   Upload,
   FileText,
-  Link2,
   ShieldCheck,
   ChevronDown,
   ChevronRight,
@@ -667,18 +666,11 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
   // Representational: local toggle state, no backend write this round.
   const [sources, setSources] = useState(audience.sources);
   // Manual-import: a real (mock) import surface with a drag-and-drop CSV zone
-  // that is also a clickable file picker, a paste-URLs textarea that counts
-  // URLs live, and a calm "N leads imported" confirmation. No backend.
-  const [importDraft, setImportDraft] = useState(''); // pasted URLs
+  // that is also a clickable file picker, and a calm "N leads imported"
+  // confirmation. No backend.
   const [importFile, setImportFile] = useState<{ name: string; rows: number } | null>(null);
   const [importedCount, setImportedCount] = useState<number | null>(null);
   const reduceMotion = useReducedMotion();
-
-  // Count non-empty pasted URL lines live, for the "N URLs detected" hint.
-  const urlCount = useMemo(
-    () => importDraft.split(/\n+/).map((s) => s.trim()).filter(Boolean).length,
-    [importDraft],
-  );
 
   // Accept a selected/dropped CSV: keep the filename and mock a believable row
   // count. We cheaply read the file text and count non-empty lines when we can
@@ -701,15 +693,14 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
     }
   };
 
-  // How many leads this import will add: the CSV rows plus any pasted URLs.
-  const pendingCount = (importFile?.rows ?? 0) + urlCount;
+  // How many leads this import will add: the CSV row count only.
+  const pendingCount = importFile?.rows ?? 0;
 
-  // Commit the import. We add the file rows and pasted URL lines together,
-  // falling back to a fixed mock so the confirmation always reads sensibly.
+  // Commit the import. We use the CSV row count, falling back to a fixed mock
+  // so the confirmation always reads sensibly.
   const commitImport = () => {
     const total = pendingCount > 0 ? pendingCount : 128;
     setImportedCount(total);
-    setImportDraft('');
     setImportFile(null);
   };
   // Warmest first, then warm, then cold; import (cold) naturally lands last.
@@ -772,9 +763,9 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
               </div>
               {/* Manual import, when on, shows a REAL (mock) import surface in
                   the row's expanded space: a drag-and-drop CSV zone that is
-                  also a clickable file picker, a paste-URLs field that counts
-                  URLs live, and a clear Import action. After commit it becomes
-                  the calm "N leads imported" confirmation with "Import more". */}
+                  also a clickable file picker, and a clear Import action. After
+                  commit it becomes the calm "N leads imported" confirmation
+                  with "Import more". */}
               {src.kind === 'import' && src.enabled && (
                 <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
                   {importedCount === null ? (
@@ -815,30 +806,6 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                           </button>
                         </div>
                       )}
-                      <div className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Link2 size={14} strokeWidth={1.9} className="text-foreground/45 shrink-0" />
-                          <span className="text-[11px] font-semibold tracking-[-0.005em] text-foreground/45">
-                            Or paste LinkedIn or Sales Navigator URLs
-                          </span>
-                        </div>
-                        <textarea
-                          data-testid="source-import-input"
-                          value={importDraft}
-                          onChange={(e) => setImportDraft(e.target.value)}
-                          rows={3}
-                          placeholder={'https://www.linkedin.com/in/...\nhttps://www.linkedin.com/in/...'}
-                          className="w-full resize-none bg-transparent outline-none text-[12.5px] leading-[1.6] text-foreground placeholder:text-foreground/40"
-                        />
-                        {urlCount > 0 && (
-                          <div className="text-[12px] text-foreground/50 mt-0.5">
-                            <span className="font-semibold text-foreground/70 tabular-nums">
-                              {fmtNum(urlCount)}
-                            </span>{' '}
-                            {urlCount === 1 ? 'URL detected' : 'URLs detected'}
-                          </div>
-                        )}
-                      </div>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[11.5px] text-foreground/45">
                           {pendingCount > 0 ? (
@@ -849,7 +816,7 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                               leads ready to import
                             </>
                           ) : (
-                            'Add a CSV or paste URLs to begin'
+                            'Add a CSV to begin'
                           )}
                         </span>
                         <button
@@ -1195,48 +1162,50 @@ function AudienceThresholdCard({
   return (
     <section>
       <AudienceHeader
-        label="ICP score"
-        sub="Only contact leads above your bar."
+        label="Minimum ICP score"
+        sub="Only leads above this score get contacted."
       />
       <div className="rp-card rounded-3xl p-5 lg:p-6" data-testid="audience-threshold">
-        <div className="flex items-baseline justify-between gap-3 mb-3">
-          <div className="text-[11px] font-semibold tracking-[-0.005em] text-foreground/45">
-            Minimum ICP score
+        {/* Draggable slider + inline value: a flex row where the range track
+            grows and the {value}% sits to its right, vertically centered. The
+            real range input is invisible but on top of a styled track + filled
+            progress + knob, so it drags naturally while matching the design
+            system exactly. */}
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1 h-[16px] flex items-center" data-testid="threshold-slider">
+            <div className="absolute inset-x-0 h-[8px] rounded-full bg-foreground/[0.06] dark:bg-white/[0.06]" />
+            <div
+              className="absolute left-0 h-[8px] rounded-full"
+              style={{
+                width: `${value}%`,
+                background: 'linear-gradient(90deg, #1B3FA8 0%, #2F6BFF 100%)',
+                opacity: 0.92,
+              }}
+            />
+            <span
+              aria-hidden="true"
+              className="absolute top-1/2 h-[16px] w-[16px] -translate-y-1/2 -translate-x-1/2 rounded-full bg-white pointer-events-none"
+              style={{
+                left: `${value}%`,
+                boxShadow:
+                  '0 1px 1px rgba(0,0,0,0.05), 0 2px 6px rgba(8,10,18,0.22), inset 0 1px 0.5px rgba(255,255,255,0.95)',
+              }}
+            />
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={value}
+              data-testid="threshold-range"
+              aria-label="Minimum ICP score"
+              onChange={(e) => onChange(parseInt(e.target.value, 10))}
+              className="relative w-full h-[16px] cursor-pointer appearance-none bg-transparent m-0 opacity-0"
+            />
           </div>
-          <span className="text-[15px] font-semibold tabular-nums text-foreground">
+          <span className="shrink-0 min-w-[48px] text-right text-[15px] font-semibold tabular-nums text-foreground">
             {value}%
           </span>
-        </div>
-
-        {/* Draggable slider: a real range input made invisible but on top of a
-            styled track + filled progress + knob, so it drags naturally while
-            matching the design system exactly. */}
-        <div className="relative h-[16px] flex items-center" data-testid="threshold-slider">
-          <div className="absolute inset-x-0 h-[8px] rounded-full bg-foreground/[0.06] dark:bg-white/[0.06]" />
-          <div
-            className="absolute left-0 h-[8px] rounded-full"
-            style={{ width: `${value}%`, background: AI_ACCENT, opacity: 0.8 }}
-          />
-          <span
-            aria-hidden="true"
-            className="absolute top-1/2 h-[16px] w-[16px] -translate-y-1/2 -translate-x-1/2 rounded-full bg-white pointer-events-none"
-            style={{
-              left: `${value}%`,
-              boxShadow:
-                '0 1px 1px rgba(0,0,0,0.05), 0 2px 6px rgba(8,10,18,0.22), inset 0 1px 0.5px rgba(255,255,255,0.95)',
-            }}
-          />
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={value}
-            data-testid="threshold-range"
-            aria-label="Minimum ICP score"
-            onChange={(e) => onChange(parseInt(e.target.value, 10))}
-            className="relative w-full h-[16px] cursor-pointer appearance-none bg-transparent m-0 opacity-0"
-          />
         </div>
 
         {/* Live qualified count - recomputes as you drag. */}
