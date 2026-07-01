@@ -937,10 +937,49 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
             </div>
           </div>
 
-          {/* Upload block INSIDE the card, inset directly under the Import row,
-              so it reads as part of Sources (not a separate floating block).
-              Shared FileDropzone (same treatment as knowledge). */}
-          <div className="px-4 pb-4 pt-1">
+          {/* Imported CSV files: rows in the SAME card, directly UNDER the
+              Import row, grouped as "what you uploaded". Each has a divider
+              above, a CSV icon aligned to the source icon column, filename,
+              counts, date, and a hover-revealed Undo. No toggle. */}
+          {batches.map((batch) => (
+            <div key={batch.id}>
+              <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+              <div
+                data-testid={`import-batch-${batch.id}`}
+                className="group px-4 py-3.5 flex items-center gap-3 hover-elevate active-elevate-2"
+              >
+                <div className="h-9 w-9 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center shrink-0">
+                  <FileSpreadsheet size={16} strokeWidth={1.9} className="text-foreground/70" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-medium text-foreground truncate">
+                    {batch.filename}
+                  </div>
+                  <div className="text-[12px] text-foreground/50 truncate">
+                    {fmtNum(batch.net)} leads, {fmtNum(batch.qualified)} qualified,{' '}
+                    {fmtNum(batch.duplicates)} duplicates
+                  </div>
+                </div>
+                <span className="text-[11.5px] text-foreground/40 shrink-0">
+                  {batchDate(batch.importedAt)}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Undo import"
+                  data-testid={`import-batch-undo-${batch.id}`}
+                  onClick={() => undoBatch(batch)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
+                >
+                  <Trash2 size={13} strokeWidth={1.8} />
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Upload block INSIDE the card, at the bottom, inset. Divider above
+              to separate it from the rows. Shared FileDropzone. */}
+          <div className="ml-[60px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+          <div className="px-4 py-4">
             <FileDropzone
               testId="source-import-dropzone"
               accept=".csv,text/csv"
@@ -950,50 +989,6 @@ function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudie
             />
           </div>
         </div>
-
-        {/* Imported CSV files: quiet rows BETWEEN the sources card and the
-            upload block. They are the result of importing (not a source), so
-            they read as a small "what you uploaded" list. Small CSV icon,
-            filename, counts, date, and a hover-revealed Undo. */}
-        {batches.length > 0 && (
-          <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-imports">
-            {batches.map((batch, i) => (
-              <div key={batch.id}>
-                {i > 0 && (
-                  <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-                )}
-                <div
-                  data-testid={`import-batch-${batch.id}`}
-                  className="group px-4 py-3 flex items-center gap-3 hover-elevate active-elevate-2"
-                >
-                  <FileSpreadsheet size={18} strokeWidth={1.8} className="text-foreground/50 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13.5px] font-medium text-foreground truncate">
-                      {batch.filename}
-                    </div>
-                    <div className="text-[12px] text-foreground/50 truncate">
-                      {fmtNum(batch.net)} leads, {fmtNum(batch.qualified)} qualified,{' '}
-                      {fmtNum(batch.duplicates)} duplicates
-                    </div>
-                  </div>
-                  <span className="text-[11.5px] text-foreground/40 shrink-0">
-                    {batchDate(batch.importedAt)}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Undo import"
-                    data-testid={`import-batch-undo-${batch.id}`}
-                    onClick={() => undoBatch(batch)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted hover-elevate active-elevate-2"
-                  >
-                    <Trash2 size={13} strokeWidth={1.8} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
       </div>
     </section>
   );
