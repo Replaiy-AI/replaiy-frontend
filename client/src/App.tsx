@@ -356,6 +356,12 @@ function LayoutShell() {
                 /leads suffix is the more specific path. Both render through the
                 CampaignDetail dispatcher, which detects the /leads sub-route. */}
             <Route path="/campaigns/:id/leads" component={CampaignDetail} />
+            {/* v-import-route — dropping a CSV opens a real column-mapping
+                screen at its own full-screen route (CampaignImportView),
+                dispatched from CampaignDetail. Must come BEFORE /campaigns/:id
+                since wouter matches in order and the /import suffix is more
+                specific. */}
+            <Route path="/campaigns/:id/import" component={CampaignDetail} />
             <Route path="/campaigns/:id" component={CampaignDetail} />
             <Route path="/campaigns" component={CampaignDetail} />
             {/* v-replaiy — Calendar tab retained as a "Coming soon" placeholder.

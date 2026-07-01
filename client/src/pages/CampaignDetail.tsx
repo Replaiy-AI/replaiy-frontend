@@ -91,6 +91,21 @@ import { conversionPct, replyRatePct } from '@/components/CampaignsList';
 import { SectionLabel } from '@/components/LeadContextPanel';
 import { ReplaiyLogo } from '@/components/Logo';
 import FileDropzone from '@/components/FileDropzone';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  setImportDraft,
+  getImportDraft,
+  clearImportDraft,
+  setImportResult,
+  getImportResult,
+  clearImportResult,
+} from '@/state/importDraft';
 import { APPLE_SPRING } from '@/lib/motion';
 
 // ── Overview derived helpers ────────────────────────────────────────
@@ -662,46 +677,68 @@ function AudiencePoolCard({
 
 
 // ── B) Sources - toggle rows in ONE card, warmest first ─────────────
-function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
-  // Representational: local toggle state, no backend write this round.
-  const [sources, setSources] = useState(audience.sources);
-  // Manual-import: a real (mock) import surface with a drag-and-drop CSV zone
-  // that is also a clickable file picker, and a calm "N leads imported"
-  // confirmation. No backend.
-  const [importFile, setImportFile] = useState<{ name: string; rows: number } | null>(null);
-  const [importedCount, setImportedCount] = useState<number | null>(null);
+function AudienceSourcesCard({ audience, campaignId }: { audience: CampaignAudience; campaignId: string }) {
+  const [, navigate] = useLocation();
+  // Manual-import confirmation. The actual import now happens on the dedicated
+  // mapping screen (CampaignImportView); when it completes it writes the result
+  // into the importDraft module store. We read that here on render so the
+  // "{N} leads imported" confirmation shows after returning. No backend.
+  const result = getImportResult();
+  const importedCount = result && result.campaignId === campaignId ? result.count : null;
+  // Representational: local toggle state, no backend write this round. When we
+  // return straight after an import, the Manual-import source is shown ON (you
+  // just imported through it) so the confirmation is visible without a manual
+  // re-toggle.
+  const [sources, setSources] = useState(() =>
+    importedCount !== null
+      ? audience.sources.map((s) => (s.kind === 'import' ? { ...s, enabled: true } : s))
+      : audience.sources,
+  );
   const reduceMotion = useReducedMotion();
+  // Force a re-render after clearing the module-store result on "Import more".
+  const [, bump] = useState(0);
 
-  // Accept a selected/dropped CSV: keep the filename and mock a believable row
-  // count. We cheaply read the file text and count non-empty lines when we can
-  // (minus a header row); otherwise a stable mock derived from the file size.
+  // Accept a selected/dropped CSV: parse it client-side (real headers + first
+  // ~5 data rows), stash the parsed draft in the module store, and navigate to
+  // the column-mapping screen. Pragmatic CSV split: first non-empty line is the
+  // header row, comma-separated; no CSV library. The mapping screen owns the
+  // Import action now, so we no longer show an inline preview here.
   const acceptFile = (file: File | null | undefined) => {
     if (!file) return;
+    const go = (headers: string[], rows: string[][], total: number) => {
+      setImportDraft({ campaignId, filename: file.name, headers, rows, total });
+      navigate('/campaigns/' + campaignId + '/import');
+    };
     const fallback = Math.max(12, Math.min(5000, Math.round(file.size / 64) || 128));
+    const split = (line: string) => line.split(',').map((c) => c.trim());
     const reader = new FileReader();
     reader.onload = () => {
       const text = typeof reader.result === 'string' ? reader.result : '';
-      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-      const rows = lines.length > 1 ? lines.length - 1 : fallback;
-      setImportFile({ name: file.name, rows });
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length === 0) {
+        go(['Column 1'], [], fallback);
+        return;
+      }
+      const headers = split(lines[0]);
+      const dataLines = lines.slice(1);
+      const rows = dataLines.slice(0, 5).map(split);
+      const total = dataLines.length > 0 ? dataLines.length : fallback;
+      go(headers, rows, total);
     };
-    reader.onerror = () => setImportFile({ name: file.name, rows: fallback });
+    reader.onerror = () => go(['Column 1'], [], fallback);
     try {
       reader.readAsText(file);
     } catch {
-      setImportFile({ name: file.name, rows: fallback });
+      go(['Column 1'], [], fallback);
     }
   };
 
-  // How many leads this import will add: the CSV row count only.
-  const pendingCount = importFile?.rows ?? 0;
-
-  // Commit the import. We use the CSV row count, falling back to a fixed mock
-  // so the confirmation always reads sensibly.
-  const commitImport = () => {
-    const total = pendingCount > 0 ? pendingCount : 128;
-    setImportedCount(total);
-    setImportFile(null);
+  // "Import more" clears the stored result (and any leftover draft) and resets
+  // the confirmation back to the dropzone.
+  const importMore = () => {
+    clearImportResult();
+    clearImportDraft();
+    bump((n) => n + 1);
   };
   // Warmest first, then warm, then cold; import (cold) naturally lands last.
   const ordered = useMemo(
@@ -761,19 +798,18 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                   ariaLabel={`${src.enabled ? 'Disable' : 'Enable'} ${meta.label}`}
                 />
               </div>
-              {/* Manual import, when on, shows a REAL (mock) import surface in
-                  the row's expanded space: a drag-and-drop CSV zone that is
-                  also a clickable file picker, and a clear Import action. After
-                  commit it becomes the calm "N leads imported" confirmation
-                  with "Import more". */}
+              {/* Manual import, when on, shows the SHARED FileDropzone.
+                  Dropping a CSV parses it, stashes the draft, and navigates to
+                  the column-mapping screen (which owns the Import action). After
+                  a successful import it becomes the calm "N leads imported"
+                  confirmation with "Import more". */}
               {src.kind === 'import' && src.enabled && (
                 <div className="px-4 pb-3.5 -mt-1 pl-[76px]">
                   {importedCount === null ? (
                     <div className="flex flex-col gap-2.5">
                       {/* Drop surface is the SHARED FileDropzone, identical to
-                          the knowledge upload. When a CSV is selected we show a
-                          calm confirmation below it (filename, N rows detected,
-                          and a clear affordance). */}
+                          the knowledge upload. Dropping a CSV opens the
+                          column-mapping screen (no silent auto-import). */}
                       <FileDropzone
                         testId="source-import-dropzone"
                         accept=".csv,text/csv"
@@ -781,55 +817,6 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                         primaryLabel="Drop a CSV here, or click to choose"
                         secondaryLabel="One lead per row"
                       />
-                      {importFile && (
-                        <div
-                          data-testid="source-import-file-selected"
-                          className="flex items-center gap-2.5 rounded-2xl bg-foreground/[0.02] dark:bg-white/[0.02] px-3.5 py-2.5"
-                        >
-                          <FileText size={16} strokeWidth={1.9} className="text-icon-muted shrink-0" />
-                          <div className="min-w-0 flex-1 truncate text-[12.5px] text-foreground/75">
-                            {importFile.name},{' '}
-                            <span className="tabular-nums font-medium text-foreground/70">
-                              {fmtNum(importFile.rows)}
-                            </span>{' '}
-                            rows detected
-                          </div>
-                          <button
-                            type="button"
-                            data-testid="source-import-file-clear"
-                            aria-label="Remove file"
-                            onClick={() => setImportFile(null)}
-                            className="shrink-0 inline-flex items-center gap-1 text-[11.5px] text-foreground/40 hover:text-foreground/60 transition-colors"
-                          >
-                            <X size={12} strokeWidth={2.4} />
-                            Remove
-                          </button>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-[11.5px] text-foreground/45">
-                          {pendingCount > 0 ? (
-                            <>
-                              <span className="font-semibold text-foreground/65 tabular-nums">
-                                {fmtNum(pendingCount)}
-                              </span>{' '}
-                              leads ready to import
-                            </>
-                          ) : (
-                            'Add a CSV to begin'
-                          )}
-                        </span>
-                        <button
-                          type="button"
-                          data-testid="source-import-commit"
-                          onClick={commitImport}
-                          disabled={pendingCount === 0}
-                          className="shrink-0 inline-flex items-center h-[30px] px-3.5 rounded-full text-[12.5px] font-semibold hover-elevate active-elevate-2 disabled:opacity-40 disabled:pointer-events-none"
-                          style={{ color: AI_ACCENT }}
-                        >
-                          Import
-                        </button>
-                      </div>
                     </div>
                   ) : (
                     <div className="rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.05] px-3.5 py-3">
@@ -856,7 +843,7 @@ function AudienceSourcesCard({ audience }: { audience: CampaignAudience }) {
                         <button
                           type="button"
                           data-testid="source-import-more"
-                          onClick={() => setImportedCount(null)}
+                          onClick={importMore}
                           className="shrink-0 text-[12px] font-medium text-foreground/50 hover:text-foreground/75 transition-colors"
                         >
                           Import more
@@ -1489,6 +1476,347 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
   );
 }
 
+// -- CSV import: column-mapping screen, full-screen route -----------
+// Reached at /campaigns/:id/import and dispatched from CampaignDetail. Mirrors
+// CampaignLeadsView's shell EXACTLY: a centered CAMPAIGN_COLUMN_MAX (720)
+// column, a desktop floating top bar at top-3 with a back button on the same
+// h-[52px] baseline, a desktop frosting veil, and the mobile back button
+// registered via useMobileTopChromeSlot. This is the Apollo/HeyReach-style
+// step where the user matches their file's columns to Replaiy fields before a
+// (mock) import. It reads the parsed CSV from the importDraft module store.
+
+// The compact core Replaiy field set for LinkedIn outbound (matches the lead
+// shape). LinkedIn URL is marked as the most important / recommended field.
+type ReplaiyFieldKey =
+  | 'linkedin'
+  | 'firstName'
+  | 'lastName'
+  | 'email'
+  | 'phone'
+  | 'company'
+  | 'jobTitle';
+
+const REPLAIY_FIELDS: {
+  key: ReplaiyFieldKey;
+  label: string;
+  recommended?: boolean;
+  // Lowercased needles: a header maps here if it contains any of these.
+  match: string[];
+}[] = [
+  {
+    key: 'linkedin',
+    label: 'LinkedIn URL',
+    recommended: true,
+    match: ['linkedin', 'profile url', 'profile', 'li url'],
+  },
+  { key: 'firstName', label: 'First name', match: ['first', 'firstname', 'voornaam', 'given'] },
+  {
+    key: 'lastName',
+    label: 'Last name',
+    match: ['last', 'lastname', 'achternaam', 'surname', 'family'],
+  },
+  { key: 'email', label: 'Email', match: ['email', 'e-mail', 'mail'] },
+  { key: 'phone', label: 'Phone', match: ['phone', 'tel', 'mobile', 'telefoon', 'number'] },
+  { key: 'company', label: 'Company', match: ['company', 'organization', 'org', 'bedrijf', 'account'] },
+  { key: 'jobTitle', label: 'Job title', match: ['title', 'job', 'role', 'position', 'functie'] },
+];
+
+// Sentinel value for the "Don't import" option (Radix Select values must be
+// non-empty strings, so we can't use '').
+const DONT_IMPORT = '__none__';
+
+// Auto-map: for each Replaiy field, pick the first CSV header (by column index)
+// whose lowercased/trimmed name contains any of the field's needles. Each
+// header maps to at most one field (first field to claim it wins), so two
+// fields never share a column. Unmatched fields default to "Don't import".
+function autoMap(headers: string[]): Record<ReplaiyFieldKey, string> {
+  const norm = headers.map((h) => h.trim().toLowerCase());
+  const taken = new Set<number>();
+  const out = {} as Record<ReplaiyFieldKey, string>;
+  for (const field of REPLAIY_FIELDS) {
+    let picked = DONT_IMPORT;
+    for (let i = 0; i < norm.length; i++) {
+      if (taken.has(i)) continue;
+      if (field.match.some((needle) => norm[i].includes(needle))) {
+        picked = String(i);
+        taken.add(i);
+        break;
+      }
+    }
+    out[field.key] = picked;
+  }
+  return out;
+}
+
+function CampaignImportView({ campaign }: { campaign: Campaign }) {
+  const [, navigate] = useLocation();
+  const back = () => navigate('/campaigns/' + campaign.id);
+
+  // Read the parsed CSV once from the module store. If the user hit the URL
+  // directly (or opened a different campaign's import), the draft is empty or
+  // mismatched and we show a calm empty state.
+  const draft = getImportDraft();
+  const valid = !!draft && draft.campaignId === campaign.id;
+
+  const headers = valid ? draft!.headers : [];
+  const rows = valid ? draft!.rows : [];
+  const total = valid ? draft!.total : 0;
+  const filename = valid ? draft!.filename : '';
+
+  // The current field -> CSV-column mapping. Auto-mapped on load; the user can
+  // override each row via the shadcn Select.
+  const [mapping, setMapping] = useState<Record<ReplaiyFieldKey, string>>(() =>
+    valid ? autoMap(headers) : ({} as Record<ReplaiyFieldKey, string>),
+  );
+
+  // Mobile chrome - back arrow (left), same pattern as the leads view.
+  useMobileTopChromeSlot(
+    useMemo(
+      () => ({
+        priority: 100,
+        leftSlot: (
+          <ActionPill testId="button-back-import" label="Back" onClick={back}>
+            <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
+          </ActionPill>
+        ),
+      }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [campaign.id],
+    ),
+  );
+
+  // First non-empty sample value for a given CSV column index, for the inline
+  // "e.g. {value}" preview so the user can spot a wrong column at a glance.
+  const exampleFor = (colStr: string): string | null => {
+    if (colStr === DONT_IMPORT) return null;
+    const col = Number(colStr);
+    for (const row of rows) {
+      const v = (row[col] ?? '').trim();
+      if (v) return v;
+    }
+    return null;
+  };
+
+  // Which CSV columns are mapped to a Replaiy field. Everything else is kept as
+  // a custom field (we only note it here, no editor this round).
+  const mappedCols = new Set(Object.values(mapping).filter((v) => v !== DONT_IMPORT));
+  const customFieldCount = headers.length - mappedCols.size;
+
+  const onImport = () => {
+    setImportResult(campaign.id, total);
+    clearImportDraft();
+    back();
+  };
+
+  // -- Empty state (no valid draft) ----------------------------------
+  const emptyBody = (
+    <div className="mx-auto w-full" style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}>
+      <div className="rp-card rounded-3xl px-6 py-12 flex flex-col items-center text-center">
+        <div className="h-11 w-11 rounded-2xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center mb-3">
+          <Upload size={18} strokeWidth={1.9} className="text-foreground/60" />
+        </div>
+        <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-foreground">
+          Nothing to import
+        </h2>
+        <p className="text-[12.5px] text-foreground/50 leading-snug mt-1.5 max-w-xs">
+          Nothing to import. Go back and drop a CSV.
+        </p>
+        <button
+          type="button"
+          data-testid="button-back-import-empty"
+          onClick={back}
+          className="mt-5 inline-flex items-center h-[34px] px-4 rounded-full text-[12.5px] font-semibold hover-elevate active-elevate-2"
+          style={{ color: AI_ACCENT }}
+        >
+          Go back
+        </button>
+      </div>
+    </div>
+  );
+
+  // -- Mapping body (valid draft) ------------------------------------
+  const mappingBody = (
+    <div className="mx-auto w-full" style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}>
+      <div className="px-1 mb-4">
+        <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-foreground">
+          Map your columns
+        </h1>
+        <p className="text-[12.5px] text-foreground/50 leading-snug mt-1">
+          Match your file's columns to Replaiy fields. We filled in the obvious ones.
+        </p>
+        <div className="mt-2 flex items-center gap-2 text-[12px] text-foreground/55">
+          <FileText size={14} strokeWidth={1.9} className="text-icon-muted shrink-0" />
+          <span className="truncate">
+            {filename},{' '}
+            <span className="tabular-nums font-medium text-foreground/70">{fmtNum(total)}</span>{' '}
+            leads
+          </span>
+        </div>
+      </div>
+
+      {/* Trust note: CSV values are a starting point, LinkedIn is the source of
+          truth. Calm, no hard accent fill. */}
+      <div
+        data-testid="import-verify-note"
+        className="rp-card rounded-2xl px-4 py-3 mb-4 flex items-start gap-2.5"
+      >
+        <ShieldCheck
+          size={16}
+          strokeWidth={1.9}
+          className="shrink-0 mt-[1px]"
+          style={{ color: AI_ACCENT }}
+        />
+        <p className="text-[12.5px] text-foreground/65 leading-snug">
+          Replaiy verifies names, roles and companies against each LinkedIn profile, so your
+          messages stay accurate.
+        </p>
+      </div>
+
+      {/* The mapping rows: one per Replaiy field. Each has the field name (+ a
+          "recommended" hint on LinkedIn URL), a shadcn Select to pick the CSV
+          column (or "Don't import"), and an inline "e.g. {value}" preview from
+          the mapped column so a wrong column is easy to spot. Stacks cleanly
+          on mobile (field label above, select below); side by side on md+. */}
+      <div className="rp-card rounded-3xl overflow-hidden">
+        {REPLAIY_FIELDS.map((field, i) => {
+          const value = mapping[field.key] ?? DONT_IMPORT;
+          const example = exampleFor(value);
+          return (
+            <div key={field.key}>
+              {i > 0 && (
+                <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+              )}
+              <div
+                data-testid={`import-map-row-${field.key}`}
+                className="px-4 py-3.5 flex flex-col md:flex-row md:items-center gap-2 md:gap-4"
+              >
+                <div className="md:w-[200px] md:shrink-0 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13.5px] font-medium text-foreground">
+                      {field.label}
+                    </span>
+                    {field.recommended && (
+                      <span
+                        className="inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium"
+                        style={{ color: AI_ACCENT, background: 'rgba(47,107,255,0.10)' }}
+                      >
+                        recommended
+                      </span>
+                    )}
+                  </div>
+                  {/* Inline example value from the mapped column - the preview. */}
+                  <div className="text-[11.5px] text-foreground/45 leading-snug mt-0.5 truncate">
+                    {example ? `e.g. ${example}` : 'Not mapped'}
+                  </div>
+                </div>
+                <div className="md:flex-1 min-w-0">
+                  <Select
+                    value={value}
+                    onValueChange={(v) =>
+                      setMapping((prev) => ({ ...prev, [field.key]: v }))
+                    }
+                  >
+                    <SelectTrigger
+                      data-testid={`import-map-select-${field.key}`}
+                      className="h-9 rounded-xl"
+                    >
+                      <SelectValue placeholder="Don't import" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={DONT_IMPORT}>Don't import</SelectItem>
+                      {headers.map((h, ci) => (
+                        <SelectItem key={ci} value={String(ci)}>
+                          {h.trim() || `Column ${ci + 1}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Custom-fields note: unmapped CSV columns are kept, not discarded. */}
+      <p className="px-1 mt-3 text-[11.5px] text-foreground/45 leading-snug">
+        {customFieldCount > 0
+          ? `Other columns are saved as custom fields (${fmtNum(customFieldCount)}).`
+          : 'Other columns are saved as custom fields.'}
+      </p>
+
+      {/* Bottom actions: primary Import (blue) + quiet back. */}
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          data-testid="button-import-cancel"
+          onClick={back}
+          className="inline-flex items-center h-[38px] px-4 rounded-full text-[13px] font-medium text-foreground/50 hover:text-foreground/75 transition-colors"
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          data-testid="button-import-commit"
+          onClick={onImport}
+          className="inline-flex items-center h-[38px] px-5 rounded-full text-[13px] font-semibold text-white hover-elevate active-elevate-2"
+          style={{ background: AI_ACCENT }}
+        >
+          Import {fmtNum(total)} leads
+        </button>
+      </div>
+    </div>
+  );
+
+  const body = valid ? mappingBody : emptyBody;
+
+  return (
+    <div className="flex flex-col h-full min-h-0 relative">
+      {/* DESKTOP floating top bar - back button top-left, same top-3 / h-[52px]
+          baseline and centered 720 column as the leads view. */}
+      <div
+        data-testid="campaign-import-desktop-header"
+        className="hidden lg:block absolute top-3 inset-x-0 z-30 pointer-events-none px-4 lg:px-6"
+      >
+        <div
+          className="mx-auto flex items-center h-[52px]"
+          style={{ maxWidth: CAMPAIGN_COLUMN_MAX }}
+        >
+          <div className="pointer-events-auto">
+            <ActionPill testId="button-back-import" label="Back" onClick={back}>
+              <ArrowLeft size={20} strokeWidth={1.7} className="text-icon" />
+            </ActionPill>
+          </div>
+        </div>
+      </div>
+
+      {/* DESKTOP scroll container - paddingTop clears the floating top bar. */}
+      <div
+        data-testid="campaign-import-scroll"
+        className="hidden lg:flex flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar pb-10"
+        style={{ paddingTop: 86 }}
+      >
+        <div className="flex-1 px-4 lg:px-6">{body}</div>
+      </div>
+
+      {/* MOBILE scroll container - content sits under the floating chrome. */}
+      <div
+        className="flex lg:hidden flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 pb-32"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
+      >
+        {body}
+      </div>
+
+      {/* DESKTOP top frosting veil - same recipe as the leads view. */}
+      <div
+        aria-hidden
+        className="hidden lg:block absolute inset-x-0 top-0 z-20 h-[86px] mobile-chrome-veil pointer-events-none"
+      />
+    </div>
+  );
+}
+
+
 // ── The whole Audience section, in agreed order ─────────────────────
 // Threshold + view-leads live here so the pool health line, the slider, and
 // the preview all read from one source of truth (local state).
@@ -1506,7 +1834,7 @@ function AudienceSection({ campaign }: { campaign: Campaign }) {
         threshold={threshold}
         onViewLeads={() => navigate('/campaigns/' + campaign.id + '/leads')}
       />
-      <AudienceSourcesCard audience={audience} />
+      <AudienceSourcesCard audience={audience} campaignId={campaign.id} />
       <AudienceIcpCard audience={audience} />
       <AudienceThresholdCard audience={audience} value={threshold} onChange={setThreshold} />
       <AudienceSuppressCard audience={audience} />
@@ -1529,6 +1857,12 @@ export default function CampaignDetail() {
   // the tabbed detail.
   const showingLeads = /\/campaigns\/[^/]+\/leads\/?$/.test(loc);
 
+  // v-import-route — detect the /campaigns/:id/import sub-route. Dropping a CSV
+  // in the Sources dropzone parses it, stashes the draft in the importDraft
+  // module store, and navigates here; we render the full-screen mapping screen
+  // (CampaignImportView) instead of the tabbed detail, same pattern as leads.
+  const showingImport = /\/campaigns\/[^/]+\/import\/?$/.test(loc);
+
   if (id === 'new') {
     return <CampaignCreate key="new" />;
   }
@@ -1538,6 +1872,11 @@ export default function CampaignDetail() {
   if (showingLeads) {
     if (!campaign) return <CampaignMissing key="missing-leads" />;
     return <CampaignLeadsView campaign={campaign} key={`${campaign.id}-leads`} />;
+  }
+
+  if (showingImport) {
+    if (!campaign) return <CampaignMissing key="missing-import" />;
+    return <CampaignImportView campaign={campaign} key={`${campaign.id}-import`} />;
   }
 
   if (!id) {
@@ -3013,7 +3352,13 @@ function CampaignDetailView({ campaign }: { campaign: Campaign }) {
   // ── Tabs - split the (previously endless) scroll into four scannable
   //    tabs, using the SAME VadikLiquidSwitcher (text variant) the feed and
   //    lead panel use. Default Overview. Local state only. ──────────────
-  const [tab, setTab] = useState<CampaignTab>('overview');
+  // When we return here straight after a CSV import, open on Audience so the
+  // "{N} leads imported" confirmation is visible (the import lives there),
+  // instead of dumping the user back on Overview.
+  const [tab, setTab] = useState<CampaignTab>(() => {
+    const r = getImportResult();
+    return r && r.campaignId === campaign.id ? 'audience' : 'overview';
+  });
 
   // ── Inline editable name ──────────────────────────────────────────
   // Calm Persona-style: the name is ALWAYS a direct inline-editable field
