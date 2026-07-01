@@ -2010,38 +2010,50 @@ function AudienceThresholdCard({
   );
 }
 
-// ── E) Auto-suppress - four toggles in ONE card ─────────────────────
+// ── E) Auto-suppress - three toggles in ONE card ────────────────────
+// Each row maps to one or more underlying suppress flags. "Already being
+// worked" merges two flags that protect against the SAME thing (a teammate is
+// already on this lead, whether via another campaign or a live conversation),
+// so the user sees one clear switch instead of two near-duplicate ones. A row
+// is ON only when ALL its keys are on; toggling sets all of them together.
 const SUPPRESS_ROWS: {
-  key: keyof CampaignAudience['suppress'];
+  id: string;
+  keys: (keyof CampaignAudience['suppress'])[];
   label: string;
   hint: string;
 }[] = [
   {
-    key: 'inOtherCampaigns',
-    label: 'Already in another campaign',
-    hint: 'Never contact a lead a teammate is already working.',
+    id: 'beingWorked',
+    keys: ['inOtherCampaigns', 'inActiveConversation'],
+    label: 'Already being worked',
+    hint: 'Skip leads a teammate is already contacting or in another campaign.',
   },
   {
-    key: 'alreadyContacted',
+    id: 'alreadyContacted',
+    keys: ['alreadyContacted'],
     label: 'Already contacted',
     hint: 'Skip anyone your team has reached before.',
   },
   {
-    key: 'existingConnections',
+    id: 'existingConnections',
+    keys: ['existingConnections'],
     label: 'Existing connections',
     hint: 'Leave your existing connections out of cold outreach.',
-  },
-  {
-    key: 'inActiveConversation',
-    label: 'Teammate already talking',
-    hint: "Don't start a second conversation when a teammate is already talking to them.",
   },
 ];
 
 function AudienceSuppressCard({ audience }: { audience: CampaignAudience }) {
   const [suppress, setSuppress] = useState(audience.suppress);
-  const toggle = (key: keyof CampaignAudience['suppress'], on: boolean) =>
-    setSuppress((prev) => ({ ...prev, [key]: on }));
+  // A row is ON only when every underlying flag is on; toggling sets them all
+  // together, so a merged row stays a single clear switch.
+  const rowOn = (keys: (keyof CampaignAudience['suppress'])[]) =>
+    keys.every((k) => suppress[k]);
+  const toggleRow = (keys: (keyof CampaignAudience['suppress'])[], on: boolean) =>
+    setSuppress((prev) => {
+      const next = { ...prev };
+      for (const k of keys) next[k] = on;
+      return next;
+    });
 
   return (
     <section>
@@ -2050,28 +2062,31 @@ function AudienceSuppressCard({ audience }: { audience: CampaignAudience }) {
         sub="Skip people who shouldn't be contacted right now."
       />
       <div className="rp-card rounded-3xl overflow-hidden" data-testid="audience-suppress">
-        {SUPPRESS_ROWS.map((row, i) => (
-          <div key={row.key}>
-            {i > 0 && (
-              <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
-            )}
-            <div
-              data-testid={`suppress-row-${row.key}`}
-              className="px-4 py-3.5 flex items-center gap-3"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] font-medium text-foreground">{row.label}</div>
-                <div className="text-[12px] text-foreground/50 leading-snug">{row.hint}</div>
+        {SUPPRESS_ROWS.map((row, i) => {
+          const on = rowOn(row.keys);
+          return (
+            <div key={row.id}>
+              {i > 0 && (
+                <div className="ml-4 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+              )}
+              <div
+                data-testid={`suppress-row-${row.id}`}
+                className="px-4 py-3.5 flex items-center gap-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-medium text-foreground">{row.label}</div>
+                  <div className="text-[12px] text-foreground/50 leading-snug">{row.hint}</div>
+                </div>
+                <GlassToggle
+                  on={on}
+                  onChange={(v) => toggleRow(row.keys, v)}
+                  testId={`suppress-toggle-${row.id}`}
+                  ariaLabel={`${on ? 'Disable' : 'Enable'} ${row.label}`}
+                />
               </div>
-              <GlassToggle
-                on={suppress[row.key]}
-                onChange={(v) => toggle(row.key, v)}
-                testId={`suppress-toggle-${row.key}`}
-                ariaLabel={`${suppress[row.key] ? 'Disable' : 'Enable'} ${row.label}`}
-              />
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {/* Subtle notes under Sources - same quiet style as the compliance line
           (no blue Sparkles block). Enrichment sits here because it is what
