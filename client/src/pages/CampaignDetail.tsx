@@ -92,6 +92,7 @@ import { ActionPill } from '@/components/ConversationDetailToolbar';
 import { useMobileTopChromeSlot } from '@/components/MobileTopChrome';
 import { GlassToggle } from '@/components/GlassToggle';
 import FileDropzone from '@/components/FileDropzone';
+import { ListRow } from '@/components/ListRow';
 import { GlassCircleButton } from '@/components/GlassCircleButton';
 import { VadikLiquidSwitcher } from '@/components/VadikLiquidSwitcher';
 import { GlassPopover } from '@/components/GlassPopover';
@@ -1788,20 +1789,20 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
             return (
             <div key={`${lead.name}-${realIdx}`}>
               {vi > 0 && (
-                <div className="ml-[70px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                <div className="ml-[72px] h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
               )}
-              {/* Each lead is the canonical person row (mirrors EngagerRow):
-                  a tappable button with ReplaiyAvatar 44 + name + headline +
-                  trailing chevron. The AI insight beneath is marked by our
-                  small talking mascot, never a sparkle. A hover-revealed
-                  Trash sits as a SIBLING button (never nested) to remove the
-                  lead, matching the import undo affordance. */}
-              <div className="relative group">
-              <button
-                type="button"
+              {/* Each lead is the canonical person row, built on the SHARED
+                  ListRow shell (same full-bleed hover-elevate + click surface
+                  as the Inbox rows, clipped to the parent .rp-card). Inside:
+                  ReplaiyAvatar 44 + name + headline + AI insight (marked by the
+                  small talking mascot, never a sparkle), and a trailing area
+                  with a hover-revealed Trash + score + chevron. The Trash lives
+                  in the trailing flex (right-aligned, on row hover) so it
+                  matches app conventions instead of floating. */}
+              <ListRow
+                testId={`view-lead-${realIdx}`}
                 onClick={openLead}
-                data-testid={`view-lead-${realIdx}`}
-                className="w-full text-left rounded-[16px] px-3.5 py-3 flex items-start gap-3 hover-elevate active-elevate-2"
+                className="group flex items-start gap-3"
               >
                 <ReplaiyAvatar name={lead.name} src={lead.avatar} size={44} className="shrink-0" />
                 <div className="min-w-0 flex-1">
@@ -1857,7 +1858,7 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                     </motion.div>
                   )}
                 </div>
-                <div className="shrink-0 flex items-center gap-2 mt-0.5">
+                <div className="shrink-0 flex items-center gap-1.5 mt-0.5">
                   {enriching ? (
                     // Enrichment status lives on the RIGHT (where the score will
                     // land), a small spinner + "Enriching", so it reads as a
@@ -1867,14 +1868,33 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                       Enriching
                     </span>
                   ) : (
-                    <motion.span
-                      initial={reduced ? false : { opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={revealTransition}
-                      className="text-[12px] font-semibold tabular-nums text-foreground/70"
-                    >
-                      {lead.matchScore}%
-                    </motion.span>
+                    <>
+                      {/* Hover-revealed delete, in the trailing flex so it is
+                          right-aligned and matches app conventions. Nested in
+                          ListRow's div (not a button), so markup stays valid.
+                          stopPropagation keeps it from opening the lead. Only
+                          shown on settled rows. */}
+                      <button
+                        type="button"
+                        aria-label="Remove lead"
+                        data-testid={`lead-remove-${realIdx}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeLead(lead, realIdx);
+                        }}
+                        className="h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted opacity-0 group-hover:opacity-100 transition-opacity hover-elevate active-elevate-2"
+                      >
+                        <Trash2 size={13} strokeWidth={1.8} />
+                      </button>
+                      <motion.span
+                        initial={reduced ? false : { opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={revealTransition}
+                        className="text-[12px] font-semibold tabular-nums text-foreground/70"
+                      >
+                        {lead.matchScore}%
+                      </motion.span>
+                    </>
                   )}
                   {/* Trailing chevron - the "open this lead" affordance. */}
                   <ChevronRight
@@ -1884,25 +1904,7 @@ function CampaignLeadsView({ campaign }: { campaign: Campaign }) {
                     aria-hidden
                   />
                 </div>
-              </button>
-              {/* Hover-revealed delete - a SIBLING button (never nested in the
-                  row button) positioned over the trailing area. Hidden while
-                  the row is still enriching so it only acts on settled rows. */}
-              {!enriching && (
-                <button
-                  type="button"
-                  aria-label="Remove lead"
-                  data-testid={`lead-remove-${realIdx}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeLead(lead, realIdx);
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-icon-muted bg-background opacity-0 group-hover:opacity-100 transition-opacity hover-elevate active-elevate-2"
-                >
-                  <Trash2 size={13} strokeWidth={1.8} />
-                </button>
-              )}
-              </div>
+              </ListRow>
             </div>
             );
           })}
