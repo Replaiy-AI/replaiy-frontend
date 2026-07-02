@@ -4916,13 +4916,27 @@ function FlowCard({
                             data-testid={`flow-opener-ai-${i}`}
                             className="mt-2.5 flex items-start gap-2 rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.04] px-3.5 py-3"
                           >
-                            <img
-                              src={p.mascot}
-                              alt=""
-                              aria-hidden
-                              draggable={false}
-                              className="shrink-0 mt-[1px] w-[16px] h-[16px] object-contain select-none pointer-events-none"
-                            />
+                            {/* Mascot with the same soft persona-colour radial
+                                glow used by CampaignAiHero / the leads panel, so
+                                the AI voice reads consistently everywhere. */}
+                            <span className="relative shrink-0 mt-[1px] w-[16px] h-[16px] flex items-center justify-center">
+                              <span
+                                aria-hidden
+                                className="absolute inset-[-4px] rounded-full"
+                                style={{
+                                  background: `radial-gradient(circle at 50% 48%, ${p.color}, transparent 68%)`,
+                                  filter: 'blur(5px)',
+                                  opacity: 0.5,
+                                }}
+                              />
+                              <img
+                                src={p.mascot}
+                                alt=""
+                                aria-hidden
+                                draggable={false}
+                                className="relative w-[16px] h-[16px] object-contain select-none pointer-events-none"
+                              />
+                            </span>
                             <p className="text-[12.5px] text-foreground/60 leading-snug">
                               Replaiy writes this message per lead. To set your own
                               messages, switch Opening message to fixed in Sending.
