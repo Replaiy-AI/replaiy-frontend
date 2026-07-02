@@ -4076,6 +4076,7 @@ function SendingSection({
     hint,
     testId,
     first,
+    recommended = false,
     children,
   }: {
     selected: boolean;
@@ -4085,6 +4086,7 @@ function SendingSection({
     hint: string;
     testId: string;
     first: boolean;
+    recommended?: boolean;
     children?: React.ReactNode;
   }) {
     return (
@@ -4109,8 +4111,15 @@ function SendingSection({
               style={{ color: selected ? AI_ACCENT : undefined }}
             />
             <div className="min-w-0 flex-1">
-              <div className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
-                {label}
+              <div className="flex items-center gap-2">
+                <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground">
+                  {label}
+                </span>
+                {recommended && (
+                  <span className="shrink-0 inline-flex items-center h-[18px] px-1.5 rounded-full text-[10.5px] font-medium bg-foreground/[0.05] dark:bg-white/[0.06] text-foreground/50">
+                    Recommended
+                  </span>
+                )}
               </div>
               <div className="text-[12.5px] text-muted-foreground leading-snug mt-0.5">
                 {hint}
@@ -4152,6 +4161,7 @@ function SendingSection({
           label="Replaiy writes each opener"
           hint="The first message is personalized per lead from their profile and signals."
           testId="opener-option-ai"
+          recommended
         />
         <ChoiceRow
           first={false}
@@ -4209,6 +4219,7 @@ function SendingSection({
           label="Review everything"
           hint="Every AI reply waits for your approval in the inbox."
           testId="reply-option-review"
+          recommended
         />
         <ChoiceRow
           first={false}
@@ -4698,15 +4709,20 @@ function FlowCard({
             // Gate condition chip: shown only for GATED steps. "Always" steps
             // (visit, follow) show no chip, keeping the flow calm.
             const showGate = meta.gate !== 'Always';
-            // The connect opener is AI-personalized (not editable here) when
-            // Sending opener mode is "ai".
-            const aiOpener = isConnect && openerMode === 'ai';
-            // Does this step send editable text? connect only when fixed.
-            const sendsText =
-              FLOW_KINDS_WITH_TEXT.includes(step.kind) && !aiOpener;
+            // When Sending -> Opening message is "ai", Replaiy writes ALL flow
+            // messages per lead (opener + follow-ups + breakup), so those steps
+            // are not editable here - they show the "Replaiy writes this" note
+            // instead. When "fixed", the user writes the text themselves. This
+            // keeps the flow honest with the Sending setting (no fixed text
+            // shown while Replaiy claims to write it).
+            const writesText = FLOW_KINDS_WITH_TEXT.includes(step.kind);
+            const aiWritten = writesText && openerMode === 'ai';
+            // Does this step show an editable text field? Only text-sending
+            // steps, and only when NOT in AI mode.
+            const sendsText = writesText && !aiWritten;
             // A disabled (toggled-off) step is not expandable, so its editor
             // can never open while it reads as "off".
-            const expandable = (sendsText || aiOpener) && !disabled;
+            const expandable = (sendsText || aiWritten) && !disabled;
             const open = openIdx === i && !disabled;
             const editingTiming = timingEditIdx === i;
 
@@ -4801,7 +4817,19 @@ function FlowCard({
                         condition (WHEN). Commits on blur / Enter, same as the
                         old free-text input. */}
                     {editingTiming ? (
-                      <div className="shrink-0 flex items-center gap-1.5">
+                      // Close the editor only when focus leaves the WHOLE group
+                      // (number + unit), so tabbing between them or opening the
+                      // native select does not prematurely close it. A native
+                      // <select>'s own onBlur fires when its dropdown opens,
+                      // which used to close the editor before a unit could be
+                      // picked - this group-level blur fixes that.
+                      <div
+                        className="shrink-0 flex items-center gap-1.5"
+                        onBlur={(e) => {
+                          if (!e.currentTarget.contains(e.relatedTarget as Node))
+                            setTimingEditIdx(null);
+                        }}
+                      >
                         <input
                           autoFocus
                           type="number"
@@ -4811,7 +4839,6 @@ function FlowCard({
                           onChange={(e) =>
                             setDelayValue(i, parseInt(e.target.value, 10))
                           }
-                          onBlur={() => setTimingEditIdx(null)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === 'Escape')
                               setTimingEditIdx(null);
@@ -4824,8 +4851,7 @@ function FlowCard({
                           onChange={(e) =>
                             setDelayUnit(i, e.target.value as FlowDelayUnit)
                           }
-                          onBlur={() => setTimingEditIdx(null)}
-                          className="shrink-0 h-[24px] bg-foreground/[0.04] dark:bg-white/[0.04] rounded-full px-2 outline-none text-[11.5px] font-medium text-foreground"
+                          className="shrink-0 h-[24px] bg-foreground/[0.04] dark:bg-white/[0.04] rounded-full px-2 outline-none text-[11.5px] font-medium text-foreground cursor-pointer"
                         >
                           <option value="minute">Minutes</option>
                           <option value="hour">Hours</option>
@@ -4885,7 +4911,7 @@ function FlowCard({
                         transition={{ duration: 0.2, ease: 'easeOut' }}
                         className="overflow-hidden"
                       >
-                        {aiOpener ? (
+                        {aiWritten ? (
                           <div
                             data-testid={`flow-opener-ai-${i}`}
                             className="mt-2.5 flex items-start gap-2 rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.04] px-3.5 py-3"
@@ -4898,8 +4924,8 @@ function FlowCard({
                               className="shrink-0 mt-[1px] w-[16px] h-[16px] object-contain select-none pointer-events-none"
                             />
                             <p className="text-[12.5px] text-foreground/60 leading-snug">
-                              Replaiy personalizes this opener per lead. To write a
-                              single fixed opener, switch Opening message in Sending.
+                              Replaiy writes this message per lead. To set your own
+                              messages, switch Opening message to fixed in Sending.
                             </p>
                           </div>
                         ) : (
