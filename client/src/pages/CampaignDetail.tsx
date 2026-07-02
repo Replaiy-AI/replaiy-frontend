@@ -91,8 +91,10 @@ import {
   type Campaign,
   type CampaignAudience,
   type CampaignGoalType,
+  formatDelay,
   type FlowStep,
   type FlowStepKind,
+  type FlowDelayUnit,
   type LeadSourceKind,
   type LeadWarmth,
   type IcpCriteria,
@@ -4633,13 +4635,31 @@ function FlowCard({
   const [steps, setSteps] = useState<FlowStep[]>(
     () => (campaign.flow ?? DEFAULT_FLOW).map((s) => ({ ...s })),
   );
+  // Live persona drives the small talking-mascot avatar that marks any AI voice
+  // in this card (the per-lead opener note). We never mark AI with a sparkle or
+  // a magic wand - the mascot IS our AI voice, consistent with the inbox,
+  // leads view and Overview.
+  const { persona: livePersona } = useReplaiy();
+  const p = activePersona(livePersona); // { color, mascot }
   // Which step is expanded for editing (single open at a time), and which
   // step's timing is in inline-edit mode.
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [timingEditIdx, setTimingEditIdx] = useState<number | null>(null);
 
-  const setTiming = (i: number, value: string) =>
-    setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, timingLabel: value } : s)));
+  // Structured delay edits: value (guard NaN -> 0) and unit, on the same local
+  // optimistic state the old free-text setTiming wrote to.
+  const setDelayValue = (i: number, n: number) =>
+    setSteps((prev) =>
+      prev.map((s, j) =>
+        j === i
+          ? { ...s, delay: { ...s.delay, value: Number.isNaN(n) ? 0 : n } }
+          : s,
+      ),
+    );
+  const setDelayUnit = (i: number, u: FlowDelayUnit) =>
+    setSteps((prev) =>
+      prev.map((s, j) => (j === i ? { ...s, delay: { ...s.delay, unit: u } } : s)),
+    );
   const setText = (i: number, value: string) =>
     setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, text: value } : s)));
   // Toggle an OPTIONAL step on/off. If a step is switched off while its editor
@@ -4660,11 +4680,6 @@ function FlowCard({
       <AudienceHeader
         label="Flow"
         sub="The steps Replaiy runs for each lead. Tap a step to edit its timing and message."
-        trailing={
-          <span className="glass-pill pill inline-flex items-center h-[22px] px-2.5 text-[11px] font-medium text-foreground/55 whitespace-nowrap">
-            {steps.length} steps
-          </span>
-        }
       />
       <div className="rp-card rounded-3xl px-4 py-1.5 lg:px-5">
         <div className="flex flex-col">
@@ -4672,7 +4687,7 @@ function FlowCard({
             const meta = FLOW_STEP_META[step.kind];
             const Icon = FLOW_ICONS[step.kind];
             const last = i === steps.length - 1;
-            const timing = step.timingLabel ?? step.delay ?? '';
+            const timingText = formatDelay(step.delay);
             const isConnect = step.kind === 'connect';
             // Optional steps carry a GlassToggle; core steps (connect, message)
             // do not. `enabled` defaults to true when the flag is present.
@@ -4780,20 +4795,44 @@ function FlowCard({
                     {/* Right cluster: editable timing pill, then a GlassToggle
                         for OPTIONAL steps only (core steps have none). */}
                     <div className="shrink-0 flex items-center gap-2">
-                    {/* Editable timing - tap the pill to edit it inline. */}
+                    {/* Editable delay - tap the pill to open a structured
+                        number + unit editor. The delay is HOW LONG to wait
+                        before this step; the separate gate chip is the
+                        condition (WHEN). Commits on blur / Enter, same as the
+                        old free-text input. */}
                     {editingTiming ? (
-                      <input
-                        autoFocus
-                        data-testid={`flow-timing-input-${i}`}
-                        value={timing}
-                        onChange={(e) => setTiming(i, e.target.value)}
-                        onBlur={() => setTimingEditIdx(null)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === 'Escape') setTimingEditIdx(null);
-                        }}
-                        placeholder="e.g. Day 2"
-                        className="shrink-0 w-[96px] h-[24px] text-center bg-foreground/[0.04] dark:bg-white/[0.04] rounded-full px-2 outline-none text-[11.5px] font-medium text-foreground placeholder:text-foreground/40"
-                      />
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        <input
+                          autoFocus
+                          type="number"
+                          min="0"
+                          data-testid={`flow-delay-value-${i}`}
+                          value={step.delay.value}
+                          onChange={(e) =>
+                            setDelayValue(i, parseInt(e.target.value, 10))
+                          }
+                          onBlur={() => setTimingEditIdx(null)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === 'Escape')
+                              setTimingEditIdx(null);
+                          }}
+                          className="shrink-0 w-[56px] h-[24px] text-center bg-foreground/[0.04] dark:bg-white/[0.04] rounded-full px-2 outline-none text-[11.5px] font-medium tabular-nums text-foreground"
+                        />
+                        <select
+                          data-testid={`flow-delay-unit-${i}`}
+                          value={step.delay.unit}
+                          onChange={(e) =>
+                            setDelayUnit(i, e.target.value as FlowDelayUnit)
+                          }
+                          onBlur={() => setTimingEditIdx(null)}
+                          className="shrink-0 h-[24px] bg-foreground/[0.04] dark:bg-white/[0.04] rounded-full px-2 outline-none text-[11.5px] font-medium text-foreground"
+                        >
+                          <option value="minute">Minutes</option>
+                          <option value="hour">Hours</option>
+                          <option value="day">Days</option>
+                          <option value="week">Weeks</option>
+                        </select>
+                      </div>
                     ) : (
                       <button
                         type="button"
@@ -4801,7 +4840,7 @@ function FlowCard({
                         onClick={() => setTimingEditIdx(i)}
                         className="shrink-0 glass-pill pill inline-flex items-center gap-1 h-[22px] px-2 text-[11px] font-medium tabular-nums text-foreground/70 whitespace-nowrap hover-elevate active-elevate-2"
                       >
-                        {timing || 'Set timing'}
+                        {timingText}
                         <Pencil size={10} strokeWidth={2} className="text-foreground/35" />
                       </button>
                     )}
@@ -4851,11 +4890,12 @@ function FlowCard({
                             data-testid={`flow-opener-ai-${i}`}
                             className="mt-2.5 flex items-start gap-2 rounded-2xl bg-foreground/[0.04] dark:bg-white/[0.04] px-3.5 py-3"
                           >
-                            <Wand2
-                              size={14}
-                              strokeWidth={1.9}
-                              style={{ color: AI_ACCENT }}
-                              className="shrink-0 mt-[1px]"
+                            <img
+                              src={p.mascot}
+                              alt=""
+                              aria-hidden
+                              draggable={false}
+                              className="shrink-0 mt-[1px] w-[16px] h-[16px] object-contain select-none pointer-events-none"
                             />
                             <p className="text-[12.5px] text-foreground/60 leading-snug">
                               Replaiy personalizes this opener per lead. To write a

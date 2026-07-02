@@ -277,15 +277,32 @@ export type FlowStepKind =
   | 'inmail'
   | 'comment';
 
+// Structured, backend-schedulable delay. Replaces the old free-text timing.
+export type FlowDelayUnit = 'minute' | 'hour' | 'day' | 'week';
+export interface FlowDelay {
+  value: number;
+  unit: FlowDelayUnit;
+}
+
+// Render a structured delay as human text for display. `{value:0}` shows
+// "Right away"; otherwise "{value} {unit(+s)}" (e.g. "5 minutes", "1 day").
+export function formatDelay(d: FlowDelay): string {
+  if (d.value === 0) return 'Right away';
+  const unit =
+    d.value === 1
+      ? { minute: 'minute', hour: 'hour', day: 'day', week: 'week' }[d.unit]
+      : { minute: 'minutes', hour: 'hours', day: 'days', week: 'weeks' }[d.unit];
+  return `${d.value} ${unit}`;
+}
+
 export interface FlowStep {
   kind: FlowStepKind;
-  // Human delay before this step, e.g. "1d", "2d", "same day".
-  delay?: string;
-  // Editable timing label shown + edited in the Flow (e.g. "Day 1", "Day 2",
-  // "After accept", "+3 days"). Falls back to `delay` when omitted. This is the
-  // field the Flow editor writes to (local/optimistic this round). Kept
-  // separate from `delay` so the legacy field stays stable for older code.
-  timingLabel?: string;
+  // Delay to wait BEFORE running this step, measured from the previous step
+  // completing (or, for gated steps, from the gate condition being met - e.g.
+  // message runs `delay` after the invite is accepted). This is a real
+  // value+unit so the backend can schedule it; it is NOT the condition itself
+  // (the condition is FLOW_STEP_META[kind].gate).
+  delay: FlowDelay;
   // Editable message copy for steps that SEND text (connect opener, message,
   // follow_up, breakup, inmail). The opener (connect) only uses this when
   // Sending -> Opening message is "fixed"; in "ai" mode Replaiy personalizes it
@@ -376,61 +393,50 @@ export const FLOW_STEP_META: Record<
 };
 
 // A sensible default flow used by campaigns that don't define their own.
-// Seeds editable `timingLabel` + `text` so the Flow editor has a place to
-// live. The connect opener text is only used when Sending opener mode is
-// "fixed"; otherwise Replaiy personalizes it per lead.
+// Seeds a structured `delay` (value + unit) + `text` so the Flow editor has a
+// place to live. The connect opener text is only used when Sending opener mode
+// is "fixed"; otherwise Replaiy personalizes it per lead.
 //
-// The new safe default sequence, matching what Unipile v2 can actually do:
-// warmup (visit, like) -> connect -> message on accept -> two fallbacks
-// (follow_up, breakup) -> housekeeping (withdraw) -> premium fallback (inmail).
-// Optional steps carry `enabled`; warmup + first two fallbacks ship on,
-// withdraw + inmail ship off. Core steps (connect, message) are not optional.
-// `follow` is intentionally NOT seeded (niche, and has a before-invite-only
-// rule) but stays in the type + meta so it can be referenced later.
+// The default sequence, matching what Unipile v2 can actually do: like and
+// visit warm up the lead within minutes on day one, connect follows shortly
+// after, the first message lands a day after the invite is accepted, then two
+// fallbacks (follow_up, breakup) space out over days, and withdraw cleans up
+// stale invites two weeks later. Optional steps carry `enabled`; warmup + the
+// two fallbacks ship on, withdraw ships off. Core steps (connect, message) are
+// not optional. `follow` and `inmail` are intentionally NOT seeded (follow has
+// a before-invite-only rule; inmail needs a premium account), but both stay in
+// the type + meta so they can be referenced later. InMail was removed from the
+// default flow this round.
 export const DEFAULT_FLOW: FlowStep[] = [
-  { kind: 'visit', delay: 'Day 0', timingLabel: 'Day 0', optional: true, enabled: true },
-  { kind: 'like', delay: 'Day 1', timingLabel: 'Day 1', optional: true, enabled: true },
+  { kind: 'like', delay: { value: 0, unit: 'minute' }, optional: true, enabled: true },
+  { kind: 'visit', delay: { value: 2, unit: 'minute' }, optional: true, enabled: true },
   {
     kind: 'connect',
-    delay: 'Day 2',
-    timingLabel: 'Day 2',
+    delay: { value: 5, unit: 'minute' },
     text: 'Hi {{firstName}}, really enjoyed your recent post on {{topic}}. Would love to connect.',
   },
   {
     kind: 'message',
-    delay: 'After accept',
-    timingLabel: 'After accept',
+    delay: { value: 1, unit: 'day' },
     text: "Thanks for connecting, {{firstName}}. I help teams at companies like {{company}} reply faster on LinkedIn without losing the personal touch. Open to a quick look?",
   },
   {
     kind: 'follow_up',
-    delay: '+3 days',
-    timingLabel: '+3 days',
+    delay: { value: 3, unit: 'day' },
     text: 'Just floating this back up, {{firstName}}. Happy to share a short example tailored to {{company}} whenever the timing works.',
     optional: true,
     enabled: true,
   },
   {
     kind: 'breakup',
-    delay: '+5 days',
-    timingLabel: '+5 days',
+    delay: { value: 5, unit: 'day' },
     text: "I'll leave it here for now, {{firstName}}. If reaching more people faster ever moves up your list, the door stays open.",
     optional: true,
     enabled: true,
   },
   {
     kind: 'withdraw',
-    delay: '+14 days',
-    timingLabel: '+14 days',
-    optional: true,
-    enabled: false,
-  },
-  {
-    kind: 'inmail',
-    delay: '+2 days',
-    timingLabel: '+2 days',
-    text: 'Hi {{firstName}}, we have not connected yet, so reaching out directly. I help teams at companies like {{company}} reply faster on LinkedIn. Open to a quick look?',
-    premium: true,
+    delay: { value: 2, unit: 'week' },
     optional: true,
     enabled: false,
   },
