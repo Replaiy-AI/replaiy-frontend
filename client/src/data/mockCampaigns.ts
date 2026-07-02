@@ -261,52 +261,135 @@ export const WORKSPACE_MEMBERS: WorkspaceMember[] = [
 // Flow = the sequence of actions Replaiy runs per lead in a campaign. Read-only
 // for now (the drag-and-drop builder is a later round). Backend: campaigns.flow
 // jsonb. Step kinds map to LinkedIn actions.
+// Full Unipile v2 action set Replaiy models. The seeded DEFAULT_FLOW uses a
+// safe subset; the rest stay in the type + meta so they can be referenced
+// (e.g. `comment` is still used by LeadContextPanel, `follow` is a selectable
+// but not-seeded step with a before-invite-only rule noted in FlowCard).
 export type FlowStepKind =
-  | 'connect'
+  | 'visit'
+  | 'follow'
   | 'like'
-  | 'comment'
+  | 'connect'
   | 'message'
-  | 'follow_up';
+  | 'follow_up'
+  | 'breakup'
+  | 'withdraw'
+  | 'inmail'
+  | 'comment';
 
 export interface FlowStep {
   kind: FlowStepKind;
   // Human delay before this step, e.g. "1d", "2d", "same day".
   delay?: string;
   // Editable timing label shown + edited in the Flow (e.g. "Day 1", "Day 2",
-  // "On accept", "+3 days"). Falls back to `delay` when omitted. This is the
+  // "After accept", "+3 days"). Falls back to `delay` when omitted. This is the
   // field the Flow editor writes to (local/optimistic this round). Kept
   // separate from `delay` so the legacy field stays stable for older code.
   timingLabel?: string;
   // Editable message copy for steps that SEND text (connect opener, message,
-  // follow_up). The opener (connect) only uses this when Sending -> Opening
-  // message is "fixed"; in "ai" mode Replaiy personalizes it per lead. Steps
-  // that do not send text (like) ignore this. Optional so the data extends
-  // cleanly when full add/remove/reorder lands later.
+  // follow_up, breakup, inmail). The opener (connect) only uses this when
+  // Sending -> Opening message is "fixed"; in "ai" mode Replaiy personalizes it
+  // per lead. Steps that do not send text (visit / follow / like / withdraw)
+  // ignore this. Optional so the data extends cleanly when full
+  // add/remove/reorder lands later.
   text?: string;
+  // NEW: whether this step can be toggled off by the user (warmup + fallback
+  // steps). Core steps (connect, message) are NOT optional.
+  optional?: boolean;
+  // NEW: for optional steps, whether it is currently on. Defaults to true when
+  // present. Core steps ignore this (they are always on).
+  enabled?: boolean;
+  // NEW: step requires a Premium / Sales Navigator account (inmail). The UI
+  // marks it with a muted "Premium" chip and it ships off by default.
+  premium?: boolean;
 }
 
-// Which flow-step kinds actually SEND text the user can edit. `like` does not.
-// `connect` carries the opener (its editability is governed by the Sending ->
-// Opening message choice). `message` / `follow_up` are always editable.
-export const FLOW_KINDS_WITH_TEXT: FlowStepKind[] = ['connect', 'message', 'follow_up'];
+// Which flow-step kinds actually SEND text the user can edit. `visit`,
+// `follow`, `like` and `withdraw` do not. `connect` carries the opener (its
+// editability is governed by the Sending -> Opening message choice).
+// `message` / `follow_up` / `breakup` / `inmail` are always editable.
+export const FLOW_KINDS_WITH_TEXT: FlowStepKind[] = [
+  'connect',
+  'message',
+  'follow_up',
+  'breakup',
+  'inmail',
+];
 
+// Per-kind label + hint (each ends with a period) + `gate` condition string
+// shown as a quiet chip on the step so it's clear WHEN it runs. Gate "Always"
+// means the step is unconditional; the UI renders no chip for those.
 export const FLOW_STEP_META: Record<
   FlowStepKind,
-  { label: string; hint: string }
+  { label: string; hint: string; gate: string }
 > = {
-  connect: { label: 'Connection request', hint: 'Send a personalized invite' },
-  like: { label: 'Like a recent post', hint: 'Warm up before connecting' },
-  comment: { label: 'Comment', hint: 'Leave a relevant comment' },
-  message: { label: 'Message', hint: 'Open the conversation' },
-  follow_up: { label: 'Follow-up', hint: 'Nudge if no reply' },
+  visit: {
+    label: 'Visit profile',
+    hint: 'Warms up the lead before you reach out.',
+    gate: 'Always',
+  },
+  follow: {
+    label: 'Follow',
+    hint: 'Follow before connecting, never after.',
+    gate: 'Always',
+  },
+  like: {
+    label: 'Like a recent post',
+    hint: 'Reacts to a recent post, skipped if there is none.',
+    gate: 'If they posted recently',
+  },
+  connect: {
+    label: 'Connection request',
+    hint: 'Send the invite that starts the relationship.',
+    gate: 'If not connected yet',
+  },
+  message: {
+    label: 'First message',
+    hint: 'Open the conversation once they accept.',
+    gate: 'After invite accepted',
+  },
+  follow_up: {
+    label: 'Follow-up',
+    hint: 'A new angle, not just a reminder.',
+    gate: 'If no reply after the delay',
+  },
+  breakup: {
+    label: 'Last message',
+    hint: 'A final, low-pressure note that leaves the door open.',
+    gate: 'If still no reply',
+  },
+  withdraw: {
+    label: 'Withdraw invite',
+    hint: 'Cleans up invites that were never accepted.',
+    gate: 'If invite still pending',
+  },
+  inmail: {
+    label: 'InMail',
+    hint: 'Reach non-connections directly. Requires a premium account.',
+    gate: 'If invite not accepted',
+  },
+  comment: {
+    label: 'Comment',
+    hint: 'Leaves a relevant comment on a recent post.',
+    gate: 'If they posted recently',
+  },
 };
 
 // A sensible default flow used by campaigns that don't define their own.
 // Seeds editable `timingLabel` + `text` so the Flow editor has a place to
 // live. The connect opener text is only used when Sending opener mode is
 // "fixed"; otherwise Replaiy personalizes it per lead.
+//
+// The new safe default sequence, matching what Unipile v2 can actually do:
+// warmup (visit, like) -> connect -> message on accept -> two fallbacks
+// (follow_up, breakup) -> housekeeping (withdraw) -> premium fallback (inmail).
+// Optional steps carry `enabled`; warmup + first two fallbacks ship on,
+// withdraw + inmail ship off. Core steps (connect, message) are not optional.
+// `follow` is intentionally NOT seeded (niche, and has a before-invite-only
+// rule) but stays in the type + meta so it can be referenced later.
 export const DEFAULT_FLOW: FlowStep[] = [
-  { kind: 'like', delay: 'Day 1', timingLabel: 'Day 1' },
+  { kind: 'visit', delay: 'Day 0', timingLabel: 'Day 0', optional: true, enabled: true },
+  { kind: 'like', delay: 'Day 1', timingLabel: 'Day 1', optional: true, enabled: true },
   {
     kind: 'connect',
     delay: 'Day 2',
@@ -315,8 +398,8 @@ export const DEFAULT_FLOW: FlowStep[] = [
   },
   {
     kind: 'message',
-    delay: 'On accept',
-    timingLabel: 'On accept',
+    delay: 'After accept',
+    timingLabel: 'After accept',
     text: "Thanks for connecting, {{firstName}}. I help teams at companies like {{company}} reply faster on LinkedIn without losing the personal touch. Open to a quick look?",
   },
   {
@@ -324,6 +407,32 @@ export const DEFAULT_FLOW: FlowStep[] = [
     delay: '+3 days',
     timingLabel: '+3 days',
     text: 'Just floating this back up, {{firstName}}. Happy to share a short example tailored to {{company}} whenever the timing works.',
+    optional: true,
+    enabled: true,
+  },
+  {
+    kind: 'breakup',
+    delay: '+5 days',
+    timingLabel: '+5 days',
+    text: "I'll leave it here for now, {{firstName}}. If reaching more people faster ever moves up your list, the door stays open.",
+    optional: true,
+    enabled: true,
+  },
+  {
+    kind: 'withdraw',
+    delay: '+14 days',
+    timingLabel: '+14 days',
+    optional: true,
+    enabled: false,
+  },
+  {
+    kind: 'inmail',
+    delay: '+2 days',
+    timingLabel: '+2 days',
+    text: 'Hi {{firstName}}, we have not connected yet, so reaching out directly. I help teams at companies like {{company}} reply faster on LinkedIn. Open to a quick look?',
+    premium: true,
+    optional: true,
+    enabled: false,
   },
 ];
 

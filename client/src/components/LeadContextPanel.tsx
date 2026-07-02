@@ -44,6 +44,10 @@ import {
   MessageSquare,
   Send,
   CornerUpRight,
+  Eye,
+  Rss,
+  MessageSquareDashed,
+  Undo2,
   Clock,
   ChevronRight,
 } from 'lucide-react';
@@ -321,11 +325,16 @@ function ContextRow({
 
 // ── Lucide icon per flow-step kind (mirrors CampaignDetail's FLOW_ICONS) ──
 const FLOW_ICONS: Record<FlowStepKind, typeof Send> = {
-  connect: UserPlus,
+  visit: Eye,
+  follow: Rss,
   like: ThumbsUp,
-  comment: MessageSquare,
+  connect: UserPlus,
   message: Send,
   follow_up: CornerUpRight,
+  breakup: MessageSquareDashed,
+  withdraw: Undo2,
+  inmail: Mail,
+  comment: MessageSquare,
 };
 
 // MetaLine · the Overview Campaign/ICP rows. Now runs through the SAME shared

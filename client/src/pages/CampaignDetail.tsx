@@ -37,6 +37,11 @@ import {
   MessageSquare,
   Send,
   CornerUpRight,
+  Eye,
+  Rss,
+  MessageSquareDashed,
+  Undo2,
+  Mail,
   CalendarClock,
   BadgeCheck,
   CornerUpLeft,
@@ -415,11 +420,16 @@ const ICP_TEMPLATES: { id: string; name: string; sub: string; icp: IcpCriteria }
 
 // Lucide icon per flow-step kind.
 const FLOW_ICONS: Record<FlowStepKind, typeof Send> = {
-  connect: UserPlus,
+  visit: Eye,
+  follow: Rss,
   like: ThumbsUp,
-  comment: MessageSquare,
+  connect: UserPlus,
   message: Send,
   follow_up: CornerUpRight,
+  breakup: MessageSquareDashed,
+  withdraw: Undo2,
+  inmail: Mail,
+  comment: MessageSquare,
 };
 
 // Shared goal-picker config (used by create AND inline edit-in-detail).
@@ -4632,6 +4642,18 @@ function FlowCard({
     setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, timingLabel: value } : s)));
   const setText = (i: number, value: string) =>
     setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, text: value } : s)));
+  // Toggle an OPTIONAL step on/off. If a step is switched off while its editor
+  // is open, collapse it so a disabled row never shows an expanded editor.
+  const setEnabled = (i: number, value: boolean) => {
+    setSteps((prev) => prev.map((s, j) => (j === i ? { ...s, enabled: value } : s)));
+    if (!value) setOpenIdx((cur) => (cur === i ? null : cur));
+  };
+
+  // Editing scope this round: toggle optional steps on/off, edit timing, edit
+  // message text. Full add / remove / REORDER is a later round. Note for that
+  // round: `follow` must stay BEFORE `connect` (LinkedIn only allows following
+  // before the invite, never after), so the reorder UI has to enforce that
+  // ordering rule. `follow` is not seeded here, so nothing to enforce yet.
 
   return (
     <section>
@@ -4644,7 +4666,7 @@ function FlowCard({
           </span>
         }
       />
-      <div className="rp-card rounded-3xl px-4 py-3 lg:px-5 lg:py-3.5">
+      <div className="rp-card rounded-3xl px-4 py-1.5 lg:px-5">
         <div className="flex flex-col">
           {steps.map((step, i) => {
             const meta = FLOW_STEP_META[step.kind];
@@ -4652,36 +4674,59 @@ function FlowCard({
             const last = i === steps.length - 1;
             const timing = step.timingLabel ?? step.delay ?? '';
             const isConnect = step.kind === 'connect';
+            // Optional steps carry a GlassToggle; core steps (connect, message)
+            // do not. `enabled` defaults to true when the flag is present.
+            const isOptional = step.optional === true;
+            const enabled = !isOptional || step.enabled !== false;
+            const disabled = isOptional && !enabled;
+            const isPremium = step.premium === true;
+            // Gate condition chip: shown only for GATED steps. "Always" steps
+            // (visit, follow) show no chip, keeping the flow calm.
+            const showGate = meta.gate !== 'Always';
             // The connect opener is AI-personalized (not editable here) when
             // Sending opener mode is "ai".
             const aiOpener = isConnect && openerMode === 'ai';
             // Does this step send editable text? connect only when fixed.
             const sendsText =
               FLOW_KINDS_WITH_TEXT.includes(step.kind) && !aiOpener;
-            const expandable = sendsText || aiOpener;
-            const open = openIdx === i;
+            // A disabled (toggled-off) step is not expandable, so its editor
+            // can never open while it reads as "off".
+            const expandable = (sendsText || aiOpener) && !disabled;
+            const open = openIdx === i && !disabled;
             const editingTiming = timingEditIdx === i;
 
             return (
-              <div
-                key={`${step.kind}-${i}`}
-                data-testid={`flow-step-${step.kind}-${i}`}
-                className="flex items-start gap-3 py-2.5"
-              >
-                {/* Icon rail + connector line. */}
+              <div key={`${step.kind}-${i}`}>
+                {/* Row divider, same rhythm as the suppress + team cards. The
+                    left inset clears the icon rail so the line starts at the
+                    text column. */}
+                {i > 0 && (
+                  <div className="ml-11 h-px bg-foreground/[0.06] dark:bg-white/[0.06]" />
+                )}
+                <div
+                  data-testid={`flow-step-${step.kind}-${i}`}
+                  className="flex items-start gap-3 py-3.5"
+                >
+                {/* Icon rail + connector line (kept - unique to the flow). The
+                    connector runs on the rail so the timeline stays continuous
+                    across the row dividers. Dims with the row when disabled. */}
                 <div className="relative flex flex-col items-center shrink-0">
-                  <div className="h-8 w-8 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center">
+                  <div
+                    className={`h-8 w-8 rounded-xl bg-foreground/[0.06] dark:bg-white/[0.08] flex items-center justify-center transition-opacity ${
+                      disabled ? 'opacity-40' : ''
+                    }`}
+                  >
                     <Icon size={15} strokeWidth={1.9} className="text-foreground/65" />
                   </div>
                   {!last && (
                     <span
                       aria-hidden="true"
-                      className="absolute top-8 h-[calc(100%+4px)] w-px bg-foreground/[0.10] dark:bg-white/[0.12]"
+                      className="absolute top-8 h-[calc(100%+18px)] w-px bg-foreground/[0.10] dark:bg-white/[0.12]"
                     />
                   )}
                 </div>
 
-                <div className="min-w-0 flex-1 pt-0.5">
+                <div className={`min-w-0 flex-1 pt-0.5 transition-opacity ${disabled ? 'opacity-45' : ''}`}>
                   <div className="flex items-center justify-between gap-2">
                     {/* Label - taps to expand the editable copy (when the step
                         has anything to reveal). */}
@@ -4696,6 +4741,14 @@ function FlowCard({
                         <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate">
                           {meta.label}
                         </span>
+                        {isPremium && (
+                          <span
+                            data-testid={`flow-premium-${i}`}
+                            className="shrink-0 inline-flex items-center h-[20px] px-2 rounded-md text-[11px] font-medium bg-foreground/[0.03] dark:bg-white/[0.04] text-foreground/45 whitespace-nowrap"
+                          >
+                            Premium
+                          </span>
+                        )}
                         <motion.span
                           animate={{ rotate: open ? 90 : 0 }}
                           transition={APPLE_SPRING}
@@ -4709,11 +4762,24 @@ function FlowCard({
                         </motion.span>
                       </button>
                     ) : (
-                      <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate">
-                        {meta.label}
-                      </span>
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        <span className="text-[14px] font-semibold tracking-[-0.005em] text-foreground truncate">
+                          {meta.label}
+                        </span>
+                        {isPremium && (
+                          <span
+                            data-testid={`flow-premium-${i}`}
+                            className="shrink-0 inline-flex items-center h-[20px] px-2 rounded-md text-[11px] font-medium bg-foreground/[0.03] dark:bg-white/[0.04] text-foreground/45 whitespace-nowrap"
+                          >
+                            Premium
+                          </span>
+                        )}
+                      </div>
                     )}
 
+                    {/* Right cluster: editable timing pill, then a GlassToggle
+                        for OPTIONAL steps only (core steps have none). */}
+                    <div className="shrink-0 flex items-center gap-2">
                     {/* Editable timing - tap the pill to edit it inline. */}
                     {editingTiming ? (
                       <input
@@ -4739,11 +4805,35 @@ function FlowCard({
                         <Pencil size={10} strokeWidth={2} className="text-foreground/35" />
                       </button>
                     )}
+
+                    {/* Optional steps get a GlassToggle. Core steps (connect,
+                        message) have none - they always run. */}
+                    {isOptional && (
+                      <GlassToggle
+                        on={enabled}
+                        onChange={(v) => setEnabled(i, v)}
+                        testId={`flow-toggle-${i}`}
+                        ariaLabel={`${enabled ? 'Disable' : 'Enable'} ${meta.label}`}
+                      />
+                    )}
+                    </div>
                   </div>
 
                   <p className="mt-0.5 text-[12.5px] text-muted-foreground leading-snug">
                     {meta.hint}
                   </p>
+
+                  {/* Gate chip - the condition under which this step runs.
+                      Neutral + muted (IcpSummaryChip styling), never blue.
+                      "Always" steps show no chip so the flow stays calm. */}
+                  {showGate && (
+                    <span
+                      data-testid={`flow-gate-${i}`}
+                      className="mt-1.5 inline-flex items-center h-[20px] px-2 rounded-md text-[11px] font-medium bg-foreground/[0.03] dark:bg-white/[0.04] text-foreground/45 whitespace-nowrap"
+                    >
+                      {meta.gate}
+                    </span>
+                  )}
 
                   {/* Expanded editor: AI-personalized opener note, OR an
                       editable message textarea for text-sending steps. */}
@@ -4795,6 +4885,7 @@ function FlowCard({
                       </motion.div>
                     )}
                   </AnimatePresence>
+                </div>
                 </div>
               </div>
             );
